@@ -1,0 +1,84 @@
+import Foundation
+
+public struct ConvertedSegment: Equatable {
+    public var range: Range<Int>   // syllable indices
+    public var text: String
+}
+
+public struct Candidate: Equatable {
+    public var range: Range<Int>
+    public var text: String
+}
+
+/// Turns a syllable sequence into the most likely Chinese text (Viterbi over the lexicon).
+public struct Converter {
+    public let lexicon: Lexicon
+    /// Score used when a syllable has no lexicon entry; the Bopomofo itself is emitted.
+    static let unknownScore = -30.0
+    /// Penalty for matching an untoned syllable against all tones.
+    static let tonelessPenalty = -1.5
+
+    public init(lexicon: Lexicon) { self.lexicon = lexicon }
+
+    /// - Parameter fixed: user-chosen phrases by syllable range; they are always kept.
+    public func convert(_ syllables: [Syllable], fixed: [Range<Int>: String] = [:]) -> [ConvertedSegment] {
+        let n = syllables.count
+        guard n > 0 else { return [] }
+        let maxLen = max(1, lexicon.maxPhraseLength)
+
+        // best[j] = (score, backpointer segment) for the prefix ending at j.
+        var best: [(score: Double, seg: ConvertedSegment?)] = Array(repeating: (-.infinity, nil), count: n + 1)
+        best[0] = (0, nil)
+
+        for j in 1...n {
+            for len in 1...min(maxLen, j) {
+                let i = j - len
+                guard best[i].score > -.infinity else { continue }
+                let range = i..<j
+                for (text, score) in options(for: range, syllables: syllables, fixed: fixed) {
+                    let total = best[i].score + score
+                    if total > best[j].score { best[j] = (total, ConvertedSegment(range: range, text: text)) }
+                }
+            }
+        }
+
+        var segments: [ConvertedSegment] = []
+        var j = n
+        while j > 0, let seg = best[j].seg {
+            segments.append(seg)
+            j = seg.range.lowerBound
+        }
+        return segments.reversed()
+    }
+
+    private func options(for range: Range<Int>, syllables: [Syllable], fixed: [Range<Int>: String]) -> [(String, Double)] {
+        if let text = fixed[range] { return [(text, 0)] }
+        // A span may not partially overlap or swallow a fixed span.
+        if fixed.keys.contains(where: { $0.overlaps(range) }) { return [] }
+
+        let slice = Array(syllables[range])
+        var result = lexicon.entries(for: slice).map { entry -> (String, Double) in
+            let penalty = slice.contains { $0.tone == nil } ? Converter.tonelessPenalty : 0
+            return (entry.phrase, entry.score + penalty)
+        }
+        if result.isEmpty && range.count == 1 {
+            result = [(slice[0].reading, Converter.unknownScore)]
+        }
+        return result
+    }
+
+    /// Candidates for phrases ending at syllable index `end - 1`, longest phrases first.
+    public func candidates(_ syllables: [Syllable], endingAt end: Int) -> [Candidate] {
+        guard end > 0, end <= syllables.count else { return [] }
+        var out: [Candidate] = []
+        var seen = Set<String>()
+        for len in stride(from: min(lexicon.maxPhraseLength, end), through: 1, by: -1) {
+            let range = (end - len)..<end
+            for entry in lexicon.entries(for: Array(syllables[range])) where !seen.contains(entry.phrase) {
+                seen.insert(entry.phrase)
+                out.append(Candidate(range: range, text: entry.phrase))
+            }
+        }
+        return out
+    }
+}

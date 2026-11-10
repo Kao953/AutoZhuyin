@@ -1,0 +1,19 @@
+#!/bin/bash
+# Runs as root after the installer copies AutoZhuyin.app into /Library/Input Methods.
+APP="/Library/Input Methods/AutoZhuyin.app"
+
+# Stop a running (old) copy so macOS launches the new one on next use.
+pkill -x AutoZhuyin || true
+
+USER_NAME="$(stat -f%Su /dev/console)"
+if [ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ]; then
+    USER_ID="$(id -u "$USER_NAME")"
+    USER_HOME="$(dscl . -read "/Users/$USER_NAME" NFSHomeDirectory | awk '{print $2}')"
+
+    # A per-user copy (from scripts/install.sh) would show up as a duplicate entry.
+    rm -rf "$USER_HOME/Library/Input Methods/AutoZhuyin.app"
+
+    # Register in the user's session so it appears in System Settings without logging out.
+    launchctl asuser "$USER_ID" sudo -u "$USER_NAME" "$APP/Contents/MacOS/AutoZhuyin" --register || true
+fi
+exit 0

@@ -3,3 +3,6 @@ build/
 .swiftpm/
 *.xcodeproj/xcuserdata/
 .DS_Store
+windows/autozhuyin/data/
+__pycache__/
+*.pyc

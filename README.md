@@ -83,3 +83,15 @@ Tests/                      單元測試
 - [ ] 用 Core ML 小模型取代手調分數，參考整句語境
 - [ ] 使用者詞頻學習（選過的候選字優先）
 - [ ] 偏好設定視窗
+
+## Windows 版
+
+`windows/` 是給 Windows 用的版本，建立在開源輸入法框架 [PIME](https://github.com/EasyIME/PIME) 上。
+核心邏輯用 Python 重寫（`windows/autozhuyin/core/`），行為和測試案例都跟 Mac 版一樣；詞庫共用 `Resources/`。
+
+```bash
+scripts/package-windows.sh   # 產生 build/AutoZhuyin-Windows-<版本>.zip（會先跑測試）
+```
+
+zip 裡附有 `install.bat`、`uninstall.bat` 和給測試者看的 `README.txt`。使用者需要先安裝 PIME。
+修改核心邏輯時，Swift（`Sources/AutoZhuyinCore/`）和 Python（`windows/autozhuyin/core/`）兩邊都要改。

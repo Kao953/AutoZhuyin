@@ -90,13 +90,15 @@ final class InputController: IMKInputController {
     }
 
     private func updateComposition(_ client: IMKTextInput) {
-        let text = engine.markedText
-        let attrs: [NSAttributedString.Key: Any] = [
-            .underlineStyle: NSUnderlineStyle.single.rawValue,
-            // Literal (English) composition is shown in a different colour as a hint.
-            .foregroundColor: engine.mode == .literal ? NSColor.systemBlue : NSColor.textColor,
-        ]
-        let marked = NSAttributedString(string: text, attributes: text.isEmpty ? [:] : attrs)
+        // Each segment is underlined; literal (English) segments are blue as a hint.
+        let marked = NSMutableAttributedString()
+        for piece in engine.markedPieces {
+            marked.append(NSAttributedString(string: piece.text, attributes: [
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+                .foregroundColor: piece.mode == .literal ? NSColor.systemBlue : NSColor.textColor,
+            ]))
+        }
+        let text = marked.string
         client.setMarkedText(marked,
                              selectionRange: NSRange(location: (text as NSString).length, length: 0),
                              replacementRange: NSRange(location: NSNotFound, length: 0))

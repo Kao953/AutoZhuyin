@@ -16,22 +16,29 @@ public struct KeyResult: Equatable {
     public static let consumed = KeyResult(handled: true, commit: nil)
 }
 
+/// A piece of the composition as shown to the user.
+public struct MarkedPiece: Equatable {
+    public var text: String
+    public var mode: InputMode
+}
+
 /// The whole input-method state machine, independent of InputMethodKit.
 ///
-/// Keystrokes accumulate in a buffer. On every key the classifier decides whether the
-/// buffer is Zhuyin or literal text; the composition (marked text) shows the result
-/// live. Space / Enter / punctuation commit it. Tab flips the decision and the
-/// correction is learned.
+/// Keystrokes accumulate in a buffer. On every key the classifier splits the buffer
+/// into Zhuyin and literal segments (e.g. "ji3hello" → 我 + hello); the composition
+/// (marked text) shows the result live. Space / Enter / punctuation commit it. Tab
+/// forces the whole buffer into the other mode and the correction is learned.
 public final class CompositionEngine {
     public let classifier: Classifier
     public let converter: Converter
 
     public private(set) var keys: [Character] = []
-    /// Set by Tab: overrides the classifier for the current buffer.
+    /// Set by Tab: overrides the classifier for the whole buffer.
     public private(set) var forcedMode: InputMode?
-    /// User-picked phrases, by syllable range.
-    public private(set) var fixed: [Range<Int>: String] = [:]
+    /// User-picked phrases: Zhuyin segment start (key index) → syllable range → text.
+    private var fixed: [Int: [Range<Int>: String]] = [:]
     public private(set) var candidates: [Candidate] = []
+    private var candidateSegmentStart = 0
     public var candidateIndex = 0
     public var isShowingCandidates: Bool { !candidates.isEmpty }
 
@@ -52,33 +59,41 @@ public final class CompositionEngine {
         now().timeIntervalSince(previousCommitTime) < contextWindow ? previousMode : nil
     }
 
-    public var mode: InputMode {
-        forcedMode ?? classifier.classify(keys, previous: context).mode
+    private func segments(of keys: [Character], finishing: Bool = false) -> [Segment] {
+        guard !keys.isEmpty else { return [] }
+        if let forced = forcedMode { return [Segment(range: 0..<keys.count, mode: forced)] }
+        return classifier.segment(keys, finishing: finishing, previous: context)
     }
 
-    public var parse: ZhuyinParse { ZhuyinParser.parse(keys) }
+    /// Current split of the buffer into Zhuyin / literal runs.
+    public var segments: [Segment] { segments(of: keys) }
+
+    /// Mode of the last segment (what the user is typing right now).
+    public var mode: InputMode { segments.last?.mode ?? .zhuyin }
 
     /// What to show underlined in the app while composing.
-    public var markedText: String {
-        guard !keys.isEmpty else { return "" }
-        switch mode {
-        case .literal:
-            return String(keys)
-        case .zhuyin:
-            let p = parse
-            let done = converter.convert(p.completed.map(\.syllable), fixed: validFixed(p)).map(\.text).joined()
-            return done + (p.pending?.syllable.reading ?? "")
+    public var markedText: String { markedPieces.map(\.text).joined() }
+
+    public var markedPieces: [MarkedPiece] {
+        let segs = segments
+        return segs.enumerated().map { i, seg in
+            MarkedPiece(text: render(seg, final: i < segs.count - 1), mode: seg.mode)
         }
     }
 
-    private func validFixed(_ p: ZhuyinParse) -> [Range<Int>: String] {
-        fixed.filter { $0.key.upperBound <= p.completed.count }
-    }
-
-    private func zhuyinCommitText() -> String {
-        let p = parse
-        // An unfinished trailing syllable is converted as untoned.
-        return converter.convert(p.syllables.map(\.syllable), fixed: validFixed(p)).map(\.text).joined()
+    /// Text for one segment. A non-final Zhuyin segment shows its unfinished syllable as Bopomofo.
+    private func render(_ seg: Segment, final: Bool) -> String {
+        let segKeys = Array(keys[seg.range])
+        guard seg.mode == .zhuyin else { return String(segKeys) }
+        let p = ZhuyinParser.parse(segKeys)
+        let fixedHere = (fixed[seg.range.lowerBound] ?? [:])
+        if final {
+            let all = p.syllables.map(\.syllable)
+            return converter.convert(all, fixed: fixedHere.filter { $0.key.upperBound <= all.count }).map(\.text).joined()
+        }
+        let done = p.completed.map(\.syllable)
+        let text = converter.convert(done, fixed: fixedHere.filter { $0.key.upperBound <= done.count }).map(\.text).joined()
+        return text + (p.pending?.syllable.reading ?? "")
     }
 
     // MARK: - Key handling
@@ -92,7 +107,7 @@ public final class CompositionEngine {
         case .backspace:
             guard !keys.isEmpty else { return .passThrough }
             keys.removeLast()
-            fixed = validFixed(parse)
+            fixed = fixed.filter { $0.key < keys.count }
             if keys.isEmpty { forcedMode = nil; fixed = [:] }
             return .consumed
         case .enter:
@@ -118,15 +133,15 @@ public final class CompositionEngine {
     private func handleCharacter(_ c: Character) -> KeyResult {
         if c == " " {
             guard !keys.isEmpty else { return .passThrough }
-            let decided = forcedMode ?? classifier.classify(keys, finishing: true, previous: context).mode
-            if decided == .literal {
-                return KeyResult(handled: true, commit: commitCurrent(as: .literal) + " ")
+            let segs = segments(of: keys, finishing: true)
+            if segs.last?.mode == .literal {
+                return KeyResult(handled: true, commit: commitCurrent(segs) + " ")
             }
-            if parse.pending != nil {
+            if parse(ofLast: segs)?.pending != nil {
                 keys.append(" ")       // first tone
                 return .consumed
             }
-            return KeyResult(handled: true, commit: commitCurrent(as: .zhuyin))
+            return KeyResult(handled: true, commit: commitCurrent(segs))
         }
 
         let composable = DachenLayout.isZhuyinKey(c) || (c.isASCII && c.isLetter) || (c == "'" && !keys.isEmpty)
@@ -134,9 +149,9 @@ public final class CompositionEngine {
             // ", . / ; -" are Zhuyin symbols (ㄝ ㄡ ㄥ ㄤ ㄦ) but act as punctuation after an
             // English word. Decide with the key included: "2;" is ㄉㄤ (檔…), "hello," is English.
             if !keys.isEmpty, DachenLayout.symbols[c] != nil, !c.isLetter, !c.isNumber, forcedMode != .zhuyin {
-                let withKey = forcedMode ?? classifier.classify(keys + [c], previous: context).mode
-                if withKey == .literal && !keys.allSatisfy(\.isNumber) {
-                    return KeyResult(handled: true, commit: commitCurrent(as: .literal) + String(c))
+                let withKey = segments(of: keys + [c])
+                if withKey.last?.mode == .literal && !keys.allSatisfy(\.isNumber) {
+                    return KeyResult(handled: true, commit: commitCurrent() + String(c))
                 }
             }
             keys.append(c)
@@ -151,25 +166,34 @@ public final class CompositionEngine {
         return KeyResult(handled: true, commit: committed + punct)
     }
 
+    private func parse(ofLast segs: [Segment]) -> ZhuyinParse? {
+        guard let last = segs.last, last.mode == .zhuyin else { return nil }
+        return ZhuyinParser.parse(Array(keys[last.range]))
+    }
+
     static let fullwidth: [Character: String] = [
         "<": "，", ">": "。", "?": "？", "!": "！", ":": "：", "\"": "「", "(": "（", ")": "）",
         "{": "『", "}": "』", "[": "「", "]": "」", "~": "～", "_": "——",
     ]
 
-    // MARK: - Candidates
+    // MARK: - Candidates (for the last Zhuyin segment)
 
     private func openCandidates() {
-        let p = parse
-        guard mode == .zhuyin, !p.completed.isEmpty else { return }
-        candidates = converter.candidates(p.completed.map(\.syllable), endingAt: p.completed.count)
+        let segs = segments
+        guard let last = segs.last, last.mode == .zhuyin else { return }
+        let done = ZhuyinParser.parse(Array(keys[last.range])).completed.map(\.syllable)
+        guard !done.isEmpty else { return }
+        candidates = converter.candidates(done, endingAt: done.count)
+        candidateSegmentStart = last.range.lowerBound
         candidateIndex = 0
     }
 
     public func selectCandidate(_ index: Int) {
         guard candidates.indices.contains(index) else { return }
         let c = candidates[index]
-        fixed = fixed.filter { !$0.key.overlaps(c.range) }
-        fixed[c.range] = c.text
+        var here = (fixed[candidateSegmentStart] ?? [:]).filter { !$0.key.overlaps(c.range) }
+        here[c.range] = c.text
+        fixed[candidateSegmentStart] = here
         candidates = []
     }
 
@@ -197,13 +221,13 @@ public final class CompositionEngine {
     // MARK: - Commit
 
     @discardableResult
-    private func commitCurrent(as decided: InputMode? = nil) -> String {
-        let m = decided ?? mode
-        let text = m == .literal ? String(keys) : zhuyinCommitText()
+    private func commitCurrent(_ given: [Segment]? = nil) -> String {
+        let segs = given ?? segments
+        let text = segs.map { render($0, final: true) }.joined()
         if let forced = forcedMode {
             classifier.learned.record(String(keys), as: forced)
         }
-        previousMode = m
+        previousMode = segs.last?.mode
         previousCommitTime = now()
         reset()
         return text

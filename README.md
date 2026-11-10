@@ -10,6 +10,7 @@
 ## 功能
 
 - **中英自動判斷**：每按一個鍵就重新判斷，組字區即時顯示結果（Mac 版英文以藍字顯示）
+- **中英混打不用空白**：`ji3hello` → 我hello、`hellosu3cl3` → hello你好，同一段內會自動切分
 - **判斷錯了按 Tab**：在中／英之間翻轉，輸入法會記住這組按鍵，下次自動判斷對
 - **注音順序打錯也能修正**：`ㄧㄒㄠˇ`、`ㄒㄠㄧˇ` 都會變成 `ㄒㄧㄠˇ`（小）
 - **可省略聲調**：`jiap7`（ㄨㄛ ㄇㄣ˙）一樣能打出「我們」
@@ -48,7 +49,7 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 |---|---|
 | 空白 | 注音：一聲；音節已完成時送出中文。英文：送出單字加空白 |
 | Enter | 送出目前組字 |
-| **Tab** | 判斷錯了？按 Tab 在中／英之間翻轉，輸入法會**記住**這次修正 |
+| **Tab** | 判斷錯了？按 Tab 把整段翻轉成另一種語言，輸入法會**記住**這次修正 |
 | ↓ | 開啟候選字（選最後一個字或詞），數字鍵 1–9 選字，Esc 關閉 |
 | Esc | 取消組字 |
 | Shift + 字母 | 強制英文 |
@@ -69,6 +70,11 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 | 一開始稍微偏向注音 | 純數字 → 數字 |
 
 分數高的一方勝出。按空白時，注音那邊會把空白當成一聲來評分，英文那邊當作完整單字評分。
+
+中英混打時，`Classifier.segment` 會用動態規劃試遍所有切分點，找出總分最高的切法（例如 `ji3hello` → `ji3` 注音＋`hello` 英文）。為了避免把正常的單字或句子切碎：
+- 每多切一刀扣 3 分（`segmentPenalty`）
+- 後面還接著其他段的注音段，最後一個音節必須打了聲調
+- 接在英文後面、還沒打聲調的注音段再扣 2 分（`unconfirmedSwitchPenalty`），所以打到 `ji3hel` 時會先顯示「我hel」，不會變成「我heㄠ」
 
 音節解析照大千規則：符號依「聲母 → 介音 → 韻母」填入，聲調鍵結束音節。順序打錯時，如果合併後仍可能是合法音節，就併進同一個音節，否則才切成新音節。
 
@@ -129,10 +135,24 @@ scripts/import-mcbopomofo.sh
 
 ### 發布新版本
 
-1. 更新 `Resources/Info.plist` 和 `windows/autozhuyin/ime.json` 的版本號。
-2. 執行 `scripts/package.sh` 和 `scripts/package-windows.sh`。
-3. commit，打 tag（例如 `git tag -a v0.2.0 -m "AutoZhuyin v0.2.0"`），push commit 和 tag。
-4. 在 Gitea 用這個 tag 建立 Release，附上 `build/` 裡的 `.pkg` 和 `.zip`。
+先 commit 所有修改，再執行：
+
+```bash
+scripts/release.sh            # 修正版：0.1.0 → 0.1.1
+scripts/release.sh minor      # 新功能：0.1.1 → 0.2.0
+scripts/release.sh major      # 大改版：0.2.0 → 1.0.0
+scripts/release.sh minor --push   # 同時 push commit 和 tag
+```
+
+`release.sh` 會自動：
+1. 遞增版本號（`Resources/Info.plist` 的版本與 build 號、`windows/autozhuyin/ime.json`）
+2. 跑 Swift 和 Python 全部測試
+3. 產生 `build/AutoZhuyin-<版本>.pkg` 和 `build/AutoZhuyin-Windows-<版本>.zip`
+4. commit「Release v<版本>」並打上 `v<版本>` tag
+
+任何一步失敗都會把版本號改回去。只想改版本號不打包：`scripts/bump-version.sh [patch|minor|major]`。
+
+最後在 Gitea 用這個 tag 建立 Release，附上 `build/` 裡的 `.pkg` 和 `.zip`。
 
 ## 專案結構
 

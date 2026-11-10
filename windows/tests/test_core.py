@@ -154,5 +154,39 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(type_keys("uvl3\n", make_engine()), "小")
 
 
+class MixedSegmentTests(unittest.TestCase):
+    def run_keys(self, s):
+        e = make_engine()
+        return type_keys(s, e), e.marked_text
+
+    def test_chinese_then_english(self):
+        self.assertEqual(self.run_keys("ji3hello ")[0], "我hello ")
+        self.assertEqual(self.run_keys("su3cl3github\n")[0], "你好github")
+        self.assertEqual(self.run_keys("ji3hel")[1], "我hel")
+
+    def test_english_then_chinese(self):
+        self.assertEqual(self.run_keys("hellosu3cl3 ")[0], "hello你好")
+        self.assertEqual(self.run_keys("oksu3cl3\n")[0], "ok你好")
+
+    def test_three_segments(self):
+        self.assertEqual(self.run_keys("ji3emailsu3cl3\n")[0], "我email你好")
+
+    def test_single_language_unchanged(self):
+        self.assertEqual(self.run_keys("rup wu0 wu0 fu4cp3cl3\n")[0], "今天天氣很好")
+        self.assertEqual(self.run_keys("helloworld\n")[0], "helloworld")
+        self.assertEqual(self.run_keys("meeting ")[0], "meeting ")
+        self.assertEqual(len(self.run_keys("183\n")[0]), 1)
+
+    def test_speed(self):
+        e = make_engine()
+        start = time.time()
+        for c in "ji3emailsu3cl3rup wu0 wu0 fu4":
+            e.handle(c)
+            e.marked_text
+        per_key = (time.time() - start) / 30
+        print("\nper key: %.1f ms" % (per_key * 1000))
+        self.assertLess(per_key, 0.05)
+
+
 if __name__ == "__main__":
     unittest.main()

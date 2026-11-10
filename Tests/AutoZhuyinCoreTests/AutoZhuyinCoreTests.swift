@@ -219,3 +219,37 @@ final class DigitInitialTests: XCTestCase {
         XCTAssertEqual(run("hello, ").out, "hello, ")
     }
 }
+
+final class MixedSegmentTests: XCTestCase {
+    func run(_ s: String) -> (out: String, marked: String) {
+        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish))
+        var out = ""
+        for c in s {
+            let r = e.handle(c == "\n" ? .enter : .character(c))
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return (out, e.markedText)
+    }
+
+    func testChineseThenEnglish() {
+        XCTAssertEqual(run("ji3hello ").out, "我hello ")
+        XCTAssertEqual(run("su3cl3github\n").out, "你好github")
+        XCTAssertEqual(run("ji3hel").marked, "我hel")
+    }
+
+    func testEnglishThenChinese() {
+        XCTAssertEqual(run("hellosu3cl3 ").out, "hello你好")
+        XCTAssertEqual(run("oksu3cl3\n").out, "ok你好")
+    }
+
+    func testThreeSegments() {
+        XCTAssertEqual(run("ji3emailsu3cl3\n").out, "我email你好")
+    }
+
+    func testSingleLanguageUnchanged() {
+        XCTAssertEqual(run("rup wu0 wu0 fu4cp3cl3\n").out, "今天天氣很好")
+        XCTAssertEqual(run("helloworld\n").out, "helloworld")
+        XCTAssertEqual(run("meeting ").out, "meeting ")
+        XCTAssertEqual(run("183\n").out.count, 1)
+    }
+}

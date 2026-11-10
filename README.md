@@ -1,25 +1,46 @@
 # 自動注音 AutoZhuyin
 
-macOS 繁體中文輸入法：**不用按切換鍵**，直接用大千注音鍵盤打字，輸入法會自動判斷你打的是注音還是英文。
+給繁體中文使用者的輸入法（macOS、Windows）：**不用按切換鍵**，直接用大千注音鍵盤打字，輸入法會自動判斷你打的是注音還是英文。
 
 ```
 按鍵： ji3 hello world su3cl3␣
 輸出： 我hello world 你好
 ```
 
-## 運作方式
+## 功能
 
-每按一個鍵，`Classifier` 會同時用兩種解讀幫目前的按鍵序列打分：
+- **中英自動判斷**：每按一個鍵就重新判斷，組字區即時顯示結果（Mac 版英文以藍字顯示）
+- **判斷錯了按 Tab**：在中／英之間翻轉，輸入法會記住這組按鍵，下次自動判斷對
+- **注音順序打錯也能修正**：`ㄧㄒㄠˇ`、`ㄒㄠㄧˇ` 都會變成 `ㄒㄧㄠˇ`（小）
+- **可省略聲調**：`jiap7`（ㄨㄛ ㄇㄣ˙）一樣能打出「我們」
+- **候選字**：按 ↓ 選最後一個字或詞，選過的會固定下來
+- **全形標點**：中文語境下 `?` `!` `<` 自動變成 `？` `！` `，`
+- **完整詞庫**：約 17 萬筆，來自小麥注音 McBopomofo（MIT 授權）
 
-| 注音分數 | 英文分數 |
-|---|---|
-| 是否能拆成合法注音音節（`SyllableTable`） | 是否為常用英文字（`english-common.txt`） |
-| 每個音節有沒有聲調鍵（3 4 6 7 空白） | 是否在系統字典 `/usr/share/dict/words` |
-| 讀音是否存在於詞庫 | 字母 bigram 模型判斷「像不像英文」 |
-| 前一段是中文 → 加分（語境） | 前一段是英文 → 加分（語境） |
-| 使用者過去的修正（學習） | 有大寫字母 → 一定是英文 |
+## 下載與安裝
 
-分數高的一方勝出。組字區即時顯示結果（英文以藍字顯示）。
+到 Gitea 的 [Releases](../../releases) 頁面下載最新版本。
+
+### macOS
+
+需求：macOS 13 以上，Apple Silicon 和 Intel 都可以（universal binary）。
+
+1. 雙擊 `AutoZhuyin-<版本>.pkg` 安裝。安裝檔沒有簽章，如果被擋下來，按右鍵 →「打開」，或到「系統設定 → 隱私權與安全性」按「仍要打開」。
+2. 系統設定 → 鍵盤 → 文字輸入 → 編輯… → ＋ → 繁體中文 → **自動注音**。
+3. 清單裡沒出現的話，登出再登入一次。
+
+PKG 會裝到 `/Library/Input Methods/`，系統上所有使用者都能用。
+
+### Windows
+
+需求：Windows 10 / 11，x64、x86、ARM64 都可以。
+
+1. 先安裝輸入法框架 [PIME](https://github.com/EasyIME/PIME/releases)（免費、開源）。
+2. 解壓縮 `AutoZhuyin-Windows-<版本>.zip`，在 `install.bat` 上按右鍵 →「以系統管理員身分執行」。
+3. 設定 → 時間與語言 → 語言與地區 → 中文(台灣) → 語言選項 → 新增鍵盤 → **自動注音 AutoZhuyin**。
+4. 用 Win + 空白鍵 切換過去。清單裡沒出現的話，重新開機一次。
+
+SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安裝：以系統管理員身分執行 `uninstall.bat`。
 
 ## 按鍵
 
@@ -28,70 +49,138 @@ macOS 繁體中文輸入法：**不用按切換鍵**，直接用大千注音鍵�
 | 空白 | 注音：一聲；音節已完成時送出中文。英文：送出單字加空白 |
 | Enter | 送出目前組字 |
 | **Tab** | 判斷錯了？按 Tab 在中／英之間翻轉，輸入法會**記住**這次修正 |
-| ↓ | 開啟候選字（選最後一個字或詞），數字鍵 1–9 選字 |
+| ↓ | 開啟候選字（選最後一個字或詞），數字鍵 1–9 選字，Esc 關閉 |
 | Esc | 取消組字 |
 | Shift + 字母 | 強制英文 |
-| `< > ? ! :` | 中文語境下自動轉成全形 `，。？！：` |
+| `< > ? ! : ( ) [ ]` | 中文語境下自動轉成全形 `，。？！：（）「」` |
+| `, . / ; -` | 英文單字後是標點；在注音中是 ㄝ ㄡ ㄥ ㄤ ㄦ（例如 `2;3` = 檔） |
 
-## 建置與安裝
+## 運作方式
 
-需要 Xcode（使用 `/Applications/Xcode.app` 的工具鏈）。
+每按一個鍵，`Classifier` 會同時用兩種解讀幫目前的按鍵序列打分：
+
+| 注音分數 | 英文分數 |
+|---|---|
+| 是否能拆成合法注音音節（`SyllableTable`） | 是否為常用英文字（`english-common.txt`） |
+| 每個音節有沒有聲調鍵（3 4 6 7 空白） | 是否在英文字典裡 |
+| 讀音是否存在於詞庫 | 字母 bigram 模型判斷「像不像英文」 |
+| 前一段是中文 → 加分（語境） | 前一段是英文 → 加分（語境） |
+| 使用者過去的修正（學習） | 有大寫字母 → 一定是英文 |
+| 一開始稍微偏向注音 | 純數字 → 數字 |
+
+分數高的一方勝出。按空白時，注音那邊會把空白當成一聲來評分，英文那邊當作完整單字評分。
+
+音節解析照大千規則：符號依「聲母 → 介音 → 韻母」填入，聲調鍵結束音節。順序打錯時，如果合併後仍可能是合法音節，就併進同一個音節，否則才切成新音節。
+
+轉換用 Viterbi 演算法，在詞庫中找出整串音節機率最高的詞組組合。
+
+## 個人資料
+
+| | macOS | Windows |
+|---|---|---|
+| 學習紀錄（Tab 修正） | `UserDefaults`（`com.autozhuyin.inputmethod.AutoZhuyin`） | `%APPDATA%\PIME\autozhuyin\learned.json` |
+| 自訂詞 | `~/Library/Application Support/AutoZhuyin/user-phrases.txt` | `%APPDATA%\PIME\autozhuyin\user-phrases.txt` |
+
+自訂詞的格式和 `lexicon.txt` 一樣，每行一個詞：`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`（讀音、詞、分數；分數越大越優先）。
+Mac 版可以在輸入法選單選「清除學習紀錄」。
+
+## 開發
+
+### macOS
+
+需要 Xcode。腳本會自動使用 `/Applications/Xcode.app` 的工具鏈。
 
 ```bash
-swift test                # 執行單元測試（需 DEVELOPER_DIR 指向 Xcode）
-scripts/build.sh          # 產生 build/AutoZhuyin.app
-scripts/install.sh        # 安裝到 ~/Library/Input Methods 並重啟輸入法
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+xcrun swift test          # 單元測試
+scripts/build.sh          # 產生 build/AutoZhuyin.app（universal）
+scripts/install.sh        # 裝到 ~/Library/Input Methods、重啟並向系統註冊
+scripts/package.sh        # 產生 build/AutoZhuyin-<版本>.pkg
 ```
 
-第一次安裝後：系統設定 → 鍵盤 → 文字輸入 → 編輯… → ＋ → 繁體中文 → **自動注音**。
-如果清單裡沒出現，登出再登入一次。
+改完程式後執行 `scripts/install.sh`，再切換到其他輸入法後切回來，就會用到新版。
+版本號在 `Resources/Info.plist` 的 `CFBundleShortVersionString`。
 
-## 詞庫
+### Windows
 
-`Resources/lexicon.txt` 由開源的小麥注音原始資料轉換而來（MIT 授權，約 17 萬筆），
-後面再接上手寫的入門詞庫 `Resources/lexicon-seed.txt`。轉換只讀取資料檔，不執行小麥注音的程式碼。
-要更新到小麥注音最新資料：
+Windows 版建立在 [PIME](https://github.com/EasyIME/PIME) 上，核心邏輯用 Python 重寫（`windows/autozhuyin/core/`），行為和測試案例都跟 Mac 版一樣。不需要 Windows 也能開發和測試：
+
+```bash
+python3 windows/tools/build_data.py                 # 產生 windows/autozhuyin/data/
+(cd windows && python3 -m unittest discover tests)  # 核心測試 + 模擬 PIME 的外殼測試
+scripts/package-windows.sh                          # 產生 build/AutoZhuyin-Windows-<版本>.zip（會先跑測試）
+```
+
+- Windows 沒有內建英文字典，所以 `build_data.py` 會把 macOS 的 `/usr/share/dict/words`（韋氏字典，公有領域）轉成 `english-dict.txt` 一起打包，並預先算好 bigram 表。
+- `windows/autozhuyin/data/` 是產生出來的，不進版本控制。
+- 版本號在 `windows/autozhuyin/ime.json`。
+
+> 修改核心邏輯時，Swift（`Sources/AutoZhuyinCore/`）和 Python（`windows/autozhuyin/core/`）兩邊都要改，並在兩邊的測試加上相同案例。
+
+### 詞庫
+
+`Resources/lexicon.txt` 由小麥注音的原始資料轉換而來，後面再接上手寫的入門詞庫 `Resources/lexicon-seed.txt`。轉換程式 `scripts/convert-mcbopomofo.py` 只讀取資料檔，不執行小麥注音的程式碼：分數依語料詞頻計算，一字多音的字依讀音常見程度分配權重。
+
+更新到小麥注音最新資料：
 
 ```bash
 scripts/import-mcbopomofo.sh
-scripts/install.sh
 ```
 
-自訂詞：`~/Library/Application Support/AutoZhuyin/user-phrases.txt`，格式同 `lexicon.txt`：
-`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`
+### 發布新版本
+
+1. 更新 `Resources/Info.plist` 和 `windows/autozhuyin/ime.json` 的版本號。
+2. 執行 `scripts/package.sh` 和 `scripts/package-windows.sh`。
+3. commit，打 tag（例如 `git tag -a v0.2.0 -m "AutoZhuyin v0.2.0"`），push commit 和 tag。
+4. 在 Gitea 用這個 tag 建立 Release，附上 `build/` 裡的 `.pkg` 和 `.zip`。
 
 ## 專案結構
 
 ```
-Sources/AutoZhuyinCore/     純邏輯，可單元測試
-  Bopomofo.swift            大千鍵盤對應、音節結構
-  SyllableTable.swift       合法注音音節表
-  ZhuyinParser.swift        按鍵 → 音節
-  Lexicon.swift             詞庫
-  Converter.swift           音節 → 中文（Viterbi）
-  EnglishModel.swift        英文判斷
-  Classifier.swift          中英判斷 + 學習
-  CompositionEngine.swift   輸入法狀態機
-Sources/AutoZhuyin/         InputMethodKit 外殼
-Tests/                      單元測試
+Sources/AutoZhuyinCore/       核心邏輯（Swift，可單元測試）
+  Bopomofo.swift              大千鍵盤對應、音節結構
+  SyllableTable.swift         合法注音音節表
+  ZhuyinParser.swift          按鍵 → 音節（含順序錯誤修正）
+  Lexicon.swift               詞庫
+  Converter.swift             音節 → 中文（Viterbi）
+  EnglishModel.swift          英文判斷
+  Classifier.swift            中英判斷 + 學習
+  CompositionEngine.swift     輸入法狀態機
+Sources/AutoZhuyin/           macOS InputMethodKit 外殼
+Tests/                        Swift 單元測試
+Resources/                    Info.plist、詞庫、英文常用字
+scripts/                      建置、安裝、打包、詞庫轉換
+  pkg/postinstall             PKG 安裝後腳本
+windows/
+  autozhuyin/                 PIME 輸入法（整個資料夾會被複製到 PIME）
+    core/                     核心邏輯（Python 版）
+    autozhuyin_ime.py         PIME 外殼
+    ime.json                  PIME 輸入法設定
+  installer/                  install.bat、uninstall.bat、給使用者的 README.txt
+  tests/                      Python 測試
+  tools/                      產生資料檔、圖示
 ```
+
+## 已知限制
+
+- Windows 版還沒在實機上測試過。
+- 聲調鍵打在注音符號中間（例如 `uv3l`）無法自動修正。
+- 很短的字串（如 `up` 是英文還是 ㄧㄣ）本質上就有歧義，可能需要按 Tab 修正；修正後會記住。
+- 安裝檔沒有簽章（macOS 沒有 Developer ID，Windows 沒有程式碼簽章憑證）。
 
 ## 下一步（Roadmap）
 
-- [ ] 匯入完整詞庫，並用真實打字資料調整判斷權重
+- [x] 匯入完整詞庫
+- [x] 注音順序錯誤修正
+- [x] Windows 版
+- [ ] 用真實打字資料調整判斷權重
 - [ ] 已送出的英文單字若判斷錯誤，可以「事後翻轉」
 - [ ] 用 Core ML 小模型取代手調分數，參考整句語境
 - [ ] 使用者詞頻學習（選過的候選字優先）
 - [ ] 偏好設定視窗
 
-## Windows 版
+## 致謝與授權
 
-`windows/` 是給 Windows 用的版本，建立在開源輸入法框架 [PIME](https://github.com/EasyIME/PIME) 上。
-核心邏輯用 Python 重寫（`windows/autozhuyin/core/`），行為和測試案例都跟 Mac 版一樣；詞庫共用 `Resources/`。
-
-```bash
-scripts/package-windows.sh   # 產生 build/AutoZhuyin-Windows-<版本>.zip（會先跑測試）
-```
-
-zip 裡附有 `install.bat`、`uninstall.bat` 和給測試者看的 `README.txt`。使用者需要先安裝 PIME。
-修改核心邏輯時，Swift（`Sources/AutoZhuyinCore/`）和 Python（`windows/autozhuyin/core/`）兩邊都要改。
+- 詞庫資料：[小麥注音 McBopomofo](https://github.com/openvanilla/McBopomofo)（MIT License）
+- Windows 輸入法框架：[PIME](https://github.com/EasyIME/PIME)（LGPL 2.1，使用者自行安裝，本專案不包含其程式碼）
+- 英文字典：Webster's Second International Dictionary（公有領域，macOS 的 `/usr/share/dict/words`）

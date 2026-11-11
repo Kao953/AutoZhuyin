@@ -212,6 +212,7 @@ windows/
   tests/                      Python 測試
   tools/                      產生資料檔、圖示
 training/                     合成資料、訓練權重、Swift/Python 一致性測試資料
+THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝檔）
 ```
 
 ## 已知限制
@@ -238,3 +239,5 @@ training/                     合成資料、訓練權重、Swift/Python 一致�
 - 詞庫資料：[小麥注音 McBopomofo](https://github.com/openvanilla/McBopomofo)（MIT License）
 - Windows 輸入法框架：[PIME](https://github.com/EasyIME/PIME)（LGPL 2.1，使用者自行安裝，本專案不包含其程式碼）
 - 英文字典：Webster's Second International Dictionary（公有領域，macOS 的 `/usr/share/dict/words`）
+
+完整的第三方授權聲明（含小麥注音 MIT 授權全文）見 [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)，Mac 版放在 `AutoZhuyin.app/Contents/Resources/`，Windows 版放在 zip 根目錄和安裝後的 `autozhuyin` 資料夾。

@@ -26,6 +26,9 @@ rsync -a --exclude __pycache__ --exclude '*.pyc' windows/autozhuyin "$OUT/"
 for f in install.bat uninstall.bat README.txt; do
     sed 's/$/\r/' "windows/installer/$f" > "$OUT/$f"
 done
+# Third-party notices: next to the installer and inside the installed folder.
+sed 's/$/\r/' THIRD_PARTY_LICENSES.txt > "$OUT/THIRD_PARTY_LICENSES.txt"
+cp "$OUT/THIRD_PARTY_LICENSES.txt" "$OUT/autozhuyin/"
 
 (cd build && zip -qr -X "$NAME.zip" "$NAME")
 echo "Built build/$NAME.zip"

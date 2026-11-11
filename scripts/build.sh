@@ -19,6 +19,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/AutoZhuyin"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/lexicon.txt Resources/english-common.txt Resources/classifier-weights.json "$APP/Contents/Resources/"
+cp THIRD_PARTY_LICENSES.txt "$APP/Contents/Resources/"
 # Precomputed English dictionary and bigram table (shared with the Windows build).
 python3 -I windows/tools/build_data.py >/dev/null
 cp windows/autozhuyin/data/english-dict.txt windows/autozhuyin/data/english-bigram.json "$APP/Contents/Resources/"

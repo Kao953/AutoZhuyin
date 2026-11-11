@@ -267,5 +267,25 @@ class CursorTests(unittest.TestCase):
         self.assertTrue(e.showing_candidates)
 
 
+class DirectEnglishTests(unittest.TestCase):
+    def test_forced_english_has_no_composition(self):
+        e = make_engine()
+        e.handle(SHIFT_TAP)
+        self.assertEqual(e.handle("r"), (True, "r"))
+        self.assertEqual(e.marked_text, "")
+        self.assertEqual(e.handle("'"), (True, "'"))
+        self.assertEqual(e.handle(BACKSPACE), (False, None))
+        self.assertTrue(e.english_armed)
+        self.assertEqual(e.handle(" "), (True, " "))
+        self.assertFalse(e.english_armed)
+
+    def test_enter_ends_forced_english(self):
+        e = make_engine()
+        e.handle(SHIFT_TAP)
+        e.handle("a")
+        self.assertEqual(e.handle(ENTER), (False, None))
+        self.assertFalse(e.english_armed)
+
+
 if __name__ == "__main__":
     unittest.main()

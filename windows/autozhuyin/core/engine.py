@@ -152,8 +152,15 @@ class CompositionEngine:
 
     @property
     def english_armed(self):
-        """True while the user has forced English before typing anything (Shift tap)."""
-        return not self.keys and self.forced_mode == LITERAL
+        """True while the user has forced English for the next word (Shift tap). In this
+        mode keys go straight to the app with no composition (no underline)."""
+        return not self.keys and self.forced_mode == LITERAL and not self._forced_is_correction
+
+    def _end_direct_english(self):
+        if self.english_armed:
+            self.forced_mode = None
+            self._previous_mode = LITERAL
+            self._previous_time = self.now()
 
     def _flip(self):
         self.forced_mode = LITERAL if self.mode == ZHUYIN else ZHUYIN
@@ -161,7 +168,7 @@ class CompositionEngine:
 
     def wants(self, key):
         """Whether handle(key) would consume the key, without changing state."""
-        if self.candidates or key == SHIFT_TAP:
+        if self.candidates or key == SHIFT_TAP or self.english_armed:
             return True
         if key in SPECIAL_KEYS:
             return bool(self.keys)
@@ -190,14 +197,19 @@ class CompositionEngine:
                 self.fixed = {}
             return CONSUMED
         if key == ENTER:
-            return (True, self._commit()) if self.keys else PASS
+            if not self.keys:
+                self._end_direct_english()
+                return PASS
+            return True, self._commit()
         if key == ESCAPE:
             if not self.keys:
+                self._end_direct_english()
                 return PASS
             self.reset()
             return CONSUMED
         if key == TAB:
             if not self.keys:
+                self._end_direct_english()
                 return PASS
             self._flip()
             return CONSUMED
@@ -231,6 +243,15 @@ class CompositionEngine:
 
     def _handle_character(self, c):
         self.cursor = None   # typing always continues at the end
+        if self.english_armed:
+            # Forced English: insert directly. Space ends the word; other symbols end it too.
+            if c == " ":
+                self._end_direct_english()
+                return True, " "
+            if c.isascii() and (c.isalnum() or c in "'.,-/;"):
+                return True, c
+            self._end_direct_english()
+            return PASS
         if c == " ":
             if not self.keys:
                 return PASS

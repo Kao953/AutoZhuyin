@@ -172,14 +172,14 @@ public final class CompositionEngine {
             }
             return .consumed
         case .enter:
-            guard !keys.isEmpty else { return .passThrough }
+            guard !keys.isEmpty else { endDirectEnglish(); return .passThrough }
             return KeyResult(handled: true, commit: commitCurrent())
         case .escape:
-            guard !keys.isEmpty else { return .passThrough }
+            guard !keys.isEmpty else { endDirectEnglish(); return .passThrough }
             reset()
             return .consumed
         case .tab:
-            guard !keys.isEmpty else { return .passThrough }
+            guard !keys.isEmpty else { endDirectEnglish(); return .passThrough }
             flip()
             return .consumed
         case .shiftTap:
@@ -214,11 +214,34 @@ public final class CompositionEngine {
         forcedIsCorrection = true
     }
 
-    /// True while the user has forced English before typing anything (Shift tap).
-    public var isEnglishArmed: Bool { keys.isEmpty && forcedMode == .literal }
+    /// True while the user has forced English for the next word (Shift tap). In this
+    /// mode keys go straight to the app with no composition (no underline).
+    public var isEnglishArmed: Bool { keys.isEmpty && forcedMode == .literal && !forcedIsCorrection }
+
+    /// Leaves forced-English mode once the word is done.
+    private func endDirectEnglish() {
+        guard isEnglishArmed else { return }
+        forcedMode = nil
+        previousMode = .literal
+        previousCommitTime = now()
+    }
+
+    private static let englishWordPunctuation: Set<Character> = ["'", ".", ",", "-", "/", ";"]
 
     private func handleCharacter(_ c: Character) -> KeyResult {
         cursor = nil   // typing always continues at the end
+        if isEnglishArmed {
+            // Forced English: insert directly. Space ends the word; other symbols end it too.
+            if c == " " {
+                endDirectEnglish()
+                return KeyResult(handled: true, commit: " ")
+            }
+            if c.isASCII && (c.isLetter || c.isNumber || CompositionEngine.englishWordPunctuation.contains(c)) {
+                return KeyResult(handled: true, commit: String(c))
+            }
+            endDirectEnglish()
+            return .passThrough
+        }
         if c == " " {
             guard !keys.isEmpty else { return .passThrough }
             let segs = segments(of: keys, finishing: true)

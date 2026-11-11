@@ -405,3 +405,27 @@ final class CursorTests: XCTestCase {
         XCTAssertTrue(e.isShowingCandidates)
     }
 }
+
+final class DirectEnglishTests: XCTestCase {
+    func testForcedEnglishHasNoComposition() {
+        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+        _ = e.handle(.shiftTap)
+        let r = e.handle(.character("r"))
+        XCTAssertEqual(r.commit, "r")                 // inserted right away
+        XCTAssertEqual(e.markedText, "")              // nothing underlined
+        XCTAssertEqual(e.handle(.character("u")).commit, "u")
+        XCTAssertEqual(e.handle(.character("'")).commit, "'")
+        XCTAssertFalse(e.handle(.backspace).handled)  // the app deletes it
+        XCTAssertTrue(e.isEnglishArmed)
+        XCTAssertEqual(e.handle(.character(" ")).commit, " ")
+        XCTAssertFalse(e.isEnglishArmed)              // back to automatic
+    }
+
+    func testEnterEndsForcedEnglish() {
+        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+        _ = e.handle(.shiftTap)
+        _ = e.handle(.character("a"))
+        XCTAssertFalse(e.handle(.enter).handled)
+        XCTAssertFalse(e.isEnglishArmed)
+    }
+}

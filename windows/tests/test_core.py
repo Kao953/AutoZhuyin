@@ -279,5 +279,21 @@ class FirstToneAfterEnglishTests(unittest.TestCase):
             self.assertEqual(len(e.marked_text), 1, keys)
 
 
+class HeldWordTests(unittest.TestCase):
+    def test_next_word_decides(self):
+        cases = {"up jo4 ": "因為", "up the ": "up the ", "pick up the ": "pick up the ",
+                 "up\n": "up", "i love ": "i love "}
+        for keys, want in cases.items():
+            self.assertEqual(type_keys(keys, make_engine()), want, keys)
+
+    def test_held_word_stays_composing(self):
+        e = make_engine()
+        self.assertEqual(type_keys("up ", e), "")
+        self.assertEqual(e.marked_text, "up ")
+        e.handle(BACKSPACE)
+        self.assertEqual(e.marked_text, "up")
+        self.assertEqual(type_keys(" the ", e), "up the ")
+
+
 if __name__ == "__main__":
     unittest.main()

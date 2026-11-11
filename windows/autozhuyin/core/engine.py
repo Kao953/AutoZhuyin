@@ -20,6 +20,10 @@ FULLWIDTH = {
     "{": "『", "}": "』", "[": "「", "]": "」", "~": "～", "_": "——",
 }
 
+# An English word that is also a common one-syllable Chinese reading ("up " = ㄧㄣ 因)
+# is not committed on space; the next word decides ("up jo4" = 因為, "up the" = up the).
+HOLD_MIN_SCORE = -3.5
+
 PASS = (False, None)
 CONSUMED = (True, None)
 
@@ -43,6 +47,8 @@ class CompositionEngine:
         self._candidate_segment_start = 0
         # Composition cursor for choosing candidates: index into _cursor_stops(), None = end.
         self.cursor = None
+        # Index of a held space (see HOLD_MIN_SCORE), or None.
+        self.held = None
         self._previous_mode = None
         self._previous_time = float("-inf")
         self._cache_key = None
@@ -60,11 +66,34 @@ class CompositionEngine:
         if self.forced_mode:
             return [(0, len(keys), self.forced_mode)]
         ctx = self.context
-        cache_key = (tuple(keys), finishing, ctx)
+        held = self.held if self.held is not None and self.held < len(keys) and keys[self.held] == " " else None
+        cache_key = (tuple(keys), finishing, ctx, held)
         if cache_key != self._cache_key:
             self._cache_key = cache_key
-            self._cache_value = self.classifier.segment(keys, finishing, ctx)
+            if held is None:
+                self._cache_value = self.classifier.segment(keys, finishing, ctx)
+            else:
+                self._cache_value = self._held_segments(keys, held, finishing)
         return self._cache_value
+
+    def _held_segments(self, keys, held, finishing):
+        """The held word is Chinese if the words typed after it start with Chinese."""
+        rest = keys[held + 1:]
+        base = held + 1
+        rest_segs = [(a + base, b + base, m) for a, b, m in self.classifier.segment(rest, finishing, None)]
+        if rest_segs and rest_segs[0][2] == ZHUYIN:
+            return [(0, rest_segs[0][1], ZHUYIN)] + rest_segs[1:]
+        return [(0, base, LITERAL)] + rest_segs
+
+    def _is_ambiguous_word(self, keys):
+        """Whether keys + space also read as a common Chinese syllable (see HOLD_MIN_SCORE)."""
+        if not all(k.isascii() and k.isalpha() for k in keys):
+            return False
+        p = bopomofo.parse(list(keys) + [" "])
+        if p.pending is not None or len(p.syllables) != 1:
+            return False
+        entries = self.classifier.lexicon.entries([s.syllable for s in p.syllables])
+        return bool(entries) and entries[0][1] >= HOLD_MIN_SCORE
 
     @property
     def segments(self):
@@ -178,6 +207,8 @@ class CompositionEngine:
                 return PASS
             self.cursor = None
             self.keys.pop()
+            if self.held is not None and len(self.keys) <= self.held:
+                self.held = None
             self.fixed = {k: v for k, v in self.fixed.items() if k < len(self.keys)}
             if not self.keys:
                 self.forced_mode = None
@@ -235,6 +266,11 @@ class CompositionEngine:
                 return PASS
             segs = self._segments(self.keys, finishing=True)
             if segs[-1][2] == LITERAL:
+                if (self.held is None and len(segs) == 1 and not self.forced_mode
+                        and self._is_ambiguous_word(self.keys)):
+                    self.held = len(self.keys)
+                    self.keys.append(" ")
+                    return CONSUMED
                 return True, self._commit(segs) + " "
             p = self._last_parse(segs)
             if p is not None and p.pending is not None:
@@ -319,6 +355,7 @@ class CompositionEngine:
 
     def reset(self):
         self.keys = []
+        self.held = None
         self.cursor = None
         self.forced_mode = None
         self.fixed = {}

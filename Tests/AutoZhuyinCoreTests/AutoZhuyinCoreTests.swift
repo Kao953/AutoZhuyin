@@ -428,6 +428,40 @@ final class FirstToneAfterEnglishTests: XCTestCase {
     }
 }
 
+final class HeldWordTests: XCTestCase {
+    func makeEngine() -> CompositionEngine {
+        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+    }
+
+    func type(_ s: String, into e: CompositionEngine) -> String {
+        var out = ""
+        for c in s {
+            let key: KeyInput = c == "\n" ? .enter : .character(c)
+            let r = e.handle(key)
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return out
+    }
+
+    /// "up " is also ㄧㄣ (因): the next word decides.
+    func testNextWordDecides() {
+        let cases = ["up jo4 ": "因為", "up the ": "up the ", "pick up the ": "pick up the ",
+                     "up\n": "up", "i love ": "i love "]
+        for (keys, want) in cases {
+            XCTAssertEqual(type(keys, into: makeEngine()), want, keys)
+        }
+    }
+
+    func testHeldWordStaysComposing() {
+        let e = makeEngine()
+        XCTAssertEqual(type("up ", into: e), "")
+        XCTAssertEqual(e.markedText, "up ")
+        _ = e.handle(.backspace)
+        XCTAssertEqual(e.markedText, "up")
+        XCTAssertEqual(type(" the ", into: e), "up the ")
+    }
+}
+
 final class StartupTimingTests: XCTestCase {
     func testStartupTiming() throws {
         var t = Date()

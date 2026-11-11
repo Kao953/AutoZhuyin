@@ -51,6 +51,12 @@ public final class CompositionEngine {
     public var candidateIndex = 0
     public var isShowingCandidates: Bool { !candidates.isEmpty }
 
+    /// Index of a held space: an English word that is also a common one-syllable Chinese
+    /// reading ("up " = ㄧㄣ 因) is not committed on space; the next word decides
+    /// ("up jo4" = 因為, "up the" = up the).
+    private var held: Int?
+    static let holdMinScore = -3.5
+
     private var previousMode: InputMode?
     private var previousCommitTime = Date.distantPast
     /// How long the previous segment's mode keeps influencing the next one.
@@ -71,7 +77,31 @@ public final class CompositionEngine {
     private func segments(of keys: [Character], finishing: Bool = false) -> [Segment] {
         guard !keys.isEmpty else { return [] }
         if let forced = forcedMode { return [Segment(range: 0..<keys.count, mode: forced)] }
+        if let h = held, h < keys.count, keys[h] == " " {
+            return heldSegments(keys, held: h, finishing: finishing)
+        }
         return classifier.segment(keys, finishing: finishing, previous: context)
+    }
+
+    /// The held word is Chinese if the words typed after it start with Chinese.
+    private func heldSegments(_ keys: [Character], held h: Int, finishing: Bool) -> [Segment] {
+        let base = h + 1
+        let rest = classifier.segment(Array(keys[base...]), finishing: finishing, previous: nil).map {
+            Segment(range: ($0.range.lowerBound + base)..<($0.range.upperBound + base), mode: $0.mode)
+        }
+        if let first = rest.first, first.mode == .zhuyin {
+            return [Segment(range: 0..<first.range.upperBound, mode: .zhuyin)] + rest.dropFirst()
+        }
+        return [Segment(range: 0..<base, mode: .literal)] + rest
+    }
+
+    /// Whether keys + space also read as a common Chinese syllable (see `held`).
+    private func isAmbiguousWord(_ keys: [Character]) -> Bool {
+        guard keys.allSatisfy({ $0.isASCII && $0.isLetter }) else { return false }
+        let p = ZhuyinParser.parse(keys + [" "])
+        guard p.pending == nil, p.syllables.count == 1 else { return false }
+        guard let best = classifier.lexicon.entries(for: p.syllables.map(\.syllable)).first else { return false }
+        return best.score >= CompositionEngine.holdMinScore
     }
 
     /// Current split of the buffer into Zhuyin / literal runs.
@@ -164,6 +194,7 @@ public final class CompositionEngine {
             guard !keys.isEmpty else { return .passThrough }
             cursor = nil
             keys.removeLast()
+            if let h = held, keys.count <= h { held = nil }
             fixed = fixed.filter { $0.key < keys.count }
             if keys.isEmpty { forcedMode = nil; fixed = [:] }
             return .consumed
@@ -218,6 +249,11 @@ public final class CompositionEngine {
             guard !keys.isEmpty else { return .passThrough }
             let segs = segments(of: keys, finishing: true)
             if segs.last?.mode == .literal {
+                if held == nil, segs.count == 1, forcedMode == nil, isAmbiguousWord(keys) {
+                    held = keys.count
+                    keys.append(" ")
+                    return .consumed
+                }
                 return KeyResult(handled: true, commit: commitCurrent(segs) + " ")
             }
             if parse(ofLast: segs)?.pending != nil {
@@ -326,6 +362,7 @@ public final class CompositionEngine {
 
     public func reset() {
         keys = []
+        held = nil
         cursor = nil
         forcedMode = nil
         fixed = [:]

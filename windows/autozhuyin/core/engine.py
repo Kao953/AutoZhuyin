@@ -41,6 +41,8 @@ class CompositionEngine:
         self.candidates = []
         self.candidate_index = 0
         self._candidate_segment_start = 0
+        # Composition cursor for choosing candidates: index into _cursor_stops(), None = end.
+        self.cursor = None
         self._previous_mode = None
         self._previous_time = float("-inf")
         self._cache_key = None
@@ -81,19 +83,61 @@ class CompositionEngine:
     def page_start(self):
         return (self.candidate_index // self.page_size) * self.page_size
 
+    def _convertible(self, seg, final):
+        """(syllables converted to Chinese, pending Bopomofo) for a Zhuyin segment."""
+        start, end, _ = seg
+        p = bopomofo.parse(self.keys[start:end])
+        if final:
+            return [s.syllable for s in p.syllables], ""
+        return [s.syllable for s in p.completed], (p.pending.syllable.reading if p.pending else "")
+
+    def _conversion(self, seg, final):
+        syl, pending = self._convertible(seg, final)
+        fx = {k: v for k, v in self.fixed.get(seg[0], {}).items() if k[1] <= len(syl)}
+        return self.converter.convert(syl, fx), pending
+
     def _render(self, seg, final):
         start, end, mode = seg
-        seg_keys = self.keys[start:end]
         if mode == LITERAL:
-            return "".join(seg_keys)
-        p = bopomofo.parse(seg_keys)
-        fixed_here = self.fixed.get(start, {})
-        syl = [s.syllable for s in (p.syllables if final else p.completed)]
-        fx = {k: v for k, v in fixed_here.items() if k[1] <= len(syl)}
-        text = "".join(t for _, t in self.converter.convert(syl, fx))
-        if not final and p.pending:
-            text += p.pending.syllable.reading
-        return text
+            return "".join(self.keys[start:end])
+        converted, pending = self._conversion(seg, final)
+        return "".join(t for _, t in converted) + pending
+
+    # --- cursor ---
+
+    def _cursor_stops(self):
+        """[(segment index, syllables before the stop)] for every Zhuyin syllable."""
+        segs = self.segments
+        out = []
+        for i, seg in enumerate(segs):
+            if seg[2] == ZHUYIN:
+                n = len(self._convertible(seg, i < len(segs) - 1)[0])
+                out.extend((i, k) for k in range(1, n + 1))
+        return out
+
+    @property
+    def cursor_offset(self):
+        """Cursor position in marked_text (characters)."""
+        pieces = self.marked_pieces
+        stops = self._cursor_stops()
+        if self.cursor is None or not 0 <= self.cursor < len(stops):
+            return sum(len(t) for t, _ in pieces)
+        seg_index, local = stops[self.cursor]
+        offset = sum(len(t) for t, _ in pieces[:seg_index])
+        segs = self.segments
+        for (a, b), text in self._conversion(segs[seg_index], seg_index < len(segs) - 1)[0]:
+            if b <= local:
+                offset += len(text)
+            elif a < local:
+                offset += min(local - a, len(text))
+        return offset
+
+    def _move_cursor(self, delta):
+        stops = self._cursor_stops()
+        if not stops:
+            return
+        nxt = (len(stops) - 1 if self.cursor is None else self.cursor) + delta
+        self.cursor = None if nxt >= len(stops) - 1 else max(0, nxt)
 
     @property
     def marked_pieces(self):
@@ -135,6 +179,7 @@ class CompositionEngine:
         if key == BACKSPACE:
             if not self.keys:
                 return PASS
+            self.cursor = None
             self.keys.pop()
             self.fixed = {k: v for k, v in self.fixed.items() if k < len(self.keys)}
             if not self.keys:
@@ -169,7 +214,12 @@ class CompositionEngine:
                 return PASS
             self._open_candidates()
             return CONSUMED
-        if key in (UP, LEFT, RIGHT):
+        if key in (LEFT, RIGHT):
+            if not self.keys:
+                return PASS
+            self._move_cursor(-1 if key == LEFT else 1)
+            return CONSUMED
+        if key == UP:
             return CONSUMED if self.keys else PASS
         return self._handle_character(key)
 
@@ -180,6 +230,7 @@ class CompositionEngine:
         return bopomofo.parse(self.keys[start:end])
 
     def _handle_character(self, c):
+        self.cursor = None   # typing always continues at the end
         if c == " ":
             if not self.keys:
                 return PASS
@@ -212,15 +263,16 @@ class CompositionEngine:
     # --- candidates (for the last Zhuyin segment) ---
 
     def _open_candidates(self):
+        """Candidates for the phrase ending at the cursor (default: the last syllable)."""
+        stops = self._cursor_stops()
+        if not stops:
+            return
+        seg_index, local = stops[min(len(stops) - 1 if self.cursor is None else self.cursor, len(stops) - 1)]
         segs = self.segments
-        if not segs or segs[-1][2] != ZHUYIN:
-            return
-        start, end, _ = segs[-1]
-        syl = [s.syllable for s in bopomofo.parse(self.keys[start:end]).completed]
-        if not syl:
-            return
-        self.candidates = self.converter.candidates(syl, len(syl))
-        self._candidate_segment_start = start
+        seg = segs[seg_index]
+        syl = self._convertible(seg, seg_index < len(segs) - 1)[0]
+        self.candidates = self.converter.candidates(syl, local)
+        self._candidate_segment_start = seg[0]
         self.candidate_index = 0
 
     def page(self):
@@ -268,6 +320,7 @@ class CompositionEngine:
 
     def reset(self):
         self.keys = []
+        self.cursor = None
         self.forced_mode = None
         self._forced_is_correction = False
         self.fixed = {}

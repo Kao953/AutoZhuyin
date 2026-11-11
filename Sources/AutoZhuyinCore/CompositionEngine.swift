@@ -45,6 +45,9 @@ public final class CompositionEngine {
     private var fixed: [Int: [Range<Int>: String]] = [:]
     public private(set) var candidates: [Candidate] = []
     private var candidateSegmentStart = 0
+    /// Composition cursor for choosing candidates: index into `cursorStops`, nil = at the end.
+    /// ← → move it; ↓ shows candidates for the phrase ending at the cursor.
+    private var cursor: Int?
     public var candidateIndex = 0
     public var isShowingCandidates: Bool { !candidates.isEmpty }
 
@@ -89,17 +92,64 @@ public final class CompositionEngine {
 
     /// Text for one segment. A non-final Zhuyin segment shows its unfinished syllable as Bopomofo.
     private func render(_ seg: Segment, final: Bool) -> String {
-        let segKeys = Array(keys[seg.range])
-        guard seg.mode == .zhuyin else { return String(segKeys) }
-        let p = ZhuyinParser.parse(segKeys)
-        let fixedHere = (fixed[seg.range.lowerBound] ?? [:])
-        if final {
-            let all = p.syllables.map(\.syllable)
-            return converter.convert(all, fixed: fixedHere.filter { $0.key.upperBound <= all.count }).map(\.text).joined()
+        guard seg.mode == .zhuyin else { return String(keys[seg.range]) }
+        let (converted, pending) = conversion(of: seg, final: final)
+        return converted.map(\.text).joined() + pending
+    }
+
+    /// Syllables of a Zhuyin segment that are converted to Chinese (all of them when
+    /// final, otherwise the finished ones).
+    private func convertibleSyllables(_ seg: Segment, final: Bool) -> (syllables: [Syllable], pending: String) {
+        let p = ZhuyinParser.parse(Array(keys[seg.range]))
+        if final { return (p.syllables.map(\.syllable), "") }
+        return (p.completed.map(\.syllable), p.pending?.syllable.reading ?? "")
+    }
+
+    private func conversion(of seg: Segment, final: Bool) -> (segments: [ConvertedSegment], pending: String) {
+        let (syl, pending) = convertibleSyllables(seg, final: final)
+        let fixedHere = (fixed[seg.range.lowerBound] ?? [:]).filter { $0.key.upperBound <= syl.count }
+        return (converter.convert(syl, fixed: fixedHere), pending)
+    }
+
+    // MARK: - Cursor
+
+    /// A place the cursor can stop: after the `local`-th syllable of Zhuyin segment `segIndex`.
+    private struct CursorStop { let segIndex: Int; let local: Int }
+
+    private var cursorStops: [CursorStop] {
+        let segs = segments
+        var out: [CursorStop] = []
+        for (i, seg) in segs.enumerated() where seg.mode == .zhuyin {
+            let n = convertibleSyllables(seg, final: i < segs.count - 1).syllables.count
+            for k in stride(from: 1, through: n, by: 1) { out.append(CursorStop(segIndex: i, local: k)) }
         }
-        let done = p.completed.map(\.syllable)
-        let text = converter.convert(done, fixed: fixedHere.filter { $0.key.upperBound <= done.count }).map(\.text).joined()
-        return text + (p.pending?.syllable.reading ?? "")
+        return out
+    }
+
+    /// Cursor position in `markedText`, in Characters.
+    public var cursorOffset: Int {
+        let pieces = markedPieces
+        let total = pieces.reduce(0) { $0 + $1.text.count }
+        let stops = cursorStops
+        guard let c = cursor, stops.indices.contains(c) else { return total }
+        let stop = stops[c]
+        var offset = pieces[..<stop.segIndex].reduce(0) { $0 + $1.text.count }
+        let segs = segments
+        for conv in conversion(of: segs[stop.segIndex], final: stop.segIndex < segs.count - 1).segments {
+            if conv.range.upperBound <= stop.local {
+                offset += conv.text.count
+            } else if conv.range.lowerBound < stop.local {
+                offset += min(stop.local - conv.range.lowerBound, conv.text.count)
+            }
+        }
+        return offset
+    }
+
+    private func moveCursor(by delta: Int) {
+        let stops = cursorStops
+        guard !stops.isEmpty else { return }
+        let next = (cursor ?? stops.count - 1) + delta
+        cursor = next >= stops.count - 1 ? nil : max(0, next)
     }
 
     // MARK: - Key handling
@@ -112,6 +162,7 @@ public final class CompositionEngine {
             return handleCharacter(c)
         case .backspace:
             guard !keys.isEmpty else { return .passThrough }
+            cursor = nil
             keys.removeLast()
             fixed = fixed.filter { $0.key < keys.count }
             if keys.isEmpty {
@@ -144,7 +195,15 @@ public final class CompositionEngine {
             guard !keys.isEmpty else { return .passThrough }
             openCandidates()
             return .consumed
-        case .up, .left, .right:
+        case .left:
+            guard !keys.isEmpty else { return .passThrough }
+            moveCursor(by: -1)
+            return .consumed
+        case .right:
+            guard !keys.isEmpty else { return .passThrough }
+            moveCursor(by: 1)
+            return .consumed
+        case .up:
             return keys.isEmpty ? .passThrough : .consumed
         }
     }
@@ -159,6 +218,7 @@ public final class CompositionEngine {
     public var isEnglishArmed: Bool { keys.isEmpty && forcedMode == .literal }
 
     private func handleCharacter(_ c: Character) -> KeyResult {
+        cursor = nil   // typing always continues at the end
         if c == " " {
             guard !keys.isEmpty else { return .passThrough }
             let segs = segments(of: keys, finishing: true)
@@ -206,13 +266,16 @@ public final class CompositionEngine {
 
     // MARK: - Candidates (for the last Zhuyin segment)
 
+    /// Opens candidates for the phrase ending at the cursor (default: the last syllable).
     private func openCandidates() {
+        let stops = cursorStops
+        guard !stops.isEmpty else { return }
+        let stop = stops[min(cursor ?? stops.count - 1, stops.count - 1)]
         let segs = segments
-        guard let last = segs.last, last.mode == .zhuyin else { return }
-        let done = ZhuyinParser.parse(Array(keys[last.range])).completed.map(\.syllable)
-        guard !done.isEmpty else { return }
-        candidates = converter.candidates(done, endingAt: done.count)
-        candidateSegmentStart = last.range.lowerBound
+        let seg = segs[stop.segIndex]
+        let syl = convertibleSyllables(seg, final: stop.segIndex < segs.count - 1).syllables
+        candidates = converter.candidates(syl, endingAt: stop.local)
+        candidateSegmentStart = seg.range.lowerBound
         candidateIndex = 0
     }
 
@@ -268,6 +331,7 @@ public final class CompositionEngine {
 
     public func reset() {
         keys = []
+        cursor = nil
         forcedMode = nil
         forcedIsCorrection = false
         fixed = [:]

@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 from autozhuyin.core import bopomofo  # noqa: E402
 from autozhuyin.core.classifier import LITERAL, ZHUYIN, Classifier, LearnedPreferences  # noqa: E402
-from autozhuyin.core.engine import DOWN, ENTER, SHIFT_TAP, TAB, BACKSPACE, CompositionEngine  # noqa: E402
+from autozhuyin.core.engine import DOWN, ENTER, LEFT, RIGHT, SHIFT_TAP, TAB, BACKSPACE, CompositionEngine  # noqa: E402
 from autozhuyin.core.shift_tap import ShiftTapDetector  # noqa: E402
 from autozhuyin.core.english import EnglishModel  # noqa: E402
 from autozhuyin.core.lexicon import Converter, Lexicon  # noqa: E402
@@ -42,7 +42,7 @@ def make_engine():
 def type_keys(s, e):
     out = ""
     for c in s:
-        key = ENTER if c == "\n" else TAB if c == "\t" else SHIFT_TAP if c == "⇧" else c
+        key = {"\n": ENTER, "\t": TAB, "⇧": SHIFT_TAP, "←": LEFT, "→": RIGHT, "↓": DOWN}.get(c, c)
         handled, commit = e.handle(key)
         if commit is not None:
             out += commit
@@ -232,6 +232,39 @@ class ShiftTapTests(unittest.TestCase):
         self.assertFalse(d.shift_up(1.1))
         d.shift_down(2)
         self.assertFalse(d.shift_up(3))
+
+
+class CursorTests(unittest.TestCase):
+    def test_moves_and_clamps(self):
+        e = make_engine()
+        type_keys("rup wu0 wu0 fu4", e)
+        self.assertEqual(e.cursor_offset, 4)
+        type_keys("←", e)
+        self.assertEqual(e.cursor_offset, 3)
+        type_keys("←←←←", e)
+        self.assertEqual(e.cursor_offset, 1)
+        type_keys("→→→→", e)
+        self.assertEqual(e.cursor_offset, 4)
+
+    def test_choose_candidate_in_the_middle(self):
+        e = make_engine()
+        type_keys("rup wu0 wu0 fu4←←↓", e)
+        self.assertTrue(e.showing_candidates)
+        self.assertTrue(all(r[1] == 2 for r, _ in e.candidates))
+        e.select_candidate([t for _, t in e.candidates].index("添"))
+        self.assertEqual(type_keys("\n", e), "今添天氣")
+
+    def test_typing_returns_cursor_to_end(self):
+        e = make_engine()
+        type_keys("rup wu0 ←", e)
+        self.assertEqual(e.cursor_offset, 1)
+        type_keys("wu0 ", e)
+        self.assertEqual(e.cursor_offset, len(e.marked_text))
+
+    def test_candidates_for_chinese_before_english(self):
+        e = make_engine()
+        type_keys("su3cl3hello↓", e)
+        self.assertTrue(e.showing_candidates)
 
 
 if __name__ == "__main__":

@@ -351,3 +351,57 @@ final class ShiftTapTests: XCTestCase {
         XCTAssertFalse(d.modifiersChanged(shift: false, otherModifiers: false, time: 4.2))
     }
 }
+
+final class CursorTests: XCTestCase {
+    func engine() -> CompositionEngine {
+        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+    }
+
+    func type(_ s: String, into e: CompositionEngine) -> String {
+        var out = ""
+        for c in s {
+            let key: KeyInput = c == "←" ? .left : c == "→" ? .right : c == "↓" ? .down : c == "\n" ? .enter : .character(c)
+            let r = e.handle(key)
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return out
+    }
+
+    func testCursorMovesAndClamps() {
+        let e = engine()
+        _ = type("rup wu0 wu0 fu4", into: e)        // 今天天氣
+        XCTAssertEqual(e.cursorOffset, 4)
+        _ = type("←", into: e)
+        XCTAssertEqual(e.cursorOffset, 3)
+        _ = type("←←←←", into: e)
+        XCTAssertEqual(e.cursorOffset, 1)              // stops after the first character
+        _ = type("→→→→", into: e)
+        XCTAssertEqual(e.cursorOffset, 4)
+    }
+
+    func testChooseCandidateInTheMiddle() {
+        let e = engine()
+        _ = type("rup wu0 wu0 fu4", into: e)
+        _ = type("←←↓", into: e)                       // cursor after the 2nd syllable (天)
+        XCTAssertTrue(e.isShowingCandidates)
+        XCTAssertTrue(e.candidates.allSatisfy { $0.range.upperBound == 2 })
+        let i = e.candidates.firstIndex { $0.text == "添" }!
+        e.selectCandidate(i)
+        XCTAssertEqual(type("\n", into: e), "今添天氣")
+    }
+
+    func testTypingReturnsCursorToEnd() {
+        let e = engine()
+        _ = type("rup wu0 ←", into: e)
+        XCTAssertEqual(e.cursorOffset, 1)
+        _ = type("wu0 ", into: e)
+        XCTAssertEqual(e.cursorOffset, e.markedText.count)
+    }
+
+    func testCandidatesForChineseBeforeEnglish() {
+        let e = engine()
+        _ = type("su3cl3hello", into: e)               // 你好hello
+        _ = type("↓", into: e)                         // last Chinese syllable, not the English word
+        XCTAssertTrue(e.isShowingCandidates)
+    }
+}

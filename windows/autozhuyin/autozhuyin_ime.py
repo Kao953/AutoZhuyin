@@ -153,7 +153,7 @@ class AutoZhuyinTextService(TextService):
             self.setCommitString(commit)
         marked = self.engine.marked_text
         self.setCompositionString(marked)
-        self.setCompositionCursor(len(marked))
+        self.setCompositionCursor(self.engine.cursor_offset)
         if self.engine.showing_candidates:
             page, cursor = self.engine.page()
             self.setCandidateList(page)

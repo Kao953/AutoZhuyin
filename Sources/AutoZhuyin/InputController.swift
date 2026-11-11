@@ -117,8 +117,10 @@ final class InputController: IMKInputController {
             ]))
         }
         let text = marked.string
+        // Caret at the candidate cursor (UTF-16 offset of the first `cursorOffset` characters).
+        let caret = String(text.prefix(engine.cursorOffset)).utf16.count
         client.setMarkedText(marked,
-                             selectionRange: NSRange(location: (text as NSString).length, length: 0),
+                             selectionRange: NSRange(location: caret, length: 0),
                              replacementRange: NSRange(location: NSNotFound, length: 0))
 
         if engine.isShowingCandidates {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fills windows/autozhuyin/data/ from the shared Mac resources.
 
-- lexicon.txt, english-common.txt: copied from Resources/
+- lexicon.txt, english-common.txt, classifier-weights.json: copied from Resources/
 - english-dict.txt: filtered from a system word list (default /usr/share/dict/words,
   Webster's 2nd edition, public domain), since Windows has no such file
 - english-bigram.json: precomputed letter-bigram table
@@ -21,7 +21,7 @@ from autozhuyin.core.english import train_bigram  # noqa: E402
 
 data = WIN / "autozhuyin" / "data"
 data.mkdir(parents=True, exist_ok=True)
-for name in ("lexicon.txt", "english-common.txt"):
+for name in ("lexicon.txt", "english-common.txt", "classifier-weights.json"):
     shutil.copy(ROOT / "Resources" / name, data / name)
 
 word_list = Path(sys.argv[1] if len(sys.argv) > 1 else "/usr/share/dict/words")

@@ -21,6 +21,7 @@ LEX = Lexicon.from_file(os.path.join(DATA, "lexicon.txt"))
 ENG = EnglishModel.from_files(os.path.join(DATA, "english-common.txt"),
                               os.path.join(DATA, "english-dict.txt"),
                               os.path.join(DATA, "english-bigram.json"))
+WEIGHTS = Classifier.load_weights(os.path.join(DATA, "classifier-weights.json"))
 LOAD_TIME = time.time() - _start
 
 
@@ -34,7 +35,7 @@ def convert(keys):
 
 
 def make_engine():
-    return CompositionEngine(Classifier(LEX, ENG))
+    return CompositionEngine(Classifier(LEX, ENG, weights=WEIGHTS))
 
 
 def type_keys(s, e):
@@ -86,7 +87,7 @@ class ConverterTests(unittest.TestCase):
 
 
 class ClassifierTests(unittest.TestCase):
-    c = Classifier(LEX, ENG)
+    c = Classifier(LEX, ENG, weights=WEIGHTS)
 
     def test_zhuyin(self):
         for s in ["su3cl3", "ji3", "cl3", "ru ", "u ", "fu ", "183", "2k7", "5j/ "]:
@@ -101,7 +102,7 @@ class ClassifierTests(unittest.TestCase):
 
     def test_learning(self):
         learned = LearnedPreferences()
-        c = Classifier(LEX, ENG, learned)
+        c = Classifier(LEX, ENG, learned, WEIGHTS)
         self.assertEqual(c.mode(list("so"), finishing=True), LITERAL)
         learned.record("so", ZHUYIN)
         self.assertEqual(c.mode(list("so"), finishing=True), ZHUYIN)
@@ -149,6 +150,9 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(len(e.marked_text), 1)
         self.assertEqual(type_keys("2j/ \n", make_engine()), "東")
         self.assertEqual(type_keys("2.5\n", make_engine()), "2.5")
+
+    def test_tone_then_space_stays_chinese(self):
+        self.assertEqual(len(type_keys("u4 ", make_engine())), 1)
 
     def test_out_of_order_converts(self):
         self.assertEqual(type_keys("uvl3\n", make_engine()), "小")

@@ -69,12 +69,12 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 | 使用者過去的修正（學習） | 有大寫字母 → 一定是英文 |
 | 一開始稍微偏向注音 | 純數字 → 數字 |
 
-分數高的一方勝出。按空白時，注音那邊會把空白當成一聲來評分，英文那邊當作完整單字評分。
+每一項都是一個**特徵**（`Features.swift` / `features.py`），分數 = 特徵 × **權重**。權重是用資料訓練出來的（見下方「訓練判斷權重」），存在 `Resources/classifier-weights.json`；檔案不存在時用手調的預設值。分數高的一方勝出。按空白時，還沒打聲調的注音音節會當成一聲來評分，英文那邊當作完整單字評分。
 
 中英混打時，`Classifier.segment` 會用動態規劃試遍所有切分點，找出總分最高的切法（例如 `ji3hello` → `ji3` 注音＋`hello` 英文）。為了避免把正常的單字或句子切碎：
-- 每多切一刀扣 3 分（`segmentPenalty`）
+- 每多切一刀會扣分（`seg.switch` 特徵）
 - 後面還接著其他段的注音段，最後一個音節必須打了聲調
-- 接在英文後面、還沒打聲調的注音段再扣 2 分（`unconfirmedSwitchPenalty`），所以打到 `ji3hel` 時會先顯示「我hel」，不會變成「我heㄠ」
+- 接在英文後面、還沒打聲調的注音段會再扣分（`zh.unconfirmed`），所以打到 `ji3hel` 時會先顯示「我hel」，不會變成「我heㄠ」
 
 音節解析照大千規則：符號依「聲母 → 介音 → 韻母」填入，聲調鍵結束音節。順序打錯時，如果合併後仍可能是合法音節，就併進同一個音節，否則才切成新音節。
 
@@ -123,6 +123,33 @@ scripts/package-windows.sh                          # 產生 build/AutoZhuyin-Wi
 
 > 修改核心邏輯時，Swift（`Sources/AutoZhuyinCore/`）和 Python（`windows/autozhuyin/core/`）兩邊都要改，並在兩邊的測試加上相同案例。
 
+### 訓練判斷權重
+
+中英判斷的權重是用合成資料訓練的（結構化感知器，averaged structured perceptron），訓練時跑的就是輸入法實際使用的同一套切分演算法：
+
+1. `training/synth.py` 產生打字資料：從詞庫依詞頻抽中文詞，反查成大千按鍵；英文從常用字表和字典抽；組成「純中文、純英文、中＋英、英＋中、中＋英＋中、數字」等情況，每個按鍵都標好正確答案。也會產生「打到一半」的版本，用來訓練打字過程中的顯示。
+2. `training/train.py` 先用手調權重評估一次，再訓練、評估，寫入 `Resources/classifier-weights.json`。
+3. `training/make_parity.py` 產生 `training/parity-fixtures.json`，Swift 測試會檢查它的切分結果和 Python 版完全一樣。
+
+```bash
+python3 windows/tools/build_data.py     # 準備資料（Python 版和訓練共用）
+python3 training/train.py               # 快速訓練（預設 3000 筆，約半分鐘）
+python3 training/train.py --train 20000 --test 5000 --epochs 10   # 正式版本用的設定，約 3 分鐘
+python3 training/train.py --eval-only   # 只評估目前的權重
+python3 training/make_parity.py         # 權重或特徵改了之後都要重跑
+```
+
+目前的結果（10,000 筆測試資料）：
+
+| | 送出時整段判斷正確 | 打字過程中顯示正確 |
+|---|---|---|
+| 手調權重 | 97.58% | 86.15% |
+| 訓練後 | **99.62%** | 87.81% |
+
+送出時的錯誤率從 2.4% 降到 0.4%。「打字過程中」本來就有歧義（例如 `ji3h` 的 `h` 可能是英文的開頭，也可能是注音 ㄘ），所以準確率比較低，但最後送出的結果才是重點。
+
+新增特徵時，Swift 和 Python 兩邊都要加，預設權重設成 0，然後重新訓練。
+
 ### 詞庫
 
 `Resources/lexicon.txt` 由小麥注音的原始資料轉換而來，後面再接上手寫的入門詞庫 `Resources/lexicon-seed.txt`。轉換程式 `scripts/convert-mcbopomofo.py` 只讀取資料檔，不執行小麥注音的程式碼：分數依語料詞頻計算，一字多音的字依讀音常見程度分配權重。
@@ -164,11 +191,12 @@ Sources/AutoZhuyinCore/       核心邏輯（Swift，可單元測試）
   Lexicon.swift               詞庫
   Converter.swift             音節 → 中文（Viterbi）
   EnglishModel.swift          英文判斷
-  Classifier.swift            中英判斷 + 學習
+  Features.swift              判斷用的特徵與預設權重
+  Classifier.swift            中英判斷（特徵 × 權重）、切分、學習
   CompositionEngine.swift     輸入法狀態機
 Sources/AutoZhuyin/           macOS InputMethodKit 外殼
 Tests/                        Swift 單元測試
-Resources/                    Info.plist、詞庫、英文常用字
+Resources/                    Info.plist、詞庫、英文常用字、訓練好的權重
 scripts/                      建置、安裝、打包、詞庫轉換
   pkg/postinstall             PKG 安裝後腳本
 windows/
@@ -179,6 +207,7 @@ windows/
   installer/                  install.bat、uninstall.bat、給使用者的 README.txt
   tests/                      Python 測試
   tools/                      產生資料檔、圖示
+training/                     合成資料、訓練權重、Swift/Python 一致性測試資料
 ```
 
 ## 已知限制
@@ -193,7 +222,8 @@ windows/
 - [x] 匯入完整詞庫
 - [x] 注音順序錯誤修正
 - [x] Windows 版
-- [ ] 用真實打字資料調整判斷權重
+- [x] 用資料訓練判斷權重（合成資料）
+- [ ] 加入真實打字資料一起訓練
 - [ ] 已送出的英文單字若判斷錯誤，可以「事後翻轉」
 - [ ] 用 Core ML 小模型取代手調分數，參考整句語境
 - [ ] 使用者詞頻學習（選過的候選字優先）

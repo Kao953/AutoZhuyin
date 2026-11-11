@@ -7,6 +7,7 @@ private let resources = URL(fileURLWithPath: #filePath)
 
 private let sharedLexicon = try! Lexicon(contentsOf: resources.appendingPathComponent("lexicon.txt"))
 private let sharedEnglish = EnglishModel(commonWordsURL: resources.appendingPathComponent("english-common.txt"))
+private let sharedWeights = Features.loadWeights(from: resources.appendingPathComponent("classifier-weights.json"))
 
 final class ParserTests: XCTestCase {
     func testParsesNiHao() {
@@ -84,7 +85,7 @@ final class ConverterTests: XCTestCase {
 }
 
 final class ClassifierTests: XCTestCase {
-    let classifier = Classifier(lexicon: sharedLexicon, english: sharedEnglish)
+    let classifier = Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights)
 
     func mode(_ s: String, finishing: Bool = false) -> InputMode {
         classifier.classify(Array(s), finishing: finishing).mode
@@ -106,7 +107,7 @@ final class ClassifierTests: XCTestCase {
 
     func testLearningFlipsDecision() {
         let learned = LearnedPreferences()
-        let c = Classifier(lexicon: sharedLexicon, english: sharedEnglish, learned: learned)
+        let c = Classifier(lexicon: sharedLexicon, english: sharedEnglish, learned: learned, weights: sharedWeights)
         XCTAssertEqual(c.classify(Array("so"), finishing: true).mode, .literal)
         learned.record("so", as: .zhuyin)
         XCTAssertEqual(c.classify(Array("so"), finishing: true).mode, .zhuyin)
@@ -115,7 +116,7 @@ final class ClassifierTests: XCTestCase {
 
 final class EngineTests: XCTestCase {
     func makeEngine() -> CompositionEngine {
-        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish))
+        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
     }
 
     /// Types a string and returns everything committed.
@@ -188,7 +189,7 @@ final class EngineTests: XCTestCase {
 
 final class DigitInitialTests: XCTestCase {
     func engine() -> CompositionEngine {
-        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish))
+        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
     }
 
     func run(_ s: String) -> (out: String, marked: String) {
@@ -222,7 +223,7 @@ final class DigitInitialTests: XCTestCase {
 
 final class MixedSegmentTests: XCTestCase {
     func run(_ s: String) -> (out: String, marked: String) {
-        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish))
+        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
         var out = ""
         for c in s {
             let r = e.handle(c == "\n" ? .enter : .character(c))
@@ -251,5 +252,32 @@ final class MixedSegmentTests: XCTestCase {
         XCTAssertEqual(run("helloworld\n").out, "helloworld")
         XCTAssertEqual(run("meeting ").out, "meeting ")
         XCTAssertEqual(run("183\n").out.count, 1)
+    }
+}
+
+/// The Swift and Python cores must segment identically (fixtures from training/make_parity.py).
+final class ParityTests: XCTestCase {
+    func testMatchesPythonSegmentation() throws {
+        let url = resources.deletingLastPathComponent().appendingPathComponent("training/parity-fixtures.json")
+        let fixtures = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [[String: Any]]
+        let c = Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights)
+        var mismatches: [String] = []
+        for fx in fixtures {
+            let keys = Array(fx["keys"] as! String)
+            let expected = (fx["segments"] as! [[Any]]).map { "\($0[0])-\($0[1]):\($0[2])" }
+            let got = c.segment(keys, finishing: fx["finishing"] as! Bool).map {
+                "\($0.range.lowerBound)-\($0.range.upperBound):\($0.mode.rawValue)"
+            }
+            if got != expected { mismatches.append("\(String(keys)) finishing=\(fx["finishing"]!): \(got) vs \(expected)") }
+        }
+        XCTAssertGreaterThan(fixtures.count, 300)
+        XCTAssertTrue(mismatches.isEmpty, "\(mismatches.count) mismatches:\n" + mismatches.prefix(10).joined(separator: "\n"))
+    }
+
+    func testToneThenSpaceStaysChinese() {
+        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+        var out = ""
+        for c in "u4 " { if let t = e.handle(.character(c)).commit { out += t } }
+        XCTAssertEqual(out.count, 1, out)
     }
 }

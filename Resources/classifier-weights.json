@@ -1,0 +1,39 @@
+{
+  "about": "AutoZhuyin classifier weights, learned by training/train.py",
+  "trained": "2026-11-11",
+  "examples": 40001,
+  "test_accuracy": {
+    "commit": 0.9962,
+    "typing": 0.8781
+  },
+  "weights": {
+    "lit.bias": 0.4276,
+    "lit.common": -0.3465,
+    "lit.common_len": 0.81,
+    "lit.dict": -1.7902,
+    "lit.dict_len": 0.6765,
+    "lit.digits": -2.7403,
+    "lit.num_digits": -0.0751,
+    "lit.num_others": -0.7433,
+    "lit.others": -1.5685,
+    "lit.prefix_common_len": 0.2082,
+    "lit.prefix_dict_len": 0.0003,
+    "lit.short": -0.2397,
+    "lit.unknown_score": 0.213,
+    "lit.upper": 20.0,
+    "seg.switch": -1.7203,
+    "zh.bias": 1.3522,
+    "zh.lexscore": 0.26,
+    "zh.pending_invalid": -5.0,
+    "zh.pending_prefix": -0.9295,
+    "zh.phrase": 0.4595,
+    "zh.reordered": -1.4348,
+    "zh.stray": -5.0,
+    "zh.toned_invalid": -5.0,
+    "zh.toned_valid_lex": -0.9823,
+    "zh.toned_valid_nolex": -1.8742,
+    "zh.unconfirmed": -0.7891,
+    "zh.untoned_mid_invalid": -5.0,
+    "zh.untoned_mid_valid": -2.8009
+  }
+}

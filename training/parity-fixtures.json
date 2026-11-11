@@ -1,0 +1,4807 @@
+[
+{
+"keys": "ji3hello",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+],
+[
+3,
+8,
+"literal"
+]
+]
+},
+{
+"keys": "ji3hello",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+],
+[
+3,
+8,
+"literal"
+]
+]
+},
+{
+"keys": "hellosu3cl3",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+11,
+"zhuyin"
+]
+]
+},
+{
+"keys": "hellosu3cl3",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+11,
+"zhuyin"
+]
+]
+},
+{
+"keys": "su3cl3github",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+],
+[
+6,
+12,
+"literal"
+]
+]
+},
+{
+"keys": "su3cl3github",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+],
+[
+6,
+12,
+"literal"
+]
+]
+},
+{
+"keys": "ji3hel",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+],
+[
+3,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "ji3hel",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+],
+[
+3,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "2;3",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2;3",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2.5",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "2.5",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "uvl3",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "uvl3",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "so",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "so",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "up",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "up",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "u4",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u4",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "183",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "183",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2024",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "2024",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "Hello",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "Hello",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "don't",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "don't",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "mp3",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "mp3",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ji3emailsu3cl3",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+],
+[
+3,
+8,
+"literal"
+],
+[
+8,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ji3emailsu3cl3",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+],
+[
+3,
+8,
+"literal"
+],
+[
+8,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "rup wu0 wu0 fu4cp3cl3",
+"finishing": false,
+"segments": [
+[
+0,
+21,
+"zhuyin"
+]
+]
+},
+{
+"keys": "rup wu0 wu0 fu4cp3cl3",
+"finishing": true,
+"segments": [
+[
+0,
+21,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru3xu;6",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru3xu",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "qu6vul41j6eji4",
+"finishing": true,
+"segments": [
+[
+0,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "qu",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "ru.4u.3nj4zj45. ",
+"finishing": false,
+"segments": [
+[
+0,
+16,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru.4",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ask",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "as",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "1j4vm ",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1j",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vmp ",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vmp",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "zo4cj84",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "zo",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "y4rm,65l32l4t/6bp4",
+"finishing": true,
+"segments": [
+[
+0,
+18,
+"zhuyin"
+]
+]
+},
+{
+"keys": "y4rm,65l32l4t/",
+"finishing": false,
+"segments": [
+[
+0,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "5j4aj4rm4cjo4even",
+"finishing": true,
+"segments": [
+[
+0,
+13,
+"zhuyin"
+],
+[
+13,
+17,
+"literal"
+]
+]
+},
+{
+"keys": "5j4aj4rm",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vu;32k6j04su06fu/ ",
+"finishing": false,
+"segments": [
+[
+0,
+18,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vu;32k6j04su06f",
+"finishing": false,
+"segments": [
+[
+0,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "zj tj ",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "zj t",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2;3vu ",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "9143",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "914",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "d04g4ck6wu3Part",
+"finishing": true,
+"segments": [
+[
+0,
+11,
+"zhuyin"
+],
+[
+11,
+15,
+"literal"
+]
+]
+},
+{
+"keys": "d0",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vul3three",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+],
+[
+4,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "v",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2842842k7x06zj4vu06",
+"finishing": true,
+"segments": [
+[
+0,
+19,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2842842k7x06zj4v",
+"finishing": false,
+"segments": [
+[
+0,
+16,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru4su04w;6xjp6",
+"finishing": true,
+"segments": [
+[
+0,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru4su04",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "numberxu.42; dj/ ",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"literal"
+],
+[
+6,
+17,
+"zhuyin"
+]
+]
+},
+{
+"keys": "number",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "1l c06",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1l",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2. 1j6",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2. 1j",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "serriped",
+"finishing": true,
+"segments": [
+[
+0,
+8,
+"literal"
+]
+]
+},
+{
+"keys": "serri",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "rm04villainy",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+],
+[
+4,
+12,
+"literal"
+]
+]
+},
+{
+"keys": "rm04villa",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+],
+[
+4,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "ru3fm zp ",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru3fm z",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "j03",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "j",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "zo3hjo4gjo3dj4",
+"finishing": false,
+"segments": [
+[
+0,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "zo3hjo4gj",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "t;6t;6ai4g4",
+"finishing": true,
+"segments": [
+[
+0,
+11,
+"zhuyin"
+]
+]
+},
+{
+"keys": "t;6t;6a",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "sm3t41u4",
+"finishing": true,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "s",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "messmateaul6zo ji3",
+"finishing": true,
+"segments": [
+[
+0,
+8,
+"literal"
+],
+[
+8,
+18,
+"zhuyin"
+]
+]
+},
+{
+"keys": "messmatea",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"literal"
+],
+[
+8,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "Search",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "Searc",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "284n0 g6e; fu;3",
+"finishing": false,
+"segments": [
+[
+0,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "28",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vup ej; bp6g.4ji3go",
+"finishing": true,
+"segments": [
+[
+0,
+17,
+"zhuyin"
+],
+[
+17,
+19,
+"literal"
+]
+]
+},
+{
+"keys": "vup ej; bp6g.4ji3",
+"finishing": false,
+"segments": [
+[
+0,
+17,
+"zhuyin"
+]
+]
+},
+{
+"keys": "t;6ej/ ",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "t;",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "stenosisvup 2l4",
+"finishing": true,
+"segments": [
+[
+0,
+8,
+"literal"
+],
+[
+8,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "s",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "60.4",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "6",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"literal"
+]
+]
+},
+{
+"keys": "ru/3ru,3Hume",
+"finishing": true,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+],
+[
+8,
+12,
+"literal"
+]
+]
+},
+{
+"keys": "ru",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "d0 ",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "d0",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "Unlathed",
+"finishing": true,
+"segments": [
+[
+0,
+8,
+"literal"
+]
+]
+},
+{
+"keys": "Unlath",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "u06xu4",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u06x",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "fu/ fu4up",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+],
+[
+7,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "fu/ fu4",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "better",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "be",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "9679",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "96",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "these2u653w.7",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+13,
+"zhuyin"
+]
+]
+},
+{
+"keys": "these2u653w.",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+12,
+"zhuyin"
+]
+]
+},
+{
+"keys": "coffee",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "co",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "herxk75j4yji45k3xul4",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+],
+[
+3,
+20,
+"zhuyin"
+]
+]
+},
+{
+"keys": "herxk",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+],
+[
+3,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "mp4h;6g.3vu0 ",
+"finishing": false,
+"segments": [
+[
+0,
+13,
+"zhuyin"
+]
+]
+},
+{
+"keys": "mp4h;6g.3",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "neurogram",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "neu",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "or",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "o",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2ji 284cat",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+],
+[
+7,
+10,
+"literal"
+]
+]
+},
+{
+"keys": "2ji 28",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "54vu,4u wj3z06bj/6help",
+"finishing": true,
+"segments": [
+[
+0,
+18,
+"zhuyin"
+],
+[
+18,
+22,
+"literal"
+]
+]
+},
+{
+"keys": "54",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "rm41ul3m06ru z83let",
+"finishing": true,
+"segments": [
+[
+0,
+16,
+"zhuyin"
+],
+[
+16,
+19,
+"literal"
+]
+]
+},
+{
+"keys": "rm41ul3m06ru z83l",
+"finishing": false,
+"segments": [
+[
+0,
+17,
+"zhuyin"
+]
+]
+},
+{
+"keys": "idea",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "ide",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "helloul4m06",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+11,
+"zhuyin"
+]
+]
+},
+{
+"keys": "helloul4",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru cjo4",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru cjo",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "wjo b;4",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "w",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "youtube2l4m3",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"literal"
+],
+[
+7,
+12,
+"zhuyin"
+]
+]
+},
+{
+"keys": "yout",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "ru6ru; went",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+],
+[
+7,
+11,
+"literal"
+]
+]
+},
+{
+"keys": "ru6",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru4u.3rul4g cjo4co u/3Me",
+"finishing": true,
+"segments": [
+[
+0,
+22,
+"zhuyin"
+],
+[
+22,
+24,
+"literal"
+]
+]
+},
+{
+"keys": "ru4u.3rul4g cjo4co",
+"finishing": false,
+"segments": [
+[
+0,
+18,
+"zhuyin"
+]
+]
+},
+{
+"keys": "move",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "mov",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "z;3n ",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "z;",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "4351",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "43",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "xu;4",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "xu",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "himjo65p 2jo4bp4",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+],
+[
+3,
+16,
+"zhuyin"
+]
+]
+},
+{
+"keys": "h",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru.4283against",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+],
+[
+7,
+14,
+"literal"
+]
+]
+},
+{
+"keys": "ru.4283agains",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+],
+[
+7,
+12,
+"literal"
+],
+[
+12,
+13,
+"zhuyin"
+]
+]
+},
+{
+"keys": "j4xu3nji3a83j94vu; ",
+"finishing": false,
+"segments": [
+[
+0,
+19,
+"zhuyin"
+]
+]
+},
+{
+"keys": "j4xu3nji3a83j94",
+"finishing": false,
+"segments": [
+[
+0,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "rul cj04ek4tj vm,6",
+"finishing": true,
+"segments": [
+[
+0,
+18,
+"zhuyin"
+]
+]
+},
+{
+"keys": "rul cj04",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "xu.4kindn; el ru6vu,3y94",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+],
+[
+4,
+8,
+"literal"
+],
+[
+8,
+24,
+"zhuyin"
+]
+]
+},
+{
+"keys": "xu.4kindn; e",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+],
+[
+4,
+8,
+"literal"
+],
+[
+8,
+12,
+"zhuyin"
+]
+]
+},
+{
+"keys": "Annuitant56w94fup6rup g/ ",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"literal"
+],
+[
+9,
+25,
+"zhuyin"
+]
+]
+},
+{
+"keys": "Annuitant56w94f",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"literal"
+],
+[
+9,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "gk45 vu84",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "gk45 ",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "dj84bj4sitatunga",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+],
+[
+7,
+16,
+"literal"
+]
+]
+},
+{
+"keys": "dj8",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "are",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "a",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"literal"
+]
+]
+},
+{
+"keys": "ru03hl3tj6ep q04wl6",
+"finishing": false,
+"segments": [
+[
+0,
+19,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru03hl3tj6ep ",
+"finishing": false,
+"segments": [
+[
+0,
+13,
+"zhuyin"
+]
+]
+},
+{
+"keys": "in1j4cjo4wk4",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+],
+[
+2,
+12,
+"zhuyin"
+]
+]
+},
+{
+"keys": "i",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"literal"
+]
+]
+},
+{
+"keys": "gp 53",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "gp ",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "18 ek7",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "18 e",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "x;3",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "x",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2l42k6ej0 ",
+"finishing": false,
+"segments": [
+[
+0,
+10,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ej84su06",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ej84s",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "youtubecj/6t86ej/4g/ j03",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"literal"
+],
+[
+7,
+24,
+"zhuyin"
+]
+]
+},
+{
+"keys": "youtubecj/6t86ej/4g/",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"literal"
+],
+[
+7,
+20,
+"zhuyin"
+]
+]
+},
+{
+"keys": "youtube",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"literal"
+]
+]
+},
+{
+"keys": "youtub",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "said",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "sai",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "u06ru.4u42u03u.3g4you",
+"finishing": true,
+"segments": [
+[
+0,
+18,
+"zhuyin"
+],
+[
+18,
+21,
+"literal"
+]
+]
+},
+{
+"keys": "u06ru.4u",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "284tj04",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "5k4tjp fu. yji3g4",
+"finishing": false,
+"segments": [
+[
+0,
+17,
+"zhuyin"
+]
+]
+},
+{
+"keys": "5k4tjp f",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "bad",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "b",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "h/6tj 1j4fm/6because",
+"finishing": true,
+"segments": [
+[
+0,
+13,
+"zhuyin"
+],
+[
+13,
+20,
+"literal"
+]
+]
+},
+{
+"keys": "h/6tj 1j",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "su6g8 people",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+],
+[
+6,
+12,
+"literal"
+]
+]
+},
+{
+"keys": "su6g8 p",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "nj/4tj3m6t/6zp4",
+"finishing": false,
+"segments": [
+[
+0,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "nj",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "want",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "wa",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "Put",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "Pu",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "3566",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "356",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "input",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "inpu",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "wu6n3ru.3Password",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+],
+[
+9,
+17,
+"literal"
+]
+]
+},
+{
+"keys": "wu6n3ru.3Passwo",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+],
+[
+9,
+15,
+"literal"
+]
+]
+},
+{
+"keys": "3452",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "3",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"literal"
+]
+]
+},
+{
+"keys": "send",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "se",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "xm3z;3zj6cp31j6",
+"finishing": true,
+"segments": [
+[
+0,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "xm3z;3zj",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1i wk4x06",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1i wk4x0",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "of",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "o",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "18 n4u n dl3",
+"finishing": false,
+"segments": [
+[
+0,
+12,
+"zhuyin"
+]
+]
+},
+{
+"keys": "18",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "on",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "o",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u06xji6",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u0",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "rup bj/6ru,4ej0 m06",
+"finishing": false,
+"segments": [
+[
+0,
+19,
+"zhuyin"
+]
+]
+},
+{
+"keys": "rup bj/6ru,4ej",
+"finishing": false,
+"segments": [
+[
+0,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "reconcede53tj y94h3q84",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"literal"
+],
+[
+9,
+22,
+"zhuyin"
+]
+]
+},
+{
+"keys": "reconcede53tj y",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"literal"
+],
+[
+9,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "input",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "in",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "dj94xk4e; wu,3",
+"finishing": false,
+"segments": [
+[
+0,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "dj94xk4e; w",
+"finishing": false,
+"segments": [
+[
+0,
+11,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ej3",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ej",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ao6",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ao",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "link",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "li",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "Have",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "Ha",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "meet",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "mee",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "n ",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "n",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "wj6ru/4xu;6g0 n4",
+"finishing": true,
+"segments": [
+[
+0,
+16,
+"zhuyin"
+]
+]
+},
+{
+"keys": "wj6ru/4xu;",
+"finishing": false,
+"segments": [
+[
+0,
+10,
+"zhuyin"
+]
+]
+},
+{
+"keys": "8247",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "824",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "Dicoccous",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "Dico",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "ru04ejo yjo4",
+"finishing": false,
+"segments": [
+[
+0,
+12,
+"zhuyin"
+]
+]
+},
+{
+"keys": "r",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "y3m04",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "y3m0",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vu;4s84",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vu;4",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1786",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "1",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "g/ zp fu6u.3fm4",
+"finishing": false,
+"segments": [
+[
+0,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "g/ zp fu6u.3fm",
+"finishing": false,
+"segments": [
+[
+0,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "au4-6bj4check",
+"finishing": true,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+],
+[
+8,
+13,
+"literal"
+]
+]
+},
+{
+"keys": "a",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"literal"
+]
+]
+},
+{
+"keys": "city",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "cit",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "Came",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "Ca",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "must",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "mus",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "ej32j/ fu3cj/ a87",
+"finishing": false,
+"segments": [
+[
+0,
+17,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ej32j/ f",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "Hello",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "Hell",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "q041u,6w.6y bp6revile",
+"finishing": true,
+"segments": [
+[
+0,
+15,
+"zhuyin"
+],
+[
+15,
+21,
+"literal"
+]
+]
+},
+{
+"keys": "q041u,6w.",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "dk3s06g/ ",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "d",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "c.4bp6ru6is",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+],
+[
+9,
+11,
+"literal"
+]
+]
+},
+{
+"keys": "c.4bp6ru6",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "5p ejo cj84",
+"finishing": false,
+"segments": [
+[
+0,
+11,
+"zhuyin"
+]
+]
+},
+{
+"keys": "5p e",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "it",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "i",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"literal"
+]
+]
+},
+{
+"keys": "mottoless",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "m",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "tj airru,42ul4",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+],
+[
+3,
+6,
+"literal"
+],
+[
+6,
+14,
+"zhuyin"
+]
+]
+},
+{
+"keys": "tj ",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "yjo4rup4ru3su062u4z; ",
+"finishing": false,
+"segments": [
+[
+0,
+21,
+"zhuyin"
+]
+]
+},
+{
+"keys": "yjo4ru",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "g4u4cjo4",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "g4u4",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "up m,4j06",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "up",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "a04aul4rul4",
+"finishing": false,
+"segments": [
+[
+0,
+11,
+"zhuyin"
+]
+]
+},
+{
+"keys": "a04aul4ru",
+"finishing": false,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "5843",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "58",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "applecj84",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "appl",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "1u04ru, vu04g/ ",
+"finishing": false,
+"segments": [
+[
+0,
+15,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1u04ru, vu04g",
+"finishing": false,
+"segments": [
+[
+0,
+13,
+"zhuyin"
+]
+]
+},
+{
+"keys": "Mind",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "M",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"literal"
+]
+]
+},
+{
+"keys": "feeld042k6xu/6cjp6xu.4",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+],
+[
+4,
+22,
+"zhuyin"
+]
+]
+},
+{
+"keys": "feeld042k",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+],
+[
+4,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "g6e; there",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+],
+[
+5,
+10,
+"literal"
+]
+]
+},
+{
+"keys": "g6",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "zp ",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "zp",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u g4ru45j/3cardona1o3",
+"finishing": false,
+"segments": [
+[
+0,
+11,
+"zhuyin"
+],
+[
+11,
+18,
+"literal"
+],
+[
+18,
+21,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u g4ru45j/",
+"finishing": false,
+"segments": [
+[
+0,
+10,
+"zhuyin"
+]
+]
+},
+{
+"keys": "proxysmfu353u 2j04",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"literal"
+],
+[
+7,
+18,
+"zhuyin"
+]
+]
+},
+{
+"keys": "proxysmfu353u 2j0",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"literal"
+],
+[
+7,
+17,
+"zhuyin"
+]
+]
+},
+{
+"keys": "x06",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "x",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "do",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "d",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1377",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "1",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "su3cl3gp6",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "su3",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "where",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "w",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "e0 5.3his",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+],
+[
+6,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "e0 5",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2/ rm4",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "2/ rm",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "ru6",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "r",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "place",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "p",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "up3m/4",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "applew.6nj4ao6vu0654",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+20,
+"zhuyin"
+]
+]
+},
+{
+"keys": "applew.6n",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+],
+[
+5,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "z06together",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+],
+[
+3,
+11,
+"literal"
+]
+]
+},
+{
+"keys": "z",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1j4eji4",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "for",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "fo",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "together",
+"finishing": true,
+"segments": [
+[
+0,
+8,
+"literal"
+]
+]
+},
+{
+"keys": "to",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "53au/62l4vu/4qu/6w96",
+"finishing": true,
+"segments": [
+[
+0,
+20,
+"zhuyin"
+]
+]
+},
+{
+"keys": "53au/62l4vu/4",
+"finishing": false,
+"segments": [
+[
+0,
+13,
+"zhuyin"
+]
+]
+},
+{
+"keys": "g6ej; docs",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+],
+[
+6,
+10,
+"literal"
+]
+]
+},
+{
+"keys": "g6ej;",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "keep",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "k",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "m3g4ru,6fu/4104wj6",
+"finishing": false,
+"segments": [
+[
+0,
+18,
+"zhuyin"
+]
+]
+},
+{
+"keys": "m3g4ru,6fu/4",
+"finishing": false,
+"segments": [
+[
+0,
+12,
+"zhuyin"
+]
+]
+},
+{
+"keys": "night",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "n",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "can",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "ca",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "docs",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "d",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "New",
+"finishing": true,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "Ne",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "2. ao6u.3see",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+],
+[
+9,
+12,
+"literal"
+]
+]
+},
+{
+"keys": "2.",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "n4vu;4u3",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "n4v",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"zhuyin"
+]
+]
+},
+{
+"keys": "yji4",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "y",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"zhuyin"
+]
+]
+},
+{
+"keys": "between",
+"finishing": true,
+"segments": [
+[
+0,
+7,
+"literal"
+]
+]
+},
+{
+"keys": "betwe",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "g6ru0 rad",
+"finishing": true,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+],
+[
+6,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "g6ru",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"zhuyin"
+]
+]
+},
+{
+"keys": "Git2u4cl62ji6204196",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+],
+[
+3,
+19,
+"zhuyin"
+]
+]
+},
+{
+"keys": "Git2u4c",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+],
+[
+3,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u;3g/ nj/4n3gp4y;4gp zp4",
+"finishing": true,
+"segments": [
+[
+0,
+24,
+"zhuyin"
+]
+]
+},
+{
+"keys": "u;3g/ nj/4n3g",
+"finishing": false,
+"segments": [
+[
+0,
+13,
+"zhuyin"
+]
+]
+},
+{
+"keys": "turn",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "tur",
+"finishing": false,
+"segments": [
+[
+0,
+3,
+"literal"
+]
+]
+},
+{
+"keys": "okay",
+"finishing": true,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "ok",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "Ai",
+"finishing": true,
+"segments": [
+[
+0,
+2,
+"literal"
+]
+]
+},
+{
+"keys": "A",
+"finishing": false,
+"segments": [
+[
+0,
+1,
+"literal"
+]
+]
+},
+{
+"keys": "today",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"literal"
+]
+]
+},
+{
+"keys": "toda",
+"finishing": false,
+"segments": [
+[
+0,
+4,
+"literal"
+]
+]
+},
+{
+"keys": "junipercl3gp ",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"literal"
+],
+[
+7,
+13,
+"zhuyin"
+]
+]
+},
+{
+"keys": "junipe",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"literal"
+]
+]
+},
+{
+"keys": "vul3q/6u.3gk4cjo4",
+"finishing": true,
+"segments": [
+[
+0,
+17,
+"zhuyin"
+]
+]
+},
+{
+"keys": "vul3q",
+"finishing": false,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+]
+]
+},
+{
+"keys": "-41o4vu03",
+"finishing": true,
+"segments": [
+[
+0,
+9,
+"zhuyin"
+]
+]
+},
+{
+"keys": "-41o4vu",
+"finishing": false,
+"segments": [
+[
+0,
+7,
+"zhuyin"
+]
+]
+},
+{
+"keys": "1u4n3time",
+"finishing": true,
+"segments": [
+[
+0,
+5,
+"zhuyin"
+],
+[
+5,
+9,
+"literal"
+]
+]
+},
+{
+"keys": "1u",
+"finishing": false,
+"segments": [
+[
+0,
+2,
+"zhuyin"
+]
+]
+},
+{
+"keys": "e94u4jp6",
+"finishing": false,
+"segments": [
+[
+0,
+8,
+"zhuyin"
+]
+]
+},
+{
+"keys": "e94u4j",
+"finishing": false,
+"segments": [
+[
+0,
+6,
+"zhuyin"
+]
+]
+}
+]

@@ -53,6 +53,30 @@ public final class EnglishModel {
         return min(0.5 * n, max(-2 * n, n * (plaus + 4.2)))
     }
 
+    /// Feature dict for the classifier (see Features.swift); `score` is their dot
+    /// product with the default weights.
+    public func wordFeatures(_ word: String, complete: Bool) -> FeatureVector {
+        let w = word.lowercased()
+        let n = Double(w.count)
+        var f: FeatureVector = [:]
+        if n <= 2 { f["lit.short"] = 1 }
+        if common.contains(w) {
+            f["lit.common"] = 1
+            f["lit.common_len"] = n
+        } else if dictionary.contains(w) {
+            f["lit.dict"] = 1
+            f["lit.dict_len"] = n
+        } else if !complete && hasPrefix(w, in: sortedCommon) {
+            f["lit.prefix_common_len"] = n
+        } else if !complete && hasPrefix(w, in: sortedWords) {
+            f["lit.prefix_dict_len"] = n
+        } else {
+            let plaus = plausibility(w)
+            f["lit.unknown_score"] = min(0.5 * n, max(-2 * n, n * (plaus + 4.2)))
+        }
+        return f
+    }
+
     /// Mean log2 probability per letter transition (≈ -3.5 for English, lower for gibberish).
     public func plausibility(_ w: String) -> Double {
         let chars = ["^"] + w.map(String.init) + ["$"]

@@ -18,7 +18,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/AutoZhuyin"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
-cp Resources/lexicon.txt Resources/english-common.txt "$APP/Contents/Resources/"
+cp Resources/lexicon.txt Resources/english-common.txt Resources/classifier-weights.json "$APP/Contents/Resources/"
 
 if [ ! -f build/icon.tiff ]; then
     xcrun swift scripts/make-icon.swift build/icon.tiff

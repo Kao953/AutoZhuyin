@@ -26,7 +26,8 @@ enum Shared {
         let learned = LearnedPreferences(weights: saved) { weights in
             UserDefaults.standard.set(weights, forKey: learnedKey)
         }
-        return Classifier(lexicon: lexicon, english: english, learned: learned)
+        let trained = Features.loadWeights(from: bundle.url(forResource: "classifier-weights", withExtension: "json"))
+        return Classifier(lexicon: lexicon, english: english, learned: learned, weights: trained)
     }()
 }
 

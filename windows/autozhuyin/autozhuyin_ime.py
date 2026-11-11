@@ -52,7 +52,8 @@ def _shared_classifier():
                 weights = json.load(f)
         except (OSError, ValueError):
             pass
-        _classifier = Classifier(lexicon, english, LearnedPreferences(weights, _save_learned))
+        trained = Classifier.load_weights(os.path.join(_DATA, "classifier-weights.json"))
+        _classifier = Classifier(lexicon, english, LearnedPreferences(weights, _save_learned), trained)
     return _classifier
 
 

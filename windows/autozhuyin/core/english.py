@@ -56,6 +56,29 @@ class EnglishModel:
         plaus = self.plausibility(w)
         return min(0.5 * n, max(-2 * n, n * (plaus + 4.2)))
 
+    def word_features(self, word, complete):
+        """Feature dict for the classifier (see features.py); score() is their
+        dot product with the default weights."""
+        w = word.lower()
+        n = float(len(w))
+        f = {}
+        if n <= 2:
+            f["lit.short"] = 1.0
+        if w in self.common:
+            f["lit.common"] = 1.0
+            f["lit.common_len"] = n
+        elif w in self.dictionary:
+            f["lit.dict"] = 1.0
+            f["lit.dict_len"] = n
+        elif not complete and _has_prefix(w, self.sorted_common):
+            f["lit.prefix_common_len"] = n
+        elif not complete and _has_prefix(w, self.sorted_words):
+            f["lit.prefix_dict_len"] = n
+        else:
+            plaus = self.plausibility(w)
+            f["lit.unknown_score"] = min(0.5 * n, max(-2 * n, n * (plaus + 4.2)))
+        return f
+
     def plausibility(self, w):
         chars = ["^"] + list(w) + ["$"]
         total = sum(self.bigram.get(chars[i - 1] + chars[i], self.unseen) for i in range(1, len(chars)))

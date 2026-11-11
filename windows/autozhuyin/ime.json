@@ -1,6 +1,6 @@
 {
     "name": "自動注音 AutoZhuyin",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "guid": "{3895C6E3-6D40-4B4B-B4EA-CEEC75382D23}",
     "locale": "zh-Hant-TW",
     "fallbackLocale": "zh-TW",

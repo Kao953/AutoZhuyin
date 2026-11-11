@@ -144,14 +144,15 @@ class ShiftTapWrapperTests(unittest.TestCase):
     def test_tap_forces_english_lowercase(self):
         reply = tap_shift(self.svc)
         self.assertEqual(reply.get("showMessage"), "英文")
-        self.assertEqual(type_text(self.svc, "ru "), "ru ")
+        self.assertEqual(type_text(self.svc, "ru su "), "ru su ")
+        self.assertEqual(tap_shift(self.svc).get("showMessage"), "中英自動")
 
     def test_shift_with_letter_is_not_a_tap(self):
         self.svc.filterKeyDown(FakeKeyEvent("⇧", shift=True))
         press(self.svc, "H", shift=True)
         up = FakeKeyEvent("⇧")
         self.assertFalse(self.svc.filterKeyUp(up))
-        self.assertFalse(self.svc.engine.english_armed)
+        self.assertFalse(self.svc.engine.english_mode)
 
 
 if __name__ == "__main__":

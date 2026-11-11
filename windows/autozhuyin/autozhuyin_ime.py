@@ -142,8 +142,8 @@ class AutoZhuyinTextService(TextService):
             return False
         self.engine.handle(SHIFT_TAP)
         self._update(None)
-        if self.engine.english_armed:
-            self.showMessage("英文", 1)
+        if not self.engine.keys:
+            self.showMessage("英文" if self.engine.english_mode else "中英自動", 1)
         return True
 
     # --- replies ---

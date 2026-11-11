@@ -194,11 +194,15 @@ class MixedSegmentTests(unittest.TestCase):
 
 
 class ShiftTapTests(unittest.TestCase):
-    def test_forces_next_word_english_lowercase(self):
+    def test_toggles_english_mode(self):
         e = make_engine()
-        self.assertEqual(type_keys("⇧ru ", e), "ru ")
-        self.assertFalse(e.english_armed)
-        self.assertEqual(type_keys("su3cl3\n", e), "你好")
+        self.assertEqual(type_keys("⇧ru su ", e), "ru su ")
+        self.assertTrue(e.english_mode)
+        self.assertEqual(e.marked_text, "")
+        self.assertEqual(e.handle(ENTER), (False, None))
+        self.assertTrue(e.english_mode)
+        self.assertEqual(type_keys("⇧su3cl3\n", e), "你好")
+        self.assertFalse(e.english_mode)
 
     def test_tap_twice_cancels(self):
         self.assertEqual(type_keys("⇧⇧su3cl3\n", make_engine()), "你好")
@@ -208,20 +212,20 @@ class ShiftTapTests(unittest.TestCase):
         type_keys("so", e)
         e.handle(SHIFT_TAP)
         self.assertEqual(e.mode, ZHUYIN)
+        self.assertFalse(e.english_mode)
         type_keys("\n", e)
         self.assertEqual(e.classifier.learned.weights["so"], 1)
 
-    def test_forcing_before_typing_not_learned(self):
+    def test_english_mode_not_learned(self):
         e = make_engine()
         type_keys("⇧hello ", e)
-        self.assertNotIn("hello", e.classifier.learned.weights)
+        self.assertEqual(e.classifier.learned.weights, {})
 
-    def test_arming_survives_backspace(self):
+    def test_backspace_goes_to_app(self):
         e = make_engine()
-        type_keys("⇧r", e)
-        e.handle(BACKSPACE)
-        self.assertTrue(e.english_armed)
-        self.assertEqual(type_keys("ru ", e), "ru ")
+        e.handle(SHIFT_TAP)
+        self.assertEqual(e.handle(BACKSPACE), (False, None))
+        self.assertTrue(e.english_mode)
 
     def test_detector(self):
         d = ShiftTapDetector()
@@ -265,26 +269,6 @@ class CursorTests(unittest.TestCase):
         e = make_engine()
         type_keys("su3cl3hello↓", e)
         self.assertTrue(e.showing_candidates)
-
-
-class DirectEnglishTests(unittest.TestCase):
-    def test_forced_english_has_no_composition(self):
-        e = make_engine()
-        e.handle(SHIFT_TAP)
-        self.assertEqual(e.handle("r"), (True, "r"))
-        self.assertEqual(e.marked_text, "")
-        self.assertEqual(e.handle("'"), (True, "'"))
-        self.assertEqual(e.handle(BACKSPACE), (False, None))
-        self.assertTrue(e.english_armed)
-        self.assertEqual(e.handle(" "), (True, " "))
-        self.assertFalse(e.english_armed)
-
-    def test_enter_ends_forced_english(self):
-        e = make_engine()
-        e.handle(SHIFT_TAP)
-        e.handle("a")
-        self.assertEqual(e.handle(ENTER), (False, None))
-        self.assertFalse(e.english_armed)
 
 
 if __name__ == "__main__":

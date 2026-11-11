@@ -297,13 +297,16 @@ final class ShiftTapTests: XCTestCase {
         return out
     }
 
-    func testShiftTapForcesNextWordEnglishLowercase() {
+    func testShiftTapTogglesEnglishMode() {
         let e = engine()
-        // "ru" alone would be ㄐㄧ (機); after a Shift tap it stays English, lowercase.
-        XCTAssertEqual(type("⇧ru ", into: e), "ru ")
-        // Automatic detection resumes after the word.
-        XCTAssertFalse(e.isEnglishArmed)
-        XCTAssertEqual(type("su3cl3\n", into: e), "你好")
+        // "ru" alone would be ㄐㄧ (機); in English mode keys pass straight through, lowercase.
+        XCTAssertEqual(type("⇧ru su ", into: e), "ru su ")
+        XCTAssertTrue(e.isEnglishMode)                 // still English after spaces
+        XCTAssertEqual(e.markedText, "")               // never composed: no underline
+        XCTAssertEqual(type("\n", into: e), "\n")     // Enter goes to the app, mode stays
+        XCTAssertTrue(e.isEnglishMode)
+        XCTAssertEqual(type("⇧su3cl3\n", into: e), "你好")   // tap again: automatic again
+        XCTAssertFalse(e.isEnglishMode)
     }
 
     func testShiftTapTwiceCancels() {
@@ -316,22 +319,22 @@ final class ShiftTapTests: XCTestCase {
         XCTAssertEqual(e.mode, .literal)
         _ = e.handle(.shiftTap)
         XCTAssertEqual(e.mode, .zhuyin)
+        XCTAssertFalse(e.isEnglishMode)                // a flip, not English mode
         _ = type("\n", into: e)
         XCTAssertEqual(e.classifier.learned.weights["so"], 1)   // a correction is learned
     }
 
-    func testForcingBeforeTypingIsNotLearned() {
+    func testEnglishModeIsNotLearned() {
         let e = engine()
         _ = type("⇧hello ", into: e)
-        XCTAssertNil(e.classifier.learned.weights["hello"])
+        XCTAssertTrue(e.classifier.learned.weights.isEmpty)
     }
 
-    func testArmingSurvivesBackspace() {
+    func testBackspaceInEnglishModeGoesToApp() {
         let e = engine()
-        _ = type("⇧r", into: e)
-        _ = e.handle(.backspace)
-        XCTAssertTrue(e.isEnglishArmed)
-        XCTAssertEqual(type("ru ", into: e), "ru ")
+        _ = type("⇧", into: e)
+        XCTAssertFalse(e.handle(.backspace).handled)
+        XCTAssertTrue(e.isEnglishMode)
     }
 
     func testDetector() {
@@ -403,29 +406,5 @@ final class CursorTests: XCTestCase {
         _ = type("su3cl3hello", into: e)               // 你好hello
         _ = type("↓", into: e)                         // last Chinese syllable, not the English word
         XCTAssertTrue(e.isShowingCandidates)
-    }
-}
-
-final class DirectEnglishTests: XCTestCase {
-    func testForcedEnglishHasNoComposition() {
-        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
-        _ = e.handle(.shiftTap)
-        let r = e.handle(.character("r"))
-        XCTAssertEqual(r.commit, "r")                 // inserted right away
-        XCTAssertEqual(e.markedText, "")              // nothing underlined
-        XCTAssertEqual(e.handle(.character("u")).commit, "u")
-        XCTAssertEqual(e.handle(.character("'")).commit, "'")
-        XCTAssertFalse(e.handle(.backspace).handled)  // the app deletes it
-        XCTAssertTrue(e.isEnglishArmed)
-        XCTAssertEqual(e.handle(.character(" ")).commit, " ")
-        XCTAssertFalse(e.isEnglishArmed)              // back to automatic
-    }
-
-    func testEnterEndsForcedEnglish() {
-        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
-        _ = e.handle(.shiftTap)
-        _ = e.handle(.character("a"))
-        XCTAssertFalse(e.handle(.enter).handled)
-        XCTAssertFalse(e.isEnglishArmed)
     }
 }

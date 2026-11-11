@@ -34,9 +34,9 @@ class CompositionEngine:
         self.now = now
         self.keys = []
         self.forced_mode = None
-        # True when forced_mode corrects the classifier (learned on commit); False when the
-        # user forced English before typing (Shift tap on an empty buffer).
-        self._forced_is_correction = False
+        # English mode, toggled by a Shift tap when nothing is being typed: keys go straight
+        # to the app (no composition, no underline) until Shift is tapped again.
+        self.english_mode = False
         self.fixed = {}          # zhuyin segment start -> {(syl_start, syl_end): text}
         self.candidates = []
         self.candidate_index = 0
@@ -150,26 +150,16 @@ class CompositionEngine:
 
     # --- key handling ---
 
-    @property
-    def english_armed(self):
-        """True while the user has forced English for the next word (Shift tap). In this
-        mode keys go straight to the app with no composition (no underline)."""
-        return not self.keys and self.forced_mode == LITERAL and not self._forced_is_correction
-
-    def _end_direct_english(self):
-        if self.english_armed:
-            self.forced_mode = None
-            self._previous_mode = LITERAL
-            self._previous_time = self.now()
-
     def _flip(self):
+        """Forces the whole buffer into the other mode (a correction that is learned)."""
         self.forced_mode = LITERAL if self.mode == ZHUYIN else ZHUYIN
-        self._forced_is_correction = True
 
     def wants(self, key):
         """Whether handle(key) would consume the key, without changing state."""
-        if self.candidates or key == SHIFT_TAP or self.english_armed:
+        if self.candidates or key == SHIFT_TAP:
             return True
+        if self.english_mode and not self.keys:
+            return False   # English mode: everything goes to the app as typed
         if key in SPECIAL_KEYS:
             return bool(self.keys)
         if self.keys:
@@ -190,34 +180,29 @@ class CompositionEngine:
             self.keys.pop()
             self.fixed = {k: v for k, v in self.fixed.items() if k < len(self.keys)}
             if not self.keys:
-                # A Shift-tap "next word is English" stays armed; a correction is dropped.
-                if self._forced_is_correction:
-                    self.forced_mode = None
-                    self._forced_is_correction = False
+                self.forced_mode = None
                 self.fixed = {}
             return CONSUMED
         if key == ENTER:
             if not self.keys:
-                self._end_direct_english()
                 return PASS
             return True, self._commit()
         if key == ESCAPE:
             if not self.keys:
-                self._end_direct_english()
                 return PASS
             self.reset()
             return CONSUMED
         if key == TAB:
             if not self.keys:
-                self._end_direct_english()
                 return PASS
             self._flip()
             return CONSUMED
         if key == SHIFT_TAP:
             if not self.keys:
-                # Next word is English, typed as-is. Tap again to cancel.
-                self.forced_mode = None if self.forced_mode == LITERAL else LITERAL
-                self._forced_is_correction = False
+                # Toggle English mode; it stays on until the next Shift tap.
+                self.english_mode = not self.english_mode
+                self._previous_mode = LITERAL if self.english_mode else None
+                self._previous_time = self.now()
             else:
                 self._flip()
             return CONSUMED
@@ -243,15 +228,8 @@ class CompositionEngine:
 
     def _handle_character(self, c):
         self.cursor = None   # typing always continues at the end
-        if self.english_armed:
-            # Forced English: insert directly. Space ends the word; other symbols end it too.
-            if c == " ":
-                self._end_direct_english()
-                return True, " "
-            if c.isascii() and (c.isalnum() or c in "'.,-/;"):
-                return True, c
-            self._end_direct_english()
-            return PASS
+        if self.english_mode and not self.keys:
+            return PASS   # English mode: every key goes to the app as typed
         if c == " ":
             if not self.keys:
                 return PASS
@@ -329,7 +307,7 @@ class CompositionEngine:
     def _commit(self, segs=None):
         segs = segs if segs is not None else self.segments
         text = "".join(self._render(s, True) for s in segs)
-        if self.forced_mode and self._forced_is_correction:
+        if self.forced_mode:
             self.classifier.learned.record("".join(self.keys), self.forced_mode)
         self._previous_mode = segs[-1][2] if segs else None
         self._previous_time = self.now()
@@ -343,6 +321,5 @@ class CompositionEngine:
         self.keys = []
         self.cursor = None
         self.forced_mode = None
-        self._forced_is_correction = False
         self.fixed = {}
         self.candidates = []

@@ -8,33 +8,63 @@ import Foundation
 ///  - a letter-bigram model trained on those words, for words not in either list.
 public final class EnglishModel {
     private var common = Set<String>()
-    private var dictionary = Set<String>()
-    private var sortedWords: [String] = []
     private var sortedCommon: [String] = []
+    /// Dictionary words (lowercase, > 2 letters), sorted: membership and prefix checks are
+    /// binary searches, so no 230k-entry Set has to be built at startup.
+    private var sortedDict: [String] = []
     private var bigram: [String: Double] = [:]   // "ab" -> log2 P(b|a); "^a", "a$" for boundaries
     private var unseenBigram = -12.0
 
-    public init(commonWords: [String], dictionaryWords: [String] = []) {
+    /// - Parameter bigram: precomputed table (english-bigram.json); trained from the words if nil.
+    public init(commonWords: [String], dictionaryWords: [String] = [],
+                bigram: (table: [String: Double], unseen: Double)? = nil) {
         common = Set(commonWords.map { $0.lowercased() }.filter { !$0.isEmpty })
-        dictionary = Set(dictionaryWords.map { $0.lowercased() }.filter { $0.count > 2 })
         sortedCommon = common.sorted()
-        sortedWords = common.union(dictionary).sorted()
-        trainBigram()
+        var dict = dictionaryWords.map { $0.lowercased() }.filter { $0.count > 2 }
+        if !zip(dict, dict.dropFirst()).allSatisfy({ $0 < $1 }) {
+            dict = Array(Set(dict)).sorted()
+        }
+        sortedDict = dict
+        if let bigram {
+            self.bigram = bigram.table
+            unseenBigram = bigram.unseen
+        } else {
+            trainBigram()
+        }
     }
 
-    /// Loads common words from a bundle resource file and the system dictionary if present.
-    public convenience init(commonWordsURL: URL?, systemDictionary: URL? = URL(fileURLWithPath: "/usr/share/dict/words")) {
+    /// Loads the bundled data files. Falls back to the system word list and to training
+    /// the bigram table when the precomputed files are missing.
+    public convenience init(commonWordsURL: URL?, dictionaryURL: URL? = nil, bigramURL: URL? = nil) {
         func lines(_ url: URL?) -> [String] {
             guard let url, let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
             return text.split(whereSeparator: \.isNewline)
                 .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.hasPrefix("#") }
+                .filter { !$0.isEmpty && !$0.hasPrefix("#") }
         }
-        self.init(commonWords: lines(commonWordsURL), dictionaryWords: lines(systemDictionary))
+        var bigram: (table: [String: Double], unseen: Double)?
+        if let url = bigramURL, let data = try? Data(contentsOf: url),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let table = obj["table"] as? [String: Double], let unseen = obj["unseen"] as? Double {
+            bigram = (table, unseen)
+        }
+        let dictURL = dictionaryURL.flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+            ?? URL(fileURLWithPath: "/usr/share/dict/words")
+        self.init(commonWords: lines(commonWordsURL), dictionaryWords: lines(dictURL), bigram: bigram)
     }
 
     public func isCommon(_ w: String) -> Bool { common.contains(w.lowercased()) }
-    public func isWord(_ w: String) -> Bool { let l = w.lowercased(); return common.contains(l) || dictionary.contains(l) }
+    public func isWord(_ w: String) -> Bool { let l = w.lowercased(); return common.contains(l) || inDictionary(l) }
+
+    private func inDictionary(_ w: String) -> Bool {
+        let i = lowerBound(w, in: sortedDict)
+        return i < sortedDict.count && sortedDict[i] == w
+    }
+
+    /// Some word strictly longer than `p` starts with it (common words or dictionary).
+    private func isPrefixOfWord(_ p: String) -> Bool {
+        hasPrefix(p, in: sortedCommon) || hasPrefix(p, in: sortedDict)
+    }
 
     /// - Parameter complete: true when the user ended the word (space / punctuation),
     ///   false while still typing (prefixes of words get partial credit).
@@ -43,10 +73,10 @@ public final class EnglishModel {
         let n = Double(w.count)
         guard !w.isEmpty else { return 0 }
         if common.contains(w) { return 3 + n }
-        if dictionary.contains(w) { return 1 + 0.6 * n }
+        if inDictionary(w) { return 1 + 0.6 * n }
         if !complete {
             if hasPrefix(w, in: sortedCommon) { return 0.4 * n }
-            if hasPrefix(w, in: sortedWords) { return 0.2 * n }
+            if isPrefixOfWord(w) { return 0.2 * n }
         }
         // Unknown word: judge by how English-like its letter sequence is.
         let plaus = plausibility(w)
@@ -63,12 +93,12 @@ public final class EnglishModel {
         if common.contains(w) {
             f["lit.common"] = 1
             f["lit.common_len"] = n
-        } else if dictionary.contains(w) {
+        } else if inDictionary(w) {
             f["lit.dict"] = 1
             f["lit.dict_len"] = n
         } else if !complete && hasPrefix(w, in: sortedCommon) {
             f["lit.prefix_common_len"] = n
-        } else if !complete && hasPrefix(w, in: sortedWords) {
+        } else if !complete && isPrefixOfWord(w) {
             f["lit.prefix_dict_len"] = n
         } else {
             let plaus = plausibility(w)
@@ -85,12 +115,17 @@ public final class EnglishModel {
         return total / Double(chars.count - 1)
     }
 
-    private func hasPrefix(_ p: String, in words: [String]) -> Bool {
+    private func lowerBound(_ p: String, in words: [String]) -> Int {
         var lo = 0, hi = words.count
         while lo < hi {
             let mid = (lo + hi) / 2
             if words[mid] < p { lo = mid + 1 } else { hi = mid }
         }
+        return lo
+    }
+
+    private func hasPrefix(_ p: String, in words: [String]) -> Bool {
+        var lo = lowerBound(p, in: words)
         // words[lo] is the first word >= p; skip an exact match, then test the next one.
         if lo < words.count && words[lo] == p { lo += 1 }
         return lo < words.count && words[lo].hasPrefix(p)
@@ -99,7 +134,7 @@ public final class EnglishModel {
     private func trainBigram() {
         var pair: [String: Double] = [:]
         var first: [String: Double] = [:]
-        for w in sortedWords where w.allSatisfy({ $0.isLetter && $0.isASCII }) {
+        for w in Set(sortedCommon + sortedDict).sorted() where w.allSatisfy({ $0.isLetter && $0.isASCII }) {
             let weight = common.contains(w) ? 5.0 : 1.0
             let chars = ["^"] + w.map(String.init) + ["$"]
             for i in 1..<chars.count {

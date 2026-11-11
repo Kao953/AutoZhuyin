@@ -16,7 +16,7 @@ class Lexicon:
 
     def __init__(self):
         self.exact = {}
-        self.toneless = {}
+        self._toneless = None      # built on first use (only untoned syllables need it)
         self.max_phrase_length = 1
 
     @classmethod
@@ -42,9 +42,10 @@ class Lexicon:
             except ValueError:
                 score = -6.0
             self.add(reading, phrase, score)
-        for table in (self.exact, self.toneless):
-            for v in table.values():
+        for v in self.exact.values():
+            if len(v) > 1:
                 v.sort(key=lambda e: -e[1])
+        self._toneless = None
 
     def add(self, reading, phrase, score):
         syllables = [s[1:] + "˙" if s.startswith("˙") else s for s in reading.split("-")]
@@ -53,15 +54,20 @@ class Lexicon:
         entries = self.exact.setdefault(reading, [])
         if not any(p == phrase for p, _ in entries):
             entries.append((phrase, score))
-        key = _strip_tones(reading)
-        tl = self.toneless.setdefault(key, [])
-        for i, (p, s) in enumerate(tl):
-            if p == phrase:
-                if score > s:
-                    tl[i] = (p, score)
-                break
-        else:
-            tl.append((phrase, score))
+        self._toneless = None
+
+    @property
+    def toneless(self):
+        """Index ignoring tones: toneless reading -> [(phrase, best score)], best first."""
+        if self._toneless is None:
+            best = {}
+            for reading, entries in self.exact.items():
+                bucket = best.setdefault(_strip_tones(reading), {})
+                for phrase, score in entries:
+                    if score > bucket.get(phrase, float("-inf")):
+                        bucket[phrase] = score
+            self._toneless = {k: sorted(v.items(), key=lambda e: -e[1]) for k, v in best.items()}
+        return self._toneless
 
     def entries(self, syllables):
         if all(s.tone is not None for s in syllables):

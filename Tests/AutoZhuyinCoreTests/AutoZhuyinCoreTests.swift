@@ -6,7 +6,10 @@ private let resources = URL(fileURLWithPath: #filePath)
     .appendingPathComponent("Resources")
 
 private let sharedLexicon = try! Lexicon(contentsOf: resources.appendingPathComponent("lexicon.txt"))
-private let sharedEnglish = EnglishModel(commonWordsURL: resources.appendingPathComponent("english-common.txt"))
+private let windowsData = resources.deletingLastPathComponent().appendingPathComponent("windows/autozhuyin/data")
+private let sharedEnglish = EnglishModel(commonWordsURL: resources.appendingPathComponent("english-common.txt"),
+                                         dictionaryURL: windowsData.appendingPathComponent("english-dict.txt"),
+                                         bigramURL: windowsData.appendingPathComponent("english-bigram.json"))
 private let sharedWeights = Features.loadWeights(from: resources.appendingPathComponent("classifier-weights.json"))
 
 final class ParserTests: XCTestCase {
@@ -422,5 +425,17 @@ final class FirstToneAfterEnglishTests: XCTestCase {
             XCTAssertEqual(out, "hello ", keys)
             XCTAssertEqual(e.markedText.count, 1, keys)   // still composing one Chinese character
         }
+    }
+}
+
+final class StartupTimingTests: XCTestCase {
+    func testStartupTiming() throws {
+        var t = Date()
+        func lap(_ name: String) { print(String(format: "STARTUP %@: %.3fs", name, Date().timeIntervalSince(t))); t = Date() }
+        _ = try Lexicon(contentsOf: resources.appendingPathComponent("lexicon.txt")); lap("lexicon")
+        _ = EnglishModel(commonWordsURL: resources.appendingPathComponent("english-common.txt"),
+                         dictionaryURL: windowsData.appendingPathComponent("english-dict.txt"),
+                         bigramURL: windowsData.appendingPathComponent("english-bigram.json")); lap("english")
+        _ = Features.loadWeights(from: resources.appendingPathComponent("classifier-weights.json")); lap("weights")
     }
 }

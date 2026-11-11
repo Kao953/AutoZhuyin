@@ -11,58 +11,159 @@ public struct LexiconEntry: Equatable {
 /// File format, one entry per line (`#` starts a comment):
 ///     ㄋㄧˇ-ㄏㄠˇ 你好 -4.2
 /// The phrase/reading columns may be in either order; the score is optional.
+///
+/// Loading is on the input method's startup path, so the file is parsed as raw bytes,
+/// and the tone-ignoring index (only needed for untoned syllables) is built lazily —
+/// call `prepareTonelessIndex()` from a background queue to have it ready.
 public final class Lexicon {
     private var exact: [String: [LexiconEntry]] = [:]
-    private var toneless: [String: [LexiconEntry]] = [:]
+    private var tonelessIndex: [String: [LexiconEntry]]?
+    private let lock = NSLock()
     public private(set) var maxPhraseLength = 1
 
     public init() {}
 
     public convenience init(contentsOf url: URL) throws {
         self.init()
-        load(try String(contentsOf: url, encoding: .utf8))
+        load(data: try Data(contentsOf: url))
     }
 
     public func load(_ text: String) {
-        for line in text.split(whereSeparator: \.isNewline) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
-            let cols = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
-            guard cols.count >= 2 else { continue }
-            let (reading, phrase) = Lexicon.isBopomofo(cols[0]) ? (cols[0], cols[1]) : (cols[1], cols[0])
-            guard Lexicon.isBopomofo(reading) else { continue }
-            let score = cols.count >= 3 ? Double(cols[2]) ?? -6 : -6
-            add(reading: reading, phrase: phrase, score: score)
-        }
-        for key in exact.keys { exact[key]?.sort { $0.score > $1.score } }
-        for key in toneless.keys { toneless[key]?.sort { $0.score > $1.score } }
+        load(data: Data(text.utf8))
     }
 
-    public func add(reading rawReading: String, phrase: String, score: Double) {
-        let entry = LexiconEntry(phrase: phrase, score: score)
+    public func load(data: Data) {
+        lock.lock()
+        defer { lock.unlock() }
+        exact.reserveCapacity(exact.count + data.count / 30)
+        data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            let bytes = raw.bindMemory(to: UInt8.self)
+            let n = bytes.count
+            var i = 0
+            while i < n {
+                var end = i
+                while end < n && bytes[end] != 0x0A { end += 1 }
+                parseLine(bytes, i, end)
+                i = end + 1
+            }
+        }
+        for (key, entries) in exact where entries.count > 1 {
+            exact[key] = entries.sorted { $0.score > $1.score }
+        }
+        tonelessIndex = nil   // rebuilt on demand
+    }
+
+    /// Splits one line into up to three space/tab separated fields.
+    private func parseLine(_ b: UnsafeBufferPointer<UInt8>, _ start: Int, _ end: Int) {
+        var fields: [Range<Int>] = []
+        var i = start
+        while i < end && fields.count < 3 {
+            while i < end && (b[i] == 0x20 || b[i] == 0x09 || b[i] == 0x0D) { i += 1 }
+            if i >= end { break }
+            if fields.isEmpty && b[i] == 0x23 { return }   // "#" comment
+            let s = i
+            while i < end && b[i] != 0x20 && b[i] != 0x09 && b[i] != 0x0D { i += 1 }
+            fields.append(s..<i)
+        }
+        guard fields.count >= 2 else { return }
+        func str(_ r: Range<Int>) -> String { String(decoding: UnsafeBufferPointer(rebasing: b[r]), as: UTF8.self) }
+        let (r, p) = Lexicon.isBopomofo(b, fields[0]) ? (fields[0], fields[1]) : (fields[1], fields[0])
+        guard Lexicon.isBopomofo(b, r) else { return }
+        let score = fields.count >= 3 ? Lexicon.parseDouble(b, fields[2]) ?? -6 : -6
+        // Neutral tone written as a prefix ("˙ㄉㄜ") needs normalising; detect it on bytes.
+        var prefixNeutral = b[r.lowerBound] == 0xCB
+        var k = r.lowerBound
+        while !prefixNeutral && k + 2 < r.upperBound {
+            if b[k] == 0x2D && b[k + 1] == 0xCB && b[k + 2] == 0x99 { prefixNeutral = true }
+            k += 1
+        }
+        addEntry(reading: str(r), phrase: str(p), score: score, normalise: prefixNeutral)
+    }
+
+    /// Parses "-3.9151"-style decimals without creating a String.
+    private static func parseDouble(_ b: UnsafeBufferPointer<UInt8>, _ r: Range<Int>) -> Double? {
+        var i = r.lowerBound
+        var sign = 1.0
+        if i < r.upperBound && (b[i] == 0x2D || b[i] == 0x2B) { sign = b[i] == 0x2D ? -1 : 1; i += 1 }
+        var value = 0.0, scale = 1.0, digits = 0, fraction = false
+        while i < r.upperBound {
+            let c = b[i]
+            if c >= 0x30 && c <= 0x39 {
+                if fraction { scale /= 10; value += Double(c - 0x30) * scale } else { value = value * 10 + Double(c - 0x30) }
+                digits += 1
+            } else if c == 0x2E && !fraction {
+                fraction = true
+            } else {
+                return Double(String(decoding: UnsafeBufferPointer(rebasing: b[r]), as: UTF8.self))
+            }
+            i += 1
+        }
+        return digits > 0 ? sign * value : nil
+    }
+
+    /// Adds one entry (call `load` for bulk data; this does not re-sort).
+    public func add(reading: String, phrase: String, score: Double) {
+        lock.lock()
+        defer { lock.unlock() }
+        let key = addEntry(reading: reading, phrase: phrase, score: score, normalise: reading.contains("˙"))
+        exact[key]?.sort { $0.score > $1.score }
+        tonelessIndex = nil
+    }
+
+    @discardableResult
+    private func addEntry(reading rawReading: String, phrase: String, score: Double, normalise: Bool) -> String {
+        var reading = rawReading
         // Some data sets write the neutral tone as a prefix ("˙ㄉㄜ"); we use a suffix.
-        let syllables = rawReading.split(separator: "-").map { s -> String in
-            s.hasPrefix("˙") ? String(s.dropFirst()) + "˙" : String(s)
+        if normalise {
+            reading = reading.split(separator: "-").map { s -> String in
+                s.hasPrefix("˙") ? String(s.dropFirst()) + "˙" : String(s)
+            }.joined(separator: "-")
         }
-        let reading = syllables.joined(separator: "-")
-        maxPhraseLength = max(maxPhraseLength, syllables.count)
-        if !(exact[reading]?.contains { $0.phrase == phrase } ?? false) {
-            exact[reading, default: []].append(entry)
+        maxPhraseLength = max(maxPhraseLength, reading.utf8.reduce(1) { $0 + ($1 == 0x2D ? 1 : 0) })
+        if exact[reading] == nil {
+            exact[reading] = [LexiconEntry(phrase: phrase, score: score)]
+        } else if !exact[reading]!.contains(where: { $0.phrase == phrase }) {
+            exact[reading]!.append(LexiconEntry(phrase: phrase, score: score))
         }
-        let key = Lexicon.stripTones(reading)
-        if let i = toneless[key]?.firstIndex(where: { $0.phrase == phrase }) {
-            toneless[key]![i].score = max(toneless[key]![i].score, score)
-        } else {
-            toneless[key, default: []].append(entry)
+        return reading
+    }
+
+    /// Builds the index that ignores tones (for untoned syllables). Safe to call from a
+    /// background queue; lookups build it themselves if it is not ready yet.
+    public func prepareTonelessIndex() {
+        lock.lock()
+        defer { lock.unlock() }
+        _ = buildTonelessIfNeeded()
+    }
+
+    private func buildTonelessIfNeeded() -> [String: [LexiconEntry]] {
+        if let index = tonelessIndex { return index }
+        var best: [String: [String: Double]] = [:]
+        for (reading, entries) in exact {
+            let key = Lexicon.stripTones(reading)
+            for e in entries {
+                if let s = best[key]?[e.phrase], s >= e.score { continue }
+                best[key, default: [:]][e.phrase] = e.score
+            }
         }
+        var index: [String: [LexiconEntry]] = [:]
+        index.reserveCapacity(best.count)
+        for (key, phrases) in best {
+            index[key] = phrases.map { LexiconEntry(phrase: $0.key, score: $0.value) }
+                .sorted { $0.score != $1.score ? $0.score > $1.score : $0.phrase < $1.phrase }
+        }
+        tonelessIndex = index
+        return index
     }
 
     /// Entries for a sequence of readings. Untoned syllables match any tone.
     public func entries(for syllables: [Syllable]) -> [LexiconEntry] {
+        lock.lock()
+        defer { lock.unlock() }
         if syllables.allSatisfy({ $0.tone != nil }) {
             return exact[syllables.map(\.reading).joined(separator: "-")] ?? []
         }
-        return toneless[syllables.map(\.toneless).joined(separator: "-")] ?? []
+        return buildTonelessIfNeeded()[syllables.map(\.toneless).joined(separator: "-")] ?? []
     }
 
     public func bestScore(for syllable: Syllable) -> Double? {
@@ -80,5 +181,14 @@ public final class Lexicon {
     static func isBopomofo(_ s: String) -> Bool {
         guard let first = s.unicodeScalars.first else { return false }
         return (0x3105...0x312F).contains(first.value) || first == "˙"
+    }
+
+    /// Same test on raw UTF-8: Bopomofo U+3105–U+312F is E3 84 85…E3 84 AF; "˙" is CB 99.
+    private static func isBopomofo(_ b: UnsafeBufferPointer<UInt8>, _ r: Range<Int>) -> Bool {
+        guard r.count >= 2 else { return false }
+        if b[r.lowerBound] == 0xCB && b[r.lowerBound + 1] == 0x99 { return true }
+        guard r.count >= 3, b[r.lowerBound] == 0xE3, b[r.lowerBound + 1] == 0x84 else { return false }
+        let c = b[r.lowerBound + 2]
+        return c >= 0x85 && c <= 0xAF
     }
 }

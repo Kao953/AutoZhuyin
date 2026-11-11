@@ -11,22 +11,28 @@ enum Shared {
 
     static let classifier: Classifier = {
         let bundle = Bundle.main
+        let start = Date()
         let lexicon = Lexicon()
         if let url = bundle.url(forResource: "lexicon", withExtension: "txt"),
-           let text = try? String(contentsOf: url, encoding: .utf8) {
-            lexicon.load(text)
+           let data = try? Data(contentsOf: url) {
+            lexicon.load(data: data)
         }
         // Optional user phrases: ~/Library/Application Support/AutoZhuyin/user-phrases.txt
         if let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
             let userFile = support.appendingPathComponent("AutoZhuyin/user-phrases.txt")
             if let text = try? String(contentsOf: userFile, encoding: .utf8) { lexicon.load(text) }
         }
-        let english = EnglishModel(commonWordsURL: bundle.url(forResource: "english-common", withExtension: "txt"))
+        let english = EnglishModel(commonWordsURL: bundle.url(forResource: "english-common", withExtension: "txt"),
+                                   dictionaryURL: bundle.url(forResource: "english-dict", withExtension: "txt"),
+                                   bigramURL: bundle.url(forResource: "english-bigram", withExtension: "json"))
         let saved = UserDefaults.standard.dictionary(forKey: learnedKey) as? [String: Int] ?? [:]
         let learned = LearnedPreferences(weights: saved) { weights in
             UserDefaults.standard.set(weights, forKey: learnedKey)
         }
         let trained = Features.loadWeights(from: bundle.url(forResource: "classifier-weights", withExtension: "json"))
+        NSLog("AutoZhuyin: data loaded in %.0f ms", Date().timeIntervalSince(start) * 1000)
+        // Only needed for untoned syllables; build it off the startup path.
+        DispatchQueue.global(qos: .utility).async { lexicon.prepareTonelessIndex() }
         return Classifier(lexicon: lexicon, english: english, learned: learned, weights: trained)
     }()
 }

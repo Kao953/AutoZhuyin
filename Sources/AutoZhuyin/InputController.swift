@@ -34,15 +34,32 @@ enum Shared {
 @objc(AutoZhuyinInputController)
 final class InputController: IMKInputController {
     private let engine = CompositionEngine(classifier: Shared.classifier)
+    private var shiftTap = ShiftTapDetector()
 
     // MARK: - Key events
 
     override func recognizedEvents(_ sender: Any!) -> Int {
-        Int(NSEvent.EventTypeMask.keyDown.rawValue)
+        Int(NSEvent.EventTypeMask.keyDown.rawValue | NSEvent.EventTypeMask.flagsChanged.rawValue)
     }
 
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
-        guard let event, event.type == .keyDown, let client = sender as? IMKTextInput else { return false }
+        guard let event, let client = sender as? IMKTextInput else { return false }
+
+        // Shift pressed and released alone: next word is English (or flip the current one).
+        if event.type == .flagsChanged {
+            let flags = event.modifierFlags
+            let tapped = shiftTap.modifiersChanged(
+                shift: flags.contains(.shift),
+                otherModifiers: !flags.intersection([.command, .control, .option, .function]).isEmpty,
+                time: event.timestamp)
+            if tapped {
+                _ = engine.handle(.shiftTap)
+                updateComposition(client)
+            }
+            return false
+        }
+        guard event.type == .keyDown else { return false }
+        shiftTap.keyPressed()
 
         // Shortcuts (⌘C, ⌃A, ⌥…) go to the app; commit any composition first.
         if !event.modifierFlags.intersection([.command, .control, .option]).isEmpty {

@@ -6,14 +6,16 @@ tests); this file only translates PIME key events and replies.
 """
 import json
 import os
+import time
 
 from keycodes import *  # noqa: F401,F403  (VK_* constants, provided by PIME)
 from textService import TextService
 
 from .core.classifier import Classifier, LearnedPreferences
-from .core.engine import BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, TAB, UP, CompositionEngine
+from .core.engine import BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, UP, CompositionEngine
 from .core.english import EnglishModel
 from .core.lexicon import Lexicon
+from .core.shift_tap import ShiftTapDetector
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _DATA = os.path.join(_HERE, "data")
@@ -67,6 +69,7 @@ class AutoZhuyinTextService(TextService):
     def __init__(self, client):
         TextService.__init__(self, client)
         self.engine = CompositionEngine(_shared_classifier())
+        self.shift_tap = ShiftTapDetector()
 
     # --- lifecycle ---
 
@@ -105,6 +108,13 @@ class AutoZhuyinTextService(TextService):
         return bool(self.engine.keys or self.engine.candidates)
 
     def filterKeyDown(self, ev):
+        if ev.keyCode == VK_SHIFT:  # noqa: F405
+            if ev.isKeyDown(VK_CONTROL) or ev.isKeyDown(VK_MENU):  # noqa: F405
+                self.shift_tap.key_pressed()
+            else:
+                self.shift_tap.shift_down(time.monotonic())
+            return False
+        self.shift_tap.key_pressed()
         # Shortcuts (Ctrl/Alt) go to the app.
         if ev.isKeyDown(VK_CONTROL) or ev.isKeyDown(VK_MENU):  # noqa: F405
             return False
@@ -120,6 +130,21 @@ class AutoZhuyinTextService(TextService):
         handled, commit = self.engine.handle(key)
         self._update(commit)
         return handled
+
+    def filterKeyUp(self, ev):
+        # Shift pressed and released alone: next word is English (or flip the current one).
+        if ev.keyCode == VK_SHIFT:  # noqa: F405
+            return self.shift_tap.shift_up(time.monotonic())
+        return False
+
+    def onKeyUp(self, ev):
+        if ev.keyCode != VK_SHIFT:  # noqa: F405
+            return False
+        self.engine.handle(SHIFT_TAP)
+        self._update(None)
+        if self.engine.english_armed:
+            self.showMessage("英文", 1)
+        return True
 
     # --- replies ---
 

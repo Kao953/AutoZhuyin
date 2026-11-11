@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 from autozhuyin.core import bopomofo  # noqa: E402
 from autozhuyin.core.classifier import LITERAL, ZHUYIN, Classifier, LearnedPreferences  # noqa: E402
-from autozhuyin.core.engine import DOWN, ENTER, TAB, CompositionEngine  # noqa: E402
+from autozhuyin.core.engine import DOWN, ENTER, SHIFT_TAP, TAB, BACKSPACE, CompositionEngine  # noqa: E402
+from autozhuyin.core.shift_tap import ShiftTapDetector  # noqa: E402
 from autozhuyin.core.english import EnglishModel  # noqa: E402
 from autozhuyin.core.lexicon import Converter, Lexicon  # noqa: E402
 
@@ -41,7 +42,7 @@ def make_engine():
 def type_keys(s, e):
     out = ""
     for c in s:
-        key = ENTER if c == "\n" else TAB if c == "\t" else c
+        key = ENTER if c == "\n" else TAB if c == "\t" else SHIFT_TAP if c == "⇧" else c
         handled, commit = e.handle(key)
         if commit is not None:
             out += commit
@@ -190,6 +191,47 @@ class MixedSegmentTests(unittest.TestCase):
         per_key = (time.time() - start) / 30
         print("\nper key: %.1f ms" % (per_key * 1000))
         self.assertLess(per_key, 0.05)
+
+
+class ShiftTapTests(unittest.TestCase):
+    def test_forces_next_word_english_lowercase(self):
+        e = make_engine()
+        self.assertEqual(type_keys("⇧ru ", e), "ru ")
+        self.assertFalse(e.english_armed)
+        self.assertEqual(type_keys("su3cl3\n", e), "你好")
+
+    def test_tap_twice_cancels(self):
+        self.assertEqual(type_keys("⇧⇧su3cl3\n", make_engine()), "你好")
+
+    def test_mid_word_flips_and_learns(self):
+        e = make_engine()
+        type_keys("so", e)
+        e.handle(SHIFT_TAP)
+        self.assertEqual(e.mode, ZHUYIN)
+        type_keys("\n", e)
+        self.assertEqual(e.classifier.learned.weights["so"], 1)
+
+    def test_forcing_before_typing_not_learned(self):
+        e = make_engine()
+        type_keys("⇧hello ", e)
+        self.assertNotIn("hello", e.classifier.learned.weights)
+
+    def test_arming_survives_backspace(self):
+        e = make_engine()
+        type_keys("⇧r", e)
+        e.handle(BACKSPACE)
+        self.assertTrue(e.english_armed)
+        self.assertEqual(type_keys("ru ", e), "ru ")
+
+    def test_detector(self):
+        d = ShiftTapDetector()
+        d.shift_down(0)
+        self.assertTrue(d.shift_up(0.1))
+        d.shift_down(1)
+        d.key_pressed()
+        self.assertFalse(d.shift_up(1.1))
+        d.shift_down(2)
+        self.assertFalse(d.shift_up(3))
 
 
 if __name__ == "__main__":

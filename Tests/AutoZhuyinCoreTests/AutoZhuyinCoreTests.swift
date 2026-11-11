@@ -281,3 +281,73 @@ final class ParityTests: XCTestCase {
         XCTAssertEqual(out.count, 1, out)
     }
 }
+
+final class ShiftTapTests: XCTestCase {
+    func engine() -> CompositionEngine {
+        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+    }
+
+    func type(_ s: String, into e: CompositionEngine) -> String {
+        var out = ""
+        for c in s {
+            let key: KeyInput = c == "⇧" ? .shiftTap : c == "\n" ? .enter : .character(c)
+            let r = e.handle(key)
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return out
+    }
+
+    func testShiftTapForcesNextWordEnglishLowercase() {
+        let e = engine()
+        // "ru" alone would be ㄐㄧ (機); after a Shift tap it stays English, lowercase.
+        XCTAssertEqual(type("⇧ru ", into: e), "ru ")
+        // Automatic detection resumes after the word.
+        XCTAssertFalse(e.isEnglishArmed)
+        XCTAssertEqual(type("su3cl3\n", into: e), "你好")
+    }
+
+    func testShiftTapTwiceCancels() {
+        XCTAssertEqual(type("⇧⇧su3cl3\n", into: engine()), "你好")
+    }
+
+    func testShiftTapMidWordFlips() {
+        let e = engine()
+        _ = type("so", into: e)
+        XCTAssertEqual(e.mode, .literal)
+        _ = e.handle(.shiftTap)
+        XCTAssertEqual(e.mode, .zhuyin)
+        _ = type("\n", into: e)
+        XCTAssertEqual(e.classifier.learned.weights["so"], 1)   // a correction is learned
+    }
+
+    func testForcingBeforeTypingIsNotLearned() {
+        let e = engine()
+        _ = type("⇧hello ", into: e)
+        XCTAssertNil(e.classifier.learned.weights["hello"])
+    }
+
+    func testArmingSurvivesBackspace() {
+        let e = engine()
+        _ = type("⇧r", into: e)
+        _ = e.handle(.backspace)
+        XCTAssertTrue(e.isEnglishArmed)
+        XCTAssertEqual(type("ru ", into: e), "ru ")
+    }
+
+    func testDetector() {
+        var d = ShiftTapDetector()
+        XCTAssertFalse(d.modifiersChanged(shift: true, otherModifiers: false, time: 0))
+        XCTAssertTrue(d.modifiersChanged(shift: false, otherModifiers: false, time: 0.1))
+        // Shift used for a capital letter: not a tap.
+        _ = d.modifiersChanged(shift: true, otherModifiers: false, time: 1)
+        d.keyPressed()
+        XCTAssertFalse(d.modifiersChanged(shift: false, otherModifiers: false, time: 1.1))
+        // Held too long: not a tap.
+        _ = d.modifiersChanged(shift: true, otherModifiers: false, time: 2)
+        XCTAssertFalse(d.modifiersChanged(shift: false, otherModifiers: false, time: 3))
+        // Shift + Command: not a tap.
+        _ = d.modifiersChanged(shift: true, otherModifiers: false, time: 4)
+        _ = d.modifiersChanged(shift: true, otherModifiers: true, time: 4.1)
+        XCTAssertFalse(d.modifiersChanged(shift: false, otherModifiers: false, time: 4.2))
+    }
+}

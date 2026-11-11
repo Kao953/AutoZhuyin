@@ -4,6 +4,8 @@ public enum KeyInput: Equatable {
     case character(Character)
     case backspace, enter, escape, tab
     case up, down, left, right
+    /// Shift pressed and released on its own.
+    case shiftTap
 }
 
 public struct KeyResult: Equatable {
@@ -33,8 +35,12 @@ public final class CompositionEngine {
     public let converter: Converter
 
     public private(set) var keys: [Character] = []
-    /// Set by Tab: overrides the classifier for the whole buffer.
+    /// Set by Tab / Shift tap: overrides the classifier for the whole buffer.
     public private(set) var forcedMode: InputMode?
+    /// True when forcedMode corrects the classifier (learned on commit); false when the
+    /// user forced English before typing (Shift tap on an empty buffer), which is not a
+    /// correction and is not learned.
+    private var forcedIsCorrection = false
     /// User-picked phrases: Zhuyin segment start (key index) → syllable range → text.
     private var fixed: [Int: [Range<Int>: String]] = [:]
     public private(set) var candidates: [Candidate] = []
@@ -108,7 +114,11 @@ public final class CompositionEngine {
             guard !keys.isEmpty else { return .passThrough }
             keys.removeLast()
             fixed = fixed.filter { $0.key < keys.count }
-            if keys.isEmpty { forcedMode = nil; fixed = [:] }
+            if keys.isEmpty {
+                // A Shift-tap "next word is English" stays armed; a correction is dropped.
+                if forcedIsCorrection { forcedMode = nil; forcedIsCorrection = false }
+                fixed = [:]
+            }
             return .consumed
         case .enter:
             guard !keys.isEmpty else { return .passThrough }
@@ -119,7 +129,16 @@ public final class CompositionEngine {
             return .consumed
         case .tab:
             guard !keys.isEmpty else { return .passThrough }
-            forcedMode = (mode == .zhuyin) ? .literal : .zhuyin
+            flip()
+            return .consumed
+        case .shiftTap:
+            if keys.isEmpty {
+                // Next word is English, typed as-is (lowercase stays lowercase). Tap again to cancel.
+                forcedMode = forcedMode == .literal ? nil : .literal
+                forcedIsCorrection = false
+            } else {
+                flip()
+            }
             return .consumed
         case .down:
             guard !keys.isEmpty else { return .passThrough }
@@ -129,6 +148,15 @@ public final class CompositionEngine {
             return keys.isEmpty ? .passThrough : .consumed
         }
     }
+
+    /// Forces the whole buffer into the other mode (a correction that is learned).
+    private func flip() {
+        forcedMode = (mode == .zhuyin) ? .literal : .zhuyin
+        forcedIsCorrection = true
+    }
+
+    /// True while the user has forced English before typing anything (Shift tap).
+    public var isEnglishArmed: Bool { keys.isEmpty && forcedMode == .literal }
 
     private func handleCharacter(_ c: Character) -> KeyResult {
         if c == " " {
@@ -224,7 +252,7 @@ public final class CompositionEngine {
     private func commitCurrent(_ given: [Segment]? = nil) -> String {
         let segs = given ?? segments
         let text = segs.map { render($0, final: true) }.joined()
-        if let forced = forcedMode {
+        if let forced = forcedMode, forcedIsCorrection {
             classifier.learned.record(String(keys), as: forced)
         }
         previousMode = segs.last?.mode
@@ -241,6 +269,7 @@ public final class CompositionEngine {
     public func reset() {
         keys = []
         forcedMode = nil
+        forcedIsCorrection = false
         fixed = [:]
         candidates = []
     }

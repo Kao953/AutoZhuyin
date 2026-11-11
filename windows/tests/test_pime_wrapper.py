@@ -36,6 +36,8 @@ class FakeTextService:
     def setCandidateList(self, c): self.reply["candidateList"] = c
     def setCandidateCursor(self, p): self.reply["candidateCursor"] = p
 
+    def showMessage(self, message, duration=3): self.reply["showMessage"] = message
+
     def setShowCandidates(self, show):
         self.showCandidates = show
         self.reply["showCandidates"] = show
@@ -51,8 +53,8 @@ VK = {"\n": 0x0D, "\t": 0x09, " ": 0x20, "\b": 0x08, "↓": 0x28}
 
 class FakeKeyEvent:
     def __init__(self, ch, shift=False, ctrl=False):
-        self.keyCode = VK.get(ch, ord(ch.upper()) if ch.isalnum() else 0xBA)
-        self.charCode = 0 if ch in ("\n", "\t", "\b", "↓") else ord(ch)
+        self.keyCode = 0x10 if ch == "⇧" else VK.get(ch, ord(ch.upper()) if ch.isalnum() else 0xBA)
+        self.charCode = 0 if ch in ("\n", "\t", "\b", "↓", "⇧") else ord(ch)
         self.keyStates = [0] * 256
         if shift:
             self.keyStates[0x10] = 0x80
@@ -72,6 +74,17 @@ def press(svc, ch, **kw):
         return False, {}
     svc.onKeyDown(ev)
     return True, svc.reply
+
+
+def tap_shift(svc):
+    """Shift down then up with nothing in between, as PIME delivers it."""
+    svc.reply = {}
+    down = FakeKeyEvent("⇧", shift=True)
+    assert not svc.filterKeyDown(down)
+    up = FakeKeyEvent("⇧")
+    if svc.filterKeyUp(up):
+        svc.onKeyUp(up)
+    return svc.reply
 
 
 def type_text(svc, text):
@@ -121,6 +134,24 @@ class WrapperTests(unittest.TestCase):
             out += reply.get("commitString", "")
         eaten, reply = press(self.svc, " ")
         self.assertEqual(out + reply.get("commitString", ""), "Hi ")
+
+
+class ShiftTapWrapperTests(unittest.TestCase):
+    def setUp(self):
+        self.svc = AutoZhuyinTextService(client=None)
+        self.svc.onActivate()
+
+    def test_tap_forces_english_lowercase(self):
+        reply = tap_shift(self.svc)
+        self.assertEqual(reply.get("showMessage"), "英文")
+        self.assertEqual(type_text(self.svc, "ru "), "ru ")
+
+    def test_shift_with_letter_is_not_a_tap(self):
+        self.svc.filterKeyDown(FakeKeyEvent("⇧", shift=True))
+        press(self.svc, "H", shift=True)
+        up = FakeKeyEvent("⇧")
+        self.assertFalse(self.svc.filterKeyUp(up))
+        self.assertFalse(self.svc.engine.english_armed)
 
 
 if __name__ == "__main__":

@@ -102,16 +102,31 @@ class Generator:
         labels = "".join(m * len(p) for m, p in parts)
         if parts[-1][0] == "l":
             finishing = True     # English / numbers end with a space
+        elif keys[-1] == " " and self.rng.random() < 0.6:
+            # The moment the space (first tone) is pressed: the buffer has no space yet and
+            # the input method decides "first tone" vs "English word + space".
+            keys, labels, finishing = keys[:-1], labels[:-1], True
+            kind += "/tone1"
         else:
             # Chinese ends with Enter, or space after a finished (toned) syllable.
             finishing = keys[-1] != " " and self.rng.random() < 0.5
-        return {"keys": keys, "labels": labels, "finishing": finishing, "kind": kind}
+        return {"keys": keys, "labels": labels, "finishing": finishing, "kind": kind,
+                "previous": self.previous_mode(labels[0])}
+
+    def previous_mode(self, first_label):
+        """Mode of the text committed just before: none, mostly the same, sometimes the other."""
+        r = self.rng.random()
+        if r < 0.35:
+            return None
+        same = core.ZHUYIN if first_label == "z" else core.LITERAL
+        other = core.LITERAL if first_label == "z" else core.ZHUYIN
+        return same if r < 0.80 else other
 
     def prefix_of(self, ex):
         """The buffer while still typing: a random cut, not finishing."""
         cut = self.rng.randint(1, len(ex["keys"]) - 1) if len(ex["keys"]) > 1 else 1
         return {"keys": ex["keys"][:cut], "labels": ex["labels"][:cut], "finishing": False,
-                "kind": ex["kind"] + "/prefix"}
+                "kind": ex["kind"] + "/prefix", "previous": ex["previous"]}
 
 
 def _cumulative(ws):

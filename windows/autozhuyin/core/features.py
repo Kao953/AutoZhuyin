@@ -41,6 +41,9 @@ DEFAULT_WEIGHTS = {
     "lit.others": -1.5,
     # Segmentation
     "seg.switch": -3.0,
+    # Context: the first segment has the same mode as the previously committed text
+    "ctx.zh": 1.5,
+    "ctx.lit": 1.5,
 }
 
 
@@ -52,7 +55,7 @@ def _add(f, k, v=1.0):
     f[k] = f.get(k, 0.0) + v
 
 
-def zhuyin_features(keys, lexicon, is_last=True, after_other=False, finishing=False):
+def zhuyin_features(keys, lexicon, is_last=True, after_other=False, finishing=False, previous=None):
     """Features of `keys` read as Zhuyin, or None if impossible."""
     parse = bopomofo.parse(keys)
     if not is_last and parse.pending is not None:
@@ -99,10 +102,12 @@ def zhuyin_features(keys, lexicon, is_last=True, after_other=False, finishing=Fa
         _add(f, "zh.unconfirmed")
     if after_other:
         _add(f, "seg.switch")
+    elif previous == "zhuyin":
+        _add(f, "ctx.zh")
     return f
 
 
-def literal_features(keys, english, is_last=True, after_other=False, finishing=False):
+def literal_features(keys, english, is_last=True, after_other=False, finishing=False, previous=None):
     """Features of `keys` output as typed, or None if impossible."""
     if not keys or " " in keys:
         return None
@@ -110,6 +115,8 @@ def literal_features(keys, english, is_last=True, after_other=False, finishing=F
     f = {"lit.bias": 1.0}
     if after_other:
         _add(f, "seg.switch")
+    elif previous == "literal":
+        _add(f, "ctx.lit")
     if any(c.isupper() for c in keys):
         _add(f, "lit.upper")
     letters = "".join(c for c in keys if c.isalpha())

@@ -30,7 +30,6 @@ class LearnedPreferences:
 
 
 class Classifier:
-    context_weight = 1.5
 
     def __init__(self, lexicon, english, learned=None, weights=None):
         self.lexicon = lexicon
@@ -49,20 +48,17 @@ class Classifier:
         except (OSError, ValueError):
             return {}
 
-    def segment_features(self, seg, is_last, after_other, finishing):
-        """(zhuyin features or None, literal features or None) for one segment."""
+    def segment_features(self, seg, is_last, after_other, finishing, previous=None):
+        """(zhuyin features or None, literal features or None) for one segment.
+        `previous` (mode of the text committed just before) only affects the first segment."""
         seg = list(seg)
-        return (zhuyin_features(seg, self.lexicon, is_last, after_other, finishing),
-                literal_features(seg, self.english, is_last, after_other, finishing))
+        return (zhuyin_features(seg, self.lexicon, is_last, after_other, finishing, previous),
+                literal_features(seg, self.english, is_last, after_other, finishing, previous))
 
     def _scores(self, seg, is_last, after_other, finishing, previous, whole, weights):
-        fz, fl = self.segment_features(seg, is_last, after_other, finishing)
+        fz, fl = self.segment_features(seg, is_last, after_other, finishing, previous)
         zh = dot(weights, fz) if fz is not None else NEG_INF
         lit = dot(weights, fl) if fl is not None else NEG_INF
-        if previous == ZHUYIN:
-            zh += self.context_weight
-        elif previous == LITERAL:
-            lit += self.context_weight
         if whole:
             b = self.learned.bias("".join(seg))
             if b > 0:

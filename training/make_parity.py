@@ -23,14 +23,14 @@ def main():
     clf = core.Classifier(lexicon, english, weights=core.Classifier.load_weights(WEIGHTS_PATH))
     gen = Generator(os.path.join(DATA, "lexicon.txt"), os.path.join(DATA, "english-common.txt"),
                     os.path.join(DATA, "english-dict.txt"), seed=7)
-    cases = [(k, f) for k in HAND_PICKED for f in (False, True)]
-    while len(cases) < 400:
+    cases = [(k, f, p) for k in HAND_PICKED for f in (False, True) for p in (None, "literal")]
+    while len(cases) < 500:
         ex = gen.example()
         if len(ex["keys"]) <= 28:
-            cases.append((ex["keys"], ex["finishing"]))
-            cases.append((gen.prefix_of(ex)["keys"], False))
-    fixtures = [{"keys": k, "finishing": f,
-                 "segments": [[s, e, m] for s, e, m in clf.segment(list(k), f)]} for k, f in cases]
+            cases.append((ex["keys"], ex["finishing"], ex["previous"]))
+            cases.append((gen.prefix_of(ex)["keys"], False, ex["previous"]))
+    fixtures = [{"keys": k, "finishing": f, "previous": p,
+                 "segments": [[s, e, m] for s, e, m in clf.segment(list(k), f, p)]} for k, f, p in cases]
     with open(OUT, "w", encoding="utf-8") as fh:
         json.dump(fixtures, fh, ensure_ascii=False, indent=0)
     print("wrote %d fixtures to %s" % (len(fixtures), OUT))

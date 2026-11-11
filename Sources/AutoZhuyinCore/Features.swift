@@ -42,6 +42,9 @@ public enum Features {
         "lit.others": -1.5,
         // Segmentation
         "seg.switch": -3.0,
+        // Context: the first segment has the same mode as the previously committed text
+        "ctx.zh": 1.5,
+        "ctx.lit": 1.5,
     ]
 
     /// Reads {"weights": {...}} from a JSON file; empty if missing or invalid.
@@ -58,7 +61,8 @@ public enum Features {
 
     /// Features of `keys` read as Zhuyin, or nil if impossible.
     public static func zhuyin(_ keys: [Character], lexicon: Lexicon, isLast: Bool = true,
-                              afterOther: Bool = false, finishing: Bool = false) -> FeatureVector? {
+                              afterOther: Bool = false, finishing: Bool = false,
+                              previous: InputMode? = nil) -> FeatureVector? {
         let parse = ZhuyinParser.parse(keys)
         // A Zhuyin segment followed by another must end with a tone.
         if !isLast && parse.pending != nil { return nil }
@@ -107,18 +111,27 @@ public enum Features {
         if isLast && afterOther && !finishing && !parse.syllables.contains(where: \.toned) {
             add("zh.unconfirmed")
         }
-        if afterOther { add("seg.switch") }
+        if afterOther {
+            add("seg.switch")
+        } else if previous == .zhuyin {
+            add("ctx.zh")
+        }
         return f
     }
 
     /// Features of `keys` output as typed, or nil if impossible.
     public static func literal(_ keys: [Character], english: EnglishModel, isLast: Bool = true,
-                               afterOther: Bool = false, finishing: Bool = false) -> FeatureVector? {
+                               afterOther: Bool = false, finishing: Bool = false,
+                               previous: InputMode? = nil) -> FeatureVector? {
         if keys.isEmpty || keys.contains(" ") { return nil }
         let complete = !isLast || finishing
         var f: FeatureVector = ["lit.bias": 1]
         func add(_ k: String, _ v: Double = 1) { f[k, default: 0] += v }
-        if afterOther { add("seg.switch") }
+        if afterOther {
+            add("seg.switch")
+        } else if previous == .literal {
+            add("ctx.lit")
+        }
         if keys.contains(where: { $0.isUppercase }) { add("lit.upper") }
 
         let letters = String(keys.filter { $0.isLetter })

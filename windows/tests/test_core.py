@@ -271,5 +271,13 @@ class CursorTests(unittest.TestCase):
         self.assertTrue(e.showing_candidates)
 
 
+class FirstToneAfterEnglishTests(unittest.TestCase):
+    def test_first_tone_after_english(self):
+        for keys in ["ru", "t", "gj", "vup", "tj", "el"]:
+            e = make_engine()
+            self.assertEqual(type_keys("hello " + keys + " ", e), "hello ", keys)
+            self.assertEqual(len(e.marked_text), 1, keys)
+
+
 if __name__ == "__main__":
     unittest.main()

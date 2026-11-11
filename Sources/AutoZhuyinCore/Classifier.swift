@@ -58,9 +58,6 @@ public final class Classifier {
     /// Feature weights: the hand-tuned defaults overlaid with trained ones.
     public private(set) var weights: FeatureVector
 
-    /// How much the previous segment's mode pulls the current one.
-    public var contextWeight = 1.5
-
     public init(lexicon: Lexicon, english: EnglishModel, learned: LearnedPreferences = LearnedPreferences(),
                 weights: FeatureVector = [:]) {
         self.lexicon = lexicon
@@ -69,23 +66,22 @@ public final class Classifier {
         self.weights = Features.defaultWeights.merging(weights) { _, new in new }
     }
 
-    /// (Zhuyin features or nil, literal features or nil) for one segment.
-    public func segmentFeatures(_ seg: [Character], isLast: Bool, afterOther: Bool,
-                                finishing: Bool) -> (FeatureVector?, FeatureVector?) {
-        (Features.zhuyin(seg, lexicon: lexicon, isLast: isLast, afterOther: afterOther, finishing: finishing),
-         Features.literal(seg, english: english, isLast: isLast, afterOther: afterOther, finishing: finishing))
+    /// (Zhuyin features or nil, literal features or nil) for one segment. `previous` (mode of
+    /// the text committed just before) only affects the first segment.
+    public func segmentFeatures(_ seg: [Character], isLast: Bool, afterOther: Bool, finishing: Bool,
+                                previous: InputMode? = nil) -> (FeatureVector?, FeatureVector?) {
+        (Features.zhuyin(seg, lexicon: lexicon, isLast: isLast, afterOther: afterOther,
+                         finishing: finishing, previous: previous),
+         Features.literal(seg, english: english, isLast: isLast, afterOther: afterOther,
+                          finishing: finishing, previous: previous))
     }
 
     private func scores(_ seg: [Character], isLast: Bool, afterOther: Bool, finishing: Bool,
                         previous: InputMode?, whole: Bool) -> [Double] {
-        let (fz, fl) = segmentFeatures(seg, isLast: isLast, afterOther: afterOther, finishing: finishing)
+        let (fz, fl) = segmentFeatures(seg, isLast: isLast, afterOther: afterOther,
+                                       finishing: finishing, previous: previous)
         var zh = fz.map { Features.dot(weights, $0) } ?? -.infinity
         var lit = fl.map { Features.dot(weights, $0) } ?? -.infinity
-        switch previous {
-        case .zhuyin?: zh += contextWeight
-        case .literal?: lit += contextWeight
-        case nil: break
-        }
         if whole {
             let b = learned.bias(for: String(seg))
             if b > 0 { zh += b } else { lit -= b }

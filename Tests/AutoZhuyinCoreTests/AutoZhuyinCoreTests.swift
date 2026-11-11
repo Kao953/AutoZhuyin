@@ -265,10 +265,13 @@ final class ParityTests: XCTestCase {
         for fx in fixtures {
             let keys = Array(fx["keys"] as! String)
             let expected = (fx["segments"] as! [[Any]]).map { "\($0[0])-\($0[1]):\($0[2])" }
-            let got = c.segment(keys, finishing: fx["finishing"] as! Bool).map {
+            let previous = (fx["previous"] as? String).flatMap(InputMode.init(rawValue:))
+            let got = c.segment(keys, finishing: fx["finishing"] as! Bool, previous: previous).map {
                 "\($0.range.lowerBound)-\($0.range.upperBound):\($0.mode.rawValue)"
             }
-            if got != expected { mismatches.append("\(String(keys)) finishing=\(fx["finishing"]!): \(got) vs \(expected)") }
+            if got != expected {
+                mismatches.append("\(String(keys)) finishing=\(fx["finishing"]!) previous=\(String(describing: previous)): \(got) vs \(expected)")
+            }
         }
         XCTAssertGreaterThan(fixtures.count, 300)
         XCTAssertTrue(mismatches.isEmpty, "\(mismatches.count) mismatches:\n" + mismatches.prefix(10).joined(separator: "\n"))
@@ -406,5 +409,18 @@ final class CursorTests: XCTestCase {
         _ = type("su3cl3hello", into: e)               // 你好hello
         _ = type("↓", into: e)                         // last Chinese syllable, not the English word
         XCTAssertTrue(e.isShowingCandidates)
+    }
+}
+
+final class FirstToneAfterEnglishTests: XCTestCase {
+    /// After an English word, a first-tone syllable + space must stay Chinese (機, 吃, 書…).
+    func testFirstToneAfterEnglish() {
+        for keys in ["ru", "t", "gj", "vup", "tj", "el"] {
+            let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+            var out = ""
+            for c in "hello " + keys + " " { if let t = e.handle(.character(c)).commit { out += t } }
+            XCTAssertEqual(out, "hello ", keys)
+            XCTAssertEqual(e.markedText.count, 1, keys)   // still composing one Chinese character
+        }
     }
 }

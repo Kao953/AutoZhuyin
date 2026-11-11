@@ -45,12 +45,12 @@ def labels_of(segs, n):
     return "".join(lab)
 
 
-def seg_features(clf, keys, segs, finishing):
+def seg_features(clf, keys, segs, finishing, previous):
     """Summed features of a segmentation, or None if any segment is impossible."""
     total = defaultdict(float)
     n = len(keys)
     for idx, (s, e, m) in enumerate(segs):
-        fz, fl = clf.segment_features(keys[s:e], e == n, idx > 0, finishing)
+        fz, fl = clf.segment_features(keys[s:e], e == n, idx > 0, finishing, previous if idx == 0 else None)
         f = fz if m == core.ZHUYIN else fl
         if f is None:
             return None
@@ -62,18 +62,27 @@ def seg_features(clf, keys, segs, finishing):
 def evaluate(clf, weights, data):
     by_kind = defaultdict(lambda: [0, 0])
     for ex in data:
-        segs = clf.segment(list(ex["keys"]), ex["finishing"], None, weights)
+        segs = clf.segment(list(ex["keys"]), ex["finishing"], ex["previous"], weights)
         ok = labels_of(segs, len(ex["keys"])) == ex["labels"]
-        bucket = by_kind["prefix" if ex["kind"].endswith("/prefix") else ex["kind"]]
-        bucket[0] += ok
-        bucket[1] += 1
-    commit = [v for k, v in by_kind.items() if k != "prefix"]
+        kind = "prefix" if ex["kind"].endswith("/prefix") else ex["kind"]
+        for k in (kind, "after-other") if _after_other(ex) else (kind,):
+            by_kind[k][0] += ok
+            by_kind[k][1] += 1
+    commit = [v for k, v in by_kind.items() if k not in ("prefix", "after-other")]
     summary = {
         "commit": sum(c for c, _ in commit) / max(1, sum(t for _, t in commit)),
         "prefix": by_kind["prefix"][0] / max(1, by_kind["prefix"][1]),
         "by_kind": {k: round(c / t, 4) for k, (c, t) in sorted(by_kind.items())},
     }
     return summary
+
+
+def _after_other(ex):
+    """Committed buffer whose first segment differs from the text typed just before."""
+    if ex["kind"].endswith("/prefix") or ex["previous"] is None:
+        return False
+    first = core.ZHUYIN if ex["labels"][0] == "z" else core.LITERAL
+    return ex["previous"] != first
 
 
 def show(name, s):
@@ -92,11 +101,11 @@ def train(clf, data, epochs, lr, seed):
         t0 = time.time()
         for ex in data:
             keys = list(ex["keys"])
-            pred = clf.segment(keys, ex["finishing"], None, w)
+            pred = clf.segment(keys, ex["finishing"], ex["previous"], w)
             if labels_of(pred, len(keys)) != ex["labels"]:
                 gold = gold_segments(ex["labels"])
-                fg = seg_features(clf, keys, gold, ex["finishing"])
-                fp = seg_features(clf, keys, pred, ex["finishing"])
+                fg = seg_features(clf, keys, gold, ex["finishing"], ex["previous"])
+                fp = seg_features(clf, keys, pred, ex["finishing"], ex["previous"])
                 if fg is not None and fp is not None:
                     mistakes += 1
                     scale = lr * (0.5 if ex["kind"].endswith("/prefix") else 1.0)

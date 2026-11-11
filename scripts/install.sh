@@ -13,6 +13,17 @@ rm -rf "$DEST/AutoZhuyin.app"
 cp -R build/AutoZhuyin.app "$DEST/"
 "$DEST/AutoZhuyin.app/Contents/MacOS/AutoZhuyin" --register
 
+SYSTEM_APP="/Library/Input Methods/AutoZhuyin.app"
+if [ -d "$SYSTEM_APP" ]; then
+    OLD="$(plutil -extract CFBundleShortVersionString raw "$SYSTEM_APP/Contents/Info.plist" 2>/dev/null || echo '?')"
+    echo
+    echo "WARNING: a system-wide copy (v$OLD, installed from the .pkg) exists at:"
+    echo "  $SYSTEM_APP"
+    echo "macOS runs that copy instead of this one. Install the new .pkg"
+    echo "(scripts/package.sh), or remove it with:"
+    echo "  sudo rm -rf \"$SYSTEM_APP\" && pkill -x AutoZhuyin"
+fi
+
 echo
 echo "Installed to $DEST/AutoZhuyin.app"
 echo "First install: System Settings → Keyboard → Text Input → Edit… → + → 繁體中文 → 自動注音"

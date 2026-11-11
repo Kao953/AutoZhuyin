@@ -55,6 +55,9 @@ public final class CompositionEngine {
     /// reading ("up " = ㄧㄣ 因) is not committed on space; the next word decides
     /// ("up jo4" = 因為, "up the" = up the).
     private var held: Int?
+    /// "`" was typed: if the next key is in `symbols` it gives that full-width symbol
+    /// whatever the context; anything else makes it a plain backtick (so ``` still works).
+    public private(set) var pendingBacktick = false
     static let holdMinScore = -3.5
 
     private var previousMode: InputMode?
@@ -115,9 +118,11 @@ public final class CompositionEngine {
 
     public var markedPieces: [MarkedPiece] {
         let segs = segments
-        return segs.enumerated().map { i, seg in
+        var pieces = segs.enumerated().map { i, seg in
             MarkedPiece(text: render(seg, final: i < segs.count - 1), mode: seg.mode)
         }
+        if pendingBacktick { pieces.append(MarkedPiece(text: "`", mode: .literal)) }
+        return pieces
     }
 
     /// Text for one segment. A non-final Zhuyin segment shows its unfinished syllable as Bopomofo.
@@ -186,6 +191,7 @@ public final class CompositionEngine {
 
     public func handle(_ key: KeyInput) -> KeyResult {
         if isShowingCandidates { return handleCandidateKey(key) }
+        if pendingBacktick { return afterBacktick(key) }
 
         switch key {
         case .character(let c):
@@ -245,6 +251,10 @@ public final class CompositionEngine {
         cursor = nil   // typing always continues at the end
         // English mode: every key goes to the app as typed.
         if isEnglishMode && keys.isEmpty { return .passThrough }
+        if c == "`" {
+            pendingBacktick = true
+            return .consumed
+        }
         if c == " " {
             guard !keys.isEmpty else { return .passThrough }
             let segs = segments(of: keys, finishing: true)
@@ -289,6 +299,26 @@ public final class CompositionEngine {
         guard let last = segs.last, last.mode == .zhuyin else { return nil }
         return ZhuyinParser.parse(Array(keys[last.range]))
     }
+
+    private func afterBacktick(_ key: KeyInput) -> KeyResult {
+        pendingBacktick = false
+        if key == .escape || key == .backspace { return .consumed }
+        let committed = keys.isEmpty ? "" : commitCurrent()
+        if case .character(let c) = key, let symbol = CompositionEngine.symbols[c] {
+            return KeyResult(handled: true, commit: committed + symbol)
+        }
+        // Not a symbol: the backtick was meant literally; then handle the key as usual.
+        var r = handle(key)
+        if !r.handled, case .character(let c) = key { r = KeyResult(handled: true, commit: String(c)) }
+        return KeyResult(handled: r.handled, commit: committed + "`" + (r.commit ?? ""))
+    }
+
+    /// "`" + key → full-width symbol.
+    static let symbols: [Character: String] = [
+        ",": "，", "<": "，", ".": "。", ">": "。", "/": "？", "?": "？", ";": "；", ":": "：",
+        "'": "、", "\\": "、", "\"": "「", "[": "「", "]": "」", "{": "『", "}": "』",
+        "(": "（", ")": "）", "!": "！", "~": "～", "-": "——", "_": "——", "=": "＝",
+    ]
 
     static let fullwidth: [Character: String] = [
         "<": "，", ">": "。", "?": "？", "!": "！", ":": "：", "\"": "「", "(": "（", ")": "）",
@@ -363,6 +393,7 @@ public final class CompositionEngine {
     public func reset() {
         keys = []
         held = nil
+        pendingBacktick = false
         cursor = nil
         forcedMode = nil
         fixed = [:]

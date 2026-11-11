@@ -24,6 +24,15 @@ FULLWIDTH = {
 # is not committed on space; the next word decides ("up jo4" = 因為, "up the" = up the).
 HOLD_MIN_SCORE = -3.5
 
+# "`" then one of these keys always gives the full-width symbol, whatever the context.
+# "`" followed by anything else is just a backtick (so ``` still works).
+BACKTICK = "`"
+SYMBOLS = {
+    ",": "，", "<": "，", ".": "。", ">": "。", "/": "？", "?": "？", ";": "；", ":": "：",
+    "'": "、", "\\": "、", '"': "「", "[": "「", "]": "」", "{": "『", "}": "』",
+    "(": "（", ")": "）", "!": "！", "~": "～", "-": "——", "_": "——", "=": "＝",
+}
+
 PASS = (False, None)
 CONSUMED = (True, None)
 
@@ -41,6 +50,7 @@ class CompositionEngine:
         # English mode, toggled by a Shift tap when nothing is being typed: keys go straight
         # to the app (no composition, no underline) until Shift is tapped again.
         self.english_mode = False
+        self.backtick = False    # "`" typed; the next key may be a forced symbol
         self.fixed = {}          # zhuyin segment start -> {(syl_start, syl_end): text}
         self.candidates = []
         self.candidate_index = 0
@@ -171,7 +181,10 @@ class CompositionEngine:
     @property
     def marked_pieces(self):
         segs = self.segments
-        return [(self._render(s, i < len(segs) - 1), s[2]) for i, s in enumerate(segs)]
+        pieces = [(self._render(s, i < len(segs) - 1), s[2]) for i, s in enumerate(segs)]
+        if self.backtick:
+            pieces.append((BACKTICK, LITERAL))
+        return pieces
 
     @property
     def marked_text(self):
@@ -185,7 +198,7 @@ class CompositionEngine:
 
     def wants(self, key):
         """Whether handle(key) would consume the key, without changing state."""
-        if self.candidates or key == SHIFT_TAP:
+        if self.candidates or key == SHIFT_TAP or self.backtick:
             return True
         if self.english_mode and not self.keys:
             return False   # English mode: everything goes to the app as typed
@@ -202,6 +215,8 @@ class CompositionEngine:
     def handle(self, key):
         if self.candidates:
             return self._handle_candidate_key(key)
+        if self.backtick:
+            return self._after_backtick(key)
         if key == BACKSPACE:
             if not self.keys:
                 return PASS
@@ -251,6 +266,19 @@ class CompositionEngine:
             return CONSUMED if self.keys else PASS
         return self._handle_character(key)
 
+    def _after_backtick(self, key):
+        self.backtick = False
+        if key in (ESCAPE, BACKSPACE):
+            return CONSUMED
+        committed = self._commit() if self.keys else ""
+        if key in SYMBOLS:
+            return True, committed + SYMBOLS[key]
+        # Not a symbol: the backtick was meant literally; then handle the key as usual.
+        handled, more = self.handle(key)
+        if not handled and len(key) == 1:
+            handled, more = True, key
+        return handled, committed + BACKTICK + (more or "")
+
     def _last_parse(self, segs):
         if not segs or segs[-1][2] != ZHUYIN:
             return None
@@ -261,6 +289,9 @@ class CompositionEngine:
         self.cursor = None   # typing always continues at the end
         if self.english_mode and not self.keys:
             return PASS   # English mode: every key goes to the app as typed
+        if c == BACKTICK:
+            self.backtick = True
+            return CONSUMED
         if c == " ":
             if not self.keys:
                 return PASS
@@ -356,6 +387,7 @@ class CompositionEngine:
     def reset(self):
         self.keys = []
         self.held = None
+        self.backtick = False
         self.cursor = None
         self.forced_mode = None
         self.fixed = {}

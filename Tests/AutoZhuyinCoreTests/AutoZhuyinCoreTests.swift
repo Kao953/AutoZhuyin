@@ -462,6 +462,44 @@ final class HeldWordTests: XCTestCase {
     }
 }
 
+final class BacktickSymbolTests: XCTestCase {
+    func makeEngine() -> CompositionEngine {
+        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+    }
+
+    func type(_ s: String, into e: CompositionEngine) -> String {
+        var out = ""
+        for c in s {
+            let key: KeyInput = c == "\n" ? .enter : .character(c)
+            let r = e.handle(key)
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return out
+    }
+
+    func testForcedSymbols() {
+        let cases = ["`<": "，", "`.": "。", "`?": "？", "`;": "；", "`[": "「",
+                     "hello`,": "hello，", "su3cl3`.": "你好。", "```\n": "```"]
+        for (keys, want) in cases {
+            XCTAssertEqual(type(keys, into: makeEngine()), want, keys)
+        }
+    }
+
+    func testPlainBacktick() {
+        let e = makeEngine()
+        XCTAssertEqual(type("`", into: e), "")
+        XCTAssertEqual(e.markedText, "`")
+        XCTAssertEqual(type("ls` ", into: e), "`ls` ")
+    }
+
+    func testBackspaceCancels() {
+        let e = makeEngine()
+        _ = type("su3`", into: e)
+        _ = e.handle(.backspace)
+        XCTAssertEqual(e.markedText, "你")
+    }
+}
+
 final class StartupTimingTests: XCTestCase {
     func testStartupTiming() throws {
         var t = Date()

@@ -295,5 +295,25 @@ class HeldWordTests(unittest.TestCase):
         self.assertEqual(type_keys(" the ", e), "up the ")
 
 
+class BacktickSymbolTests(unittest.TestCase):
+    def test_forced_symbols(self):
+        cases = {"`<": "，", "`.": "。", "`?": "？", "`;": "；", "`[": "「",
+                 "hello`,": "hello，", "su3cl3`.": "你好。", "```\n": "```"}
+        for keys, want in cases.items():
+            self.assertEqual(type_keys(keys, make_engine()), want, keys)
+
+    def test_plain_backtick(self):
+        e = make_engine()
+        self.assertEqual(type_keys("`", e), "")
+        self.assertEqual(e.marked_text, "`")
+        self.assertEqual(type_keys("ls` ", e), "`ls` ")
+
+    def test_escape_cancels(self):
+        e = make_engine()
+        type_keys("su3`", e)
+        e.handle(BACKSPACE)
+        self.assertEqual(e.marked_text, "你")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -8,6 +8,7 @@ VERSION="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["v
 NAME="AutoZhuyin-Linux-$VERSION"
 OUT="build/$NAME"
 
+[ -s build/lm/lm.bin ] || scripts/fetch-lm.sh >/dev/null     # "AI 選字" model
 python3 -I windows/tools/build_data.py
 (cd windows && python3 -m unittest discover -q tests)
 python3 -m unittest discover -q -s linux/tests
@@ -21,7 +22,9 @@ mkdir -p "$OUT/autozhuyin"
 rsync -a --exclude __pycache__ --exclude '*.pyc' \
     windows/autozhuyin/__init__.py windows/autozhuyin/core windows/autozhuyin/data "$OUT/autozhuyin/"
 cp linux/autozhuyin_ibus.py linux/installer/install.sh linux/installer/uninstall.sh linux/installer/README.txt \
-    THIRD_PARTY_LICENSES.txt "$OUT/"
+    THIRD_PARTY_LICENSES.txt licenses/GPL-3.0.txt "$OUT/"
+mkdir -p "$OUT/tools"
+cp windows/tools/fetch_numpy.py "$OUT/tools/"     # install.sh downloads numpy if the system has none
 echo "$VERSION" > "$OUT/version.txt"
 sips -s format png -z 64 64 build/icon.tiff --out "$OUT/icon.png" >/dev/null
 chmod +x "$OUT/install.sh" "$OUT/uninstall.sh" "$OUT/autozhuyin_ibus.py"

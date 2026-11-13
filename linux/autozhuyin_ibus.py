@@ -17,6 +17,10 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+# numpy for "AI 選字", downloaded by install.sh when the system has none.
+_VENDOR = os.path.join(HERE, "vendor", "cp%d%d" % sys.version_info[:2])
+if os.path.isdir(_VENDOR):
+    sys.path.insert(1, _VENDOR)
 
 import gi  # noqa: E402
 
@@ -24,7 +28,9 @@ gi.require_version("IBus", "1.0")
 from gi.repository import GLib, GObject, IBus  # noqa: E402
 
 import autozhuyin  # noqa: E402
+from autozhuyin.core.ai import AI, MODE_NAMES  # noqa: E402
 from autozhuyin.core.history import UserHistory  # noqa: E402
+from autozhuyin.core.reranker import MODES  # noqa: E402
 from autozhuyin.core.classifier import LITERAL, Classifier, LearnedPreferences  # noqa: E402
 from autozhuyin.core.engine import (  # noqa: E402
     BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, UP, CompositionEngine,
@@ -50,6 +56,15 @@ except OSError:
     pass
 
 _classifier = None
+_ai = None
+
+
+def shared_ai():
+    """"AI 選字": settings and the language model, loaded in the background once."""
+    global _ai
+    if _ai is None:
+        _ai = AI(_DATA, _USER_DIR)
+    return _ai
 
 
 def _save_json(path, data):
@@ -118,6 +133,7 @@ class AutoZhuyinEngine(IBus.Engine):
         if getattr(self, "engine", None) is not None:
             return
         self.engine = CompositionEngine(shared_classifier())
+        self.engine.reranker = shared_ai().reranker
         self.shift_tap = ShiftTapDetector()
         self.table = IBus.LookupTable.new(self.engine.page_size, 0, True, False)
         self.table.set_orientation(IBus.Orientation.VERTICAL)
@@ -127,8 +143,43 @@ class AutoZhuyinEngine(IBus.Engine):
             symbol=IBus.Text.new_from_string("自"),
             tooltip=IBus.Text.new_from_string("單按 Shift 切換英文模式"),
             sensitive=True, visible=True, state=IBus.PropState.UNCHECKED)
+        # "AI 選字" menu: modes (radio), auto-pause (toggle), status, clear learned data.
+        ai = shared_ai()
+        self.ai_props = {}
+        sub = IBus.PropList()
+        for mode in MODES:
+            prop = IBus.Property(
+                key="ai." + mode, prop_type=IBus.PropType.RADIO,
+                label=IBus.Text.new_from_string("AI 選字：" + MODE_NAMES[mode]),
+                tooltip=IBus.Text.new_from_string(""), sensitive=True, visible=True,
+                state=IBus.PropState.CHECKED if ai.reranker.mode == mode else IBus.PropState.UNCHECKED)
+            self.ai_props[mode] = prop
+            sub.append(prop)
+        self.pause_prop = IBus.Property(
+            key="ai.autopause", prop_type=IBus.PropType.TOGGLE,
+            label=IBus.Text.new_from_string("系統忙碌時自動暫停 AI"),
+            tooltip=IBus.Text.new_from_string(""), sensitive=True, visible=True,
+            state=IBus.PropState.CHECKED if ai.auto_pause else IBus.PropState.UNCHECKED)
+        self.status_prop = IBus.Property(
+            key="ai.status", prop_type=IBus.PropType.NORMAL,
+            label=IBus.Text.new_from_string(ai.status_text()),
+            tooltip=IBus.Text.new_from_string(""), sensitive=False, visible=True,
+            state=IBus.PropState.UNCHECKED)
+        self.clear_prop = IBus.Property(
+            key="clear", prop_type=IBus.PropType.NORMAL,
+            label=IBus.Text.new_from_string("清除學習紀錄"),
+            tooltip=IBus.Text.new_from_string(""), sensitive=True, visible=True,
+            state=IBus.PropState.UNCHECKED)
+        for prop in (self.pause_prop, self.status_prop, self.clear_prop):
+            sub.append(prop)
+        self.ai_menu = IBus.Property(
+            key="ai", prop_type=IBus.PropType.MENU,
+            label=IBus.Text.new_from_string("設定"),
+            tooltip=IBus.Text.new_from_string("AI 選字與學習紀錄"),
+            sensitive=True, visible=True, state=IBus.PropState.UNCHECKED, sub_props=sub)
         self.props = IBus.PropList()
         self.props.append(self.mode_prop)
+        self.props.append(self.ai_menu)
 
     # --- keys ---
 
@@ -211,12 +262,38 @@ class AutoZhuyinEngine(IBus.Engine):
         self._update(None)
         return True
 
+    # --- settings menu ---
+
+    def do_property_activate(self, prop_name, state):
+        self._setup()
+        ai = shared_ai()
+        if prop_name.startswith("ai.") and prop_name[3:] in MODES:
+            if state == IBus.PropState.CHECKED:
+                ai.set_mode(prop_name[3:])
+        elif prop_name == "ai.autopause":
+            ai.set_auto_pause(state == IBus.PropState.CHECKED)
+        elif prop_name == "clear":
+            shared_classifier().learned.clear()
+            shared_classifier().history.clear()
+        self._refresh_ai_props()
+
+    def _refresh_ai_props(self):
+        ai = shared_ai()
+        for mode, prop in self.ai_props.items():
+            prop.set_state(IBus.PropState.CHECKED if ai.reranker.mode == mode else IBus.PropState.UNCHECKED)
+            self.update_property(prop)
+        self.pause_prop.set_state(IBus.PropState.CHECKED if ai.auto_pause else IBus.PropState.UNCHECKED)
+        self.update_property(self.pause_prop)
+        self.status_prop.set_label(IBus.Text.new_from_string(ai.status_text()))
+        self.update_property(self.status_prop)
+
     # --- lifecycle ---
 
     def do_focus_in(self):
         self._setup()
         self.register_properties(self.props)
         self._update_mode()
+        self._refresh_ai_props()
 
     def do_focus_out(self):
         self._setup()

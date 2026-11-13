@@ -423,5 +423,105 @@ class UserHistoryTests(unittest.TestCase):
         self.assertEqual(set(h.data["ㄊㄧㄢ"]), {"添", "田"})
 
 
+class FakeLM:
+    """Likes one string; `on_call` can advance a fake clock."""
+    def __init__(self, liked):
+        self.liked, self.calls, self.on_call = liked, 0, lambda: None
+
+    def log_probs(self, texts, context=""):
+        self.calls += len(texts)
+        self.on_call()
+        return [0.0 if self.liked in t else -50.0 for t in texts]
+
+
+class RerankerTests(unittest.TestCase):
+    def engine(self, reranker):
+        e = make_engine()
+        e.reranker = reranker
+        return e
+
+    def test_rerank_picks_what_the_model_likes(self):
+        from autozhuyin.core.reranker import Reranker, ST_ACTIVE
+        self.assertEqual(type_keys("wu0 \n", self.engine(None)), "天")
+        r = Reranker("standard", FakeLM("添"))
+        self.assertEqual(type_keys("wu0 \n", self.engine(r)), "添")
+        self.assertEqual(r.status, ST_ACTIVE)
+
+    def test_off_and_loading_use_the_lexicon(self):
+        from autozhuyin.core.reranker import Reranker, ST_LOADING, ST_OFF
+        off = Reranker("off", FakeLM("添"))
+        self.assertEqual(type_keys("wu0 \n", self.engine(off)), "天")
+        self.assertEqual(off.status, ST_OFF)
+        loading = Reranker("standard", None)
+        self.assertEqual(type_keys("wu0 \n", self.engine(loading)), "天")
+        self.assertEqual(loading.status, ST_LOADING)
+
+    def test_paused_and_reduced(self):
+        from autozhuyin.core.reranker import PAUSED, REDUCED, Reranker, ST_BUSY
+        r = Reranker("standard", FakeLM("添"))
+        r.system_state = lambda: PAUSED
+        self.assertEqual(type_keys("wu0 \n", self.engine(r)), "天")
+        self.assertEqual(r.status, ST_BUSY)
+        lm = FakeLM("添")
+        r = Reranker("quality", lm)
+        r.system_state = lambda: REDUCED
+        type_keys("wu0 \n", self.engine(r))
+        self.assertLessEqual(lm.calls, 3)
+
+    def test_slow_model_is_paused(self):
+        from autozhuyin.core.reranker import Reranker, ST_SLOW
+        clock = [0.0]
+        lm = FakeLM("添")
+        lm.on_call = lambda: clock.__setitem__(0, clock[0] + 1)   # every batch takes a "second"
+        r = Reranker("standard", lm, now=lambda: clock[0])
+        for _ in range(3):
+            type_keys("wu0 \n", self.engine(r))
+        self.assertEqual(r.status, ST_SLOW)
+        lm.on_call = lambda: None
+        self.assertEqual(type_keys("wu0 \n", self.engine(r)), "天")   # paused
+        clock[0] += 61
+        self.assertEqual(type_keys("wu0 \n", self.engine(r)), "添")   # back after a minute
+
+    def test_kbest_first_is_viterbi(self):
+        syl = [s.syllable for s in bopomofo.parse(list("rup wu0 wu0 fu4")).syllables]
+        conv = Converter(LEX)
+        best = conv.kbest(syl, 5)
+        self.assertEqual("".join(t for _, t in best[0][1]), "".join(t for _, t in conv.convert(syl)))
+        self.assertEqual(len(best), 5)
+
+
+class RealModelTests(unittest.TestCase):
+    """Needs numpy and data/lm.bin (scripts/fetch-lm.sh, tools/build_data.py); skipped otherwise."""
+    def test_fixes_homophones(self):
+        from autozhuyin.core import lm
+        from autozhuyin.core.reranker import Reranker
+        path = os.path.join(DATA, "lm.bin")
+        if not lm.available() or not os.path.exists(path):
+            self.skipTest("needs numpy and the model")
+        model = lm.GPT2LanguageModel(path, os.path.join(DATA, "lm-vocab.txt"))
+        self.assertAlmostEqual(model.log_prob("他在家"), -14.329, delta=0.05)
+        cases = {"w8 ql32k71u3ji3dj94cp32ji ": "他跑得比我快很多", "fu/3su3y94gji u h4cl3a87": "請你再說一次好嗎"}
+        for keys, want in cases.items():
+            self.assertNotEqual(type_keys(keys + "\n", make_engine()), want)
+            e = make_engine()
+            e.reranker = Reranker("standard", model)
+            self.assertEqual(type_keys(keys + "\n", e), want)
+
+
+class AISettingsTests(unittest.TestCase):
+    def test_settings_round_trip_and_status(self):
+        import tempfile
+        from autozhuyin.core.ai import AI
+        user = tempfile.mkdtemp()
+        ai = AI(tempfile.mkdtemp(), user, background=False)    # no model files here
+        self.assertTrue(ai.error)                               # "需要 numpy" or "AI 模型未安裝"
+        self.assertEqual(ai.status_text(), ai.error)
+        ai.set_mode("saver")
+        ai.set_auto_pause(False)
+        again = AI(tempfile.mkdtemp(), user, background=False)
+        self.assertEqual(again.reranker.mode, "saver")
+        self.assertFalse(again.auto_pause)
+
+
 if __name__ == "__main__":
     unittest.main()

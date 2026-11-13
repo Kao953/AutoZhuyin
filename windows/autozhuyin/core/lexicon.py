@@ -130,6 +130,28 @@ class Converter:
             j = seg[0][0]
         return segs[::-1]
 
+    def kbest(self, syllables, k, fixed=None):
+        """The k best paths [(log10 score, [((start, end), text)])], best first."""
+        fixed = fixed or {}
+        n = len(syllables)
+        if n == 0 or k <= 0:
+            return []
+        max_len = max(1, self.lexicon.max_phrase_length)
+        beams = [[] for _ in range(n + 1)]
+        beams[0] = [(0.0, [])]
+        for j in range(1, n + 1):
+            cand = []
+            for length in range(1, min(max_len, j) + 1):
+                i = j - length
+                if not beams[i]:
+                    continue
+                for text, score in self._options(syllables, i, j, fixed):
+                    for s, segs in beams[i]:
+                        cand.append((s + score, segs + [((i, j), text)]))
+            cand.sort(key=lambda e: -e[0])
+            beams[j] = cand[:k]
+        return beams[n]
+
     def candidates(self, syllables, end):
         """[((start, end), text)] for phrases ending at syllable `end`, longest first."""
         if end <= 0 or end > len(syllables):

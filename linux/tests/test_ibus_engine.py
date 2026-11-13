@@ -54,9 +54,10 @@ class LookupTable:
 
 
 class Property:
-    def __init__(self, **kw): self.label = kw["label"].text
+    def __init__(self, **kw): self.key, self.label, self.state = kw["key"], kw["label"].text, kw.get("state", 0)
     def set_label(self, t): self.label = t.text
     def set_symbol(self, t): pass
+    def set_state(self, s): self.state = s
 
 
 class Engine:
@@ -71,7 +72,9 @@ class Engine:
     def update_lookup_table(self, table, visible): self.shown = list(table.items)
     def hide_lookup_table(self): self.shown = None
     def register_properties(self, p): pass
-    def update_property(self, p): self.mode_label = p.label
+    def update_property(self, p):
+        if p.key == "mode":
+            self.mode_label = p.label
 
 
 IBus.Text, IBus.AttrList, IBus.LookupTable, IBus.Property, IBus.Engine = Text, AttrList, LookupTable, Property, Engine
@@ -80,8 +83,8 @@ IBus.attr_underline_new = lambda kind, a, b: ("underline", a, b)
 IBus.attr_foreground_new = lambda color, a, b: ("color", a, b)
 IBus.AttrUnderline = types.SimpleNamespace(SINGLE=1)
 IBus.Orientation = types.SimpleNamespace(VERTICAL=1)
-IBus.PropType = types.SimpleNamespace(NORMAL=0)
-IBus.PropState = types.SimpleNamespace(UNCHECKED=0)
+IBus.PropType = types.SimpleNamespace(NORMAL=0, TOGGLE=1, RADIO=2, MENU=3)
+IBus.PropState = types.SimpleNamespace(UNCHECKED=0, CHECKED=1)
 IBus.PreeditFocusMode = types.SimpleNamespace(COMMIT=1)
 
 gi = types.ModuleType("gi")
@@ -172,6 +175,19 @@ class IBusEngineTests(unittest.TestCase):
             self.assertIn(second, f.read())
         press(self.e, "su3 \n")
         self.assertTrue(self.e.committed.endswith(second))
+
+    def test_ai_menu(self):
+        e = self.e
+        self.assertEqual(e.ai_props["standard"].state, 1)
+        e.do_property_activate("ai.saver", 1)
+        self.assertEqual(autozhuyin_ibus.shared_ai().reranker.mode, "saver")
+        self.assertEqual(e.ai_props["saver"].state, 1)
+        self.assertEqual(e.ai_props["standard"].state, 0)
+        e.do_property_activate("ai.autopause", 0)
+        self.assertFalse(autozhuyin_ibus.shared_ai().auto_pause)
+        self.assertTrue(e.status_prop.label)
+        e.do_property_activate("ai.standard", 1)
+        e.do_property_activate("ai.autopause", 1)
 
     def test_focus_out_resets(self):
         press(self.e, "su3")

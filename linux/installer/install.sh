@@ -23,12 +23,30 @@ fi
 
 # 2. Copy the program.
 pkill -f "autozhuyin/autozhuyin_ibus.py" 2>/dev/null || true
+VENDOR_BACKUP=""
+if [ -d "$DEST/vendor" ]; then      # keep numpy downloaded by an earlier install
+    VENDOR_BACKUP="$(mktemp -d)"
+    mv "$DEST/vendor" "$VENDOR_BACKUP/"
+fi
 rm -rf "$DEST"
 mkdir -p "$DEST"
-cp -R autozhuyin autozhuyin_ibus.py version.txt "$DEST/"
-[ -f icon.png ] && cp icon.png "$DEST/"
-[ -f THIRD_PARTY_LICENSES.txt ] && cp THIRD_PARTY_LICENSES.txt "$DEST/"
+cp -R autozhuyin autozhuyin_ibus.py version.txt tools "$DEST/"
+for f in icon.png THIRD_PARTY_LICENSES.txt GPL-3.0.txt; do [ -f "$f" ] && cp "$f" "$DEST/"; done
+[ -n "$VENDOR_BACKUP" ] && mv "$VENDOR_BACKUP/vendor" "$DEST/" && rmdir "$VENDOR_BACKUP"
 chmod +x "$DEST/autozhuyin_ibus.py"
+
+# 2b. numpy for "AI 選字": use the system's, or download the matching version from PyPI.
+TAG="$("$PY" -c 'import sys; print("cp%d%d" % sys.version_info[:2])')"
+if "$PY" -c 'import numpy' 2>/dev/null; then
+    echo "AI 選字：使用系統的 numpy。"
+elif [ -d "$DEST/vendor/$TAG/numpy" ]; then
+    echo "AI 選字：使用先前下載的 numpy。"
+else
+    echo "AI 選字需要 numpy，正在從 PyPI 下載（約 15 MB）…"
+    if ! "$PY" -I "$DEST/tools/fetch_numpy.py" "$DEST/vendor" auto auto; then
+        echo "下載 numpy 失敗：輸入法照常可用，只是沒有 AI 選字。之後可以重新執行 install.sh。"
+    fi
+fi
 
 # 3. Start with the desktop session: registers the engine with IBus and selects it.
 mkdir -p "$AUTOSTART"

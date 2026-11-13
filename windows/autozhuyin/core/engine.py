@@ -65,6 +65,8 @@ class CompositionEngine:
         self.inserting = []
         # Index of a held space (see HOLD_MIN_SCORE), or None.
         self.held = None
+        self.reranker = None     # "AI 選字" (reranker.Reranker); None = lexicon only
+        self._recent_text = ""   # last characters committed: context for the reranker
         self._previous_mode = None
         self._previous_time = float("-inf")
         self._cache_key = None
@@ -159,7 +161,14 @@ class CompositionEngine:
     def _conversion(self, seg, final):
         syl, pending = self._convertible(seg, final)
         fx = {k: v for k, v in self.fixed.get(seg[0], {}).items() if k[1] <= len(syl)}
+        if self.reranker is not None:
+            chosen = self.reranker.choose(self.converter, syl, fx, self._rerank_context())
+            if chosen is not None:
+                return chosen, pending
         return self.converter.convert(syl, fx), pending
+
+    def _rerank_context(self):
+        return self._recent_text if self.now() - self._previous_time < self.context_window else ""
 
     def _render(self, seg, final):
         start, end, mode = seg
@@ -556,6 +565,7 @@ class CompositionEngine:
         segs = segs if segs is not None else self.segments
         text = "".join(self._render(s, True) for s in segs)
         self._remember_picks(segs)
+        self._recent_text = (self._rerank_context() + text)[-20:]
         if self.forced_mode:
             self.classifier.learned.record("".join(self.keys), self.forced_mode)
         self._previous_mode = segs[-1][2] if segs else None

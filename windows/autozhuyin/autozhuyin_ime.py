@@ -6,12 +6,21 @@ tests); this file only translates PIME key events and replies.
 """
 import json
 import os
+import sys
 import time
 
-from keycodes import *  # noqa: F401,F403  (VK_* constants, provided by PIME)
-from textService import TextService
+# numpy for "AI 選字" is bundled per Python version (PIME 1.3 has 3.8, PIME 2 has 3.15).
+_VENDOR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor",
+                       "cp%d%d" % sys.version_info[:2])
+if os.path.isdir(_VENDOR) and _VENDOR not in sys.path:
+    sys.path.insert(0, _VENDOR)
 
+from keycodes import *  # noqa: F401,F403  (VK_* constants, provided by PIME)
+from textService import COMMAND_LEFT_CLICK, COMMAND_MENU, TextService  # noqa: F401
+
+from .core.ai import AI, MODE_NAMES
 from .core.history import UserHistory
+from .core.reranker import MODES
 from .core.classifier import Classifier, LearnedPreferences
 from .core.engine import BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, UP, CompositionEngine
 from .core.english import EnglishModel
@@ -26,6 +35,11 @@ _USER_PHRASES = os.path.join(_USER_DIR, "user-phrases.txt")
 _HISTORY_FILE = os.path.join(_USER_DIR, "user-history.json")
 
 _classifier = None
+_ai = None
+
+ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR = 1, 2, 3, 4
+ID_AI_MODE = {mode: 10 + i for i, mode in enumerate(MODES)}   # 10..13
+_ICON = os.path.join(_HERE, "icon.ico")
 
 
 def _save_json(path, data):
@@ -72,6 +86,14 @@ def _shared_classifier():
     return _classifier
 
 
+def _shared_ai():
+    """"AI 選字": settings and the language model, loaded in the background once."""
+    global _ai
+    if _ai is None:
+        _ai = AI(_DATA, _USER_DIR)
+    return _ai
+
+
 _SPECIAL = {
     VK_BACK: BACKSPACE, VK_RETURN: ENTER, VK_ESCAPE: ESCAPE, VK_TAB: TAB,  # noqa: F405
     VK_UP: UP, VK_DOWN: DOWN, VK_LEFT: LEFT, VK_RIGHT: RIGHT,  # noqa: F405
@@ -83,6 +105,7 @@ class AutoZhuyinTextService(TextService):
         TextService.__init__(self, client)
         self.engine = CompositionEngine(_shared_classifier())
         self.shift_tap = ShiftTapDetector()
+        self.engine.reranker = _shared_ai().reranker
 
     # --- lifecycle ---
 
@@ -90,10 +113,51 @@ class AutoZhuyinTextService(TextService):
         TextService.onActivate(self)
         self.setSelKeys("123456789")
         self.customizeUI(candFontSize=16, candPerRow=1, candUseCursor=True)
+        # Taskbar IME icon (Windows 8+) and language bar button; both open the settings menu.
+        self.addButton("windows-mode-icon", icon=_ICON, tooltip="自動注音（右鍵：設定）",
+                       commandId=ID_MODE_ICON)
+        self.addButton("autozhuyin-settings", icon=_ICON, tooltip="自動注音設定", type="menu")
 
     def onDeactivate(self):
         self.engine.reset()
+        self.removeButton("windows-mode-icon")
+        self.removeButton("autozhuyin-settings")
         TextService.onDeactivate(self)
+
+    # --- menu (AI 選字 settings) ---
+
+    def onMenu(self, buttonId):
+        if buttonId not in ("windows-mode-icon", "autozhuyin-settings"):
+            return None
+        ai = _shared_ai()
+        items = [{"text": "AI 選字：" + MODE_NAMES[m], "id": ID_AI_MODE[m], "checked": ai.reranker.mode == m}
+                 for m in MODES]
+        items += [
+            {},
+            {"text": "系統忙碌時自動暫停 AI", "id": ID_AUTO_PAUSE, "checked": ai.auto_pause},
+            {"text": ai.status_text(), "id": ID_STATUS, "enabled": False},
+            {},
+            {"text": "清除學習紀錄", "id": ID_CLEAR},
+        ]
+        return items
+
+    def onCommand(self, commandId, commandType):
+        ai = _shared_ai()
+        if commandId == ID_MODE_ICON and commandType == COMMAND_LEFT_CLICK and not self.engine.keys:
+            self.engine.handle(SHIFT_TAP)    # left click: English mode on / off
+            self.showMessage("英文" if self.engine.english_mode else "中英自動", 1)
+            return
+        for mode, cid in ID_AI_MODE.items():
+            if commandId == cid:
+                ai.set_mode(mode)
+                self.showMessage("AI 選字：" + MODE_NAMES[mode], 1)
+                return
+        if commandId == ID_AUTO_PAUSE:
+            ai.set_auto_pause(not ai.auto_pause)
+        elif commandId == ID_CLEAR:
+            _shared_classifier().learned.clear()
+            _shared_classifier().history.clear()
+            self.showMessage("已清除學習紀錄", 1)
 
     def onCompositionTerminated(self, forced):
         # The app ended the composition (focus change, mouse click): the shown text stays.

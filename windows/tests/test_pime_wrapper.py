@@ -40,6 +40,8 @@ class FakeTextService:
     def setCandidateCursor(self, p): self.reply["candidateCursor"] = p
 
     def showMessage(self, message, duration=3): self.reply["showMessage"] = message
+    def addButton(self, button_id, **kw): self.reply.setdefault("addButton", []).append(button_id)
+    def removeButton(self, button_id): self.reply.setdefault("removeButton", []).append(button_id)
 
     def setShowCandidates(self, show):
         self.showCandidates = show
@@ -47,6 +49,7 @@ class FakeTextService:
 
 
 textService.TextService = FakeTextService
+textService.COMMAND_LEFT_CLICK, textService.COMMAND_RIGHT_CLICK, textService.COMMAND_MENU = 0, 1, 2
 sys.modules["textService"] = textService
 
 from autozhuyin.autozhuyin_ime import AutoZhuyinTextService, _shared_classifier  # noqa: E402
@@ -113,6 +116,25 @@ class WrapperTests(unittest.TestCase):
     def test_backtick_symbol(self):
         self.assertEqual(type_text(self.svc, "`<"), "，")
         self.assertEqual(type_text(self.svc, "ji3`."), "我。")
+
+    def test_settings_menu(self):
+        from autozhuyin import autozhuyin_ime as ime
+        self.assertIn("autozhuyin-settings", self.svc.reply["addButton"])
+        menu = self.svc.onMenu("autozhuyin-settings")
+        texts = [m.get("text") for m in menu]
+        self.assertIn("AI 選字：標準", texts)
+        self.assertIn("清除學習紀錄", texts)
+        self.svc.onCommand(ime.ID_AI_MODE["saver"], 2)
+        checked = [m["text"] for m in self.svc.onMenu("autozhuyin-settings") if m.get("checked")]
+        self.assertIn("AI 選字：省電", checked)
+        self.svc.onCommand(ime.ID_AI_MODE["standard"], 2)
+        self.assertIsNone(self.svc.onMenu("other"))
+
+    def test_mode_icon_click_toggles_english(self):
+        self.svc.onCommand(1, 0)
+        self.assertTrue(self.svc.engine.english_mode)
+        self.svc.onCommand(1, 0)
+        self.assertFalse(self.svc.engine.english_mode)
 
     def test_composition_shown(self):
         type_text(self.svc, "su3c")

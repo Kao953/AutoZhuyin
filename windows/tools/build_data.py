@@ -5,6 +5,7 @@
 - english-dict.txt: filtered from a system word list (default /usr/share/dict/words,
   Webster's 2nd edition, public domain), since Windows has no such file
 - english-bigram.json: precomputed letter-bigram table
+- lm.bin, lm-vocab.txt: the "AI 選字" language model, copied from build/lm/ if present
 
 Usage: build_data.py [word-list]
 """
@@ -33,5 +34,11 @@ common = {w.strip().lower() for w in (data / "english-common.txt").read_text(enc
           if w.strip() and not w.startswith("#")}
 bigram = train_bigram(sorted(common | set(words)), common)
 (data / "english-bigram.json").write_text(json.dumps(bigram), encoding="utf-8")
+
+# "AI 選字" language model (scripts/fetch-lm.sh makes build/lm/); optional.
+lm_dir = ROOT / "build" / "lm"
+for name in ("lm.bin", "lm-vocab.txt"):
+    if (lm_dir / name).exists():
+        shutil.copy(lm_dir / name, data / name)
 
 print("data ready: %d dictionary words, %d bigrams" % (len(words), len(bigram["table"])))

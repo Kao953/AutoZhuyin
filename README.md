@@ -17,7 +17,7 @@
 - **可省略聲調**：`jiap7`（ㄨㄛ ㄇㄣ˙）一樣能打出「我們」
 - **候選字**：用 ← → 把游標移到要改的字後面，按 ↓ 選字；選過的會固定下來
 - **記住選字**：從候選字選過的字詞會被記住，下次打同樣的讀音會優先出現（選越多次越優先）
-- **AI 選字（macOS）**：用中研院 CKIP 的繁中小型語言模型看前後文挑同音字（他跑「得」很快、請你「再」說一次），完全在本機運算；可調整或關閉，系統忙碌時自動暫停
+- **AI 選字**：用中研院 CKIP 的繁中小型語言模型看前後文挑同音字（他跑「得」很快、請你「再」說一次），完全在本機運算；可調整或關閉，系統忙碌時自動暫停
 - **中間補字、刪字**：游標移到前面後直接打注音，會插在游標處；Backspace 刪掉游標前的那個字
 - **全形標點**：中文語境下 `?` `!` `<` 自動變成 `？` `！` `，`；任何時候按 `` ` `` 再按標點鍵，一定得到全形標點（例如 `` `< `` = `，`）
 - **完整詞庫**：約 17 萬筆，來自小麥注音 McBopomofo（MIT 授權）
@@ -97,7 +97,7 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 
 轉換用 Viterbi 演算法，在詞庫中找出整串音節機率最高的詞組組合。
 
-### AI 選字（macOS）
+### AI 選字
 
 詞庫只知道每個詞本身有多常見，不看前後文。AI 選字讓語言模型當裁判：
 
@@ -105,7 +105,7 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 2. 模型 [CKIP GPT2-tiny](https://huggingface.co/ckiplab/gpt2-tiny-chinese)（中研院詞庫小組，繁體中文，約 1200 萬參數，22 MB）計算每個組合出現的機率，並參考剛送出的前文。
 3. 分數 = 詞庫分數 + 0.6 × 模型分數，取最高的。選過的候選字仍然固定不變。
 
-輸入法選單可以調整：
+輸入法選單可以調整（Mac：選單列的輸入法選單；Windows：工作列輸入法圖示按右鍵或語言列的設定按鈕；Linux：IBus 選單的「設定」）：
 
 | 模式 | 比較幾個組合 | 每次運算上限 |
 |---|---|---|
@@ -116,7 +116,13 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 
 不會拖慢打字的機制：
 - 每次運算超過上限就直接放棄，改用詞庫結果；連續 3 次超時就暫停一分鐘。
-- 「系統忙碌時自動暫停 AI」（預設開啟）：Mac 過熱，或 CPU 負載（每核心 1 分鐘平均）超過 0.9 時暫停；低耗電模式下降到省電模式。選單最下面會顯示目前狀態。
+- 「系統忙碌時自動暫停 AI」（預設開啟），選單裡會顯示目前狀態：
+
+| | 暫停 AI | 降到省電模式 |
+|---|---|---|
+| macOS | 過熱，或 CPU 負載（每核心 1 分鐘平均）超過 0.9 | 低耗電模式 |
+| Windows | CPU 使用率超過 90% | 省電模式（電池保護） |
+| Linux | CPU 負載超過 0.9，或溫度達 95 °C | 低耗電設定檔，或用電池且電量 ≤ 20% |
 - 模型在背景載入，載入完成前照常用詞庫。
 
 實測（`training/lm/eval_rerank.py`，標準模式）：
@@ -126,7 +132,12 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 | 日常對話 60 句 | 字正確率 96.6%，整句全對 73% | 97.5%，80% |
 | 維基百科 714 句 | 92.9%，31% | 94.7%，44% |
 
-錯字大約少了 25–30%。Windows、Linux 版目前還沒有 AI 選字。
+錯字大約少了 25–30%。
+
+Windows、Linux 版用 numpy 執行同一個模型（`windows/autozhuyin/core/lm.py`），所以時間上限放寬為省電 40、標準 80、高品質 200 毫秒，超時的那次結果照用但不快取，連續 3 次超時暫停一分鐘。
+- Windows：安裝包附上 PIME 兩種 Python（1.3 版的 3.8、2.x 版的 3.15，都是 32 位元）用的 numpy，安裝檔約 40 MB。
+- Linux：系統沒有 numpy 時，`install.sh` 會從 PyPI 下載符合的版本到 `~/.local/share/autozhuyin/vendor/`。
+- 設定存在 `%APPDATA%\PIME\autozhuyin\settings.json`、`~/.config/autozhuyin/settings.json`。
 
 ## 個人資料
 
@@ -311,8 +322,7 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝�
 - [x] 用資料訓練判斷權重（合成資料）
 - [ ] 加入真實打字資料一起訓練
 - [ ] 已送出的英文單字若判斷錯誤，可以「事後翻轉」
-- [x] AI 選字：語言模型參考前後文挑同音字（macOS）
-- [ ] AI 選字移植到 Windows、Linux
+- [x] AI 選字：語言模型參考前後文挑同音字（macOS、Windows、Linux）
 - [x] 使用者詞頻學習（選過的候選字優先）
 - [ ] 偏好設定視窗
 
@@ -321,6 +331,7 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝�
 - 詞庫資料：[小麥注音 McBopomofo](https://github.com/openvanilla/McBopomofo)（MIT License）
 - Windows 輸入法框架：[PIME](https://github.com/EasyIME/PIME)（LGPL 2.1，使用者自行安裝，本專案不包含其程式碼）
 - 英文字典：Webster's Second International Dictionary（公有領域，macOS 的 `/usr/share/dict/words`）
-- AI 選字語言模型：[CKIP GPT2 Tiny Chinese](https://github.com/ckiplab/ckip-transformers)（中研院詞庫小組，GPL-3.0，全文在 `licenses/GPL-3.0.txt`，Mac 版一併放在 app 的 Resources）
+- AI 選字語言模型：[CKIP GPT2 Tiny Chinese](https://github.com/ckiplab/ckip-transformers)（中研院詞庫小組，GPL-3.0，全文在 `licenses/GPL-3.0.txt`，並一起打包進三個平台的安裝檔）
+- 數值運算：[NumPy](https://numpy.org)（BSD 3-Clause，Windows 版附上、Linux 版安裝時下載）
 
 完整的第三方授權聲明（含小麥注音 MIT 授權全文）見 [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)，Mac 版放在 `AutoZhuyin.app/Contents/Resources/`，Windows 版放在 zip 根目錄和安裝後的 `autozhuyin` 資料夾。

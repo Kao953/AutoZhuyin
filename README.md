@@ -1,6 +1,6 @@
 # 自動注音 AutoZhuyin
 
-給繁體中文使用者的輸入法（macOS、Windows）：**不用按切換鍵**，直接用大千注音鍵盤打字，輸入法會自動判斷你打的是注音還是英文。
+給繁體中文使用者的輸入法（macOS、Windows、Linux）：**不用按切換鍵**，直接用大千注音鍵盤打字，輸入法會自動判斷你打的是注音還是英文。
 
 ```
 按鍵： ji3 hello world su3cl3␣
@@ -45,6 +45,16 @@ PKG 會裝到 `/Library/Input Methods/`，系統上所有使用者都能用。
 
 SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安裝：以系統管理員身分執行 `uninstall.bat`。
 
+### Linux（Bazzite、SteamOS 桌面模式、Fedora…）
+
+需求：系統內建 IBus 輸入法框架（Bazzite、Fedora 預設就有）。只在桌面模式可用，Steam 遊戲模式不支援系統輸入法。
+
+1. 解壓縮 `AutoZhuyin-Linux-<版本>.tar.gz`，在終端機進到資料夾執行 `./install.sh`。不需要 sudo，只會裝在家目錄（`~/.local/share/autozhuyin`），所以唯讀系統也能用。
+2. KDE（Bazzite / SteamOS 預設）：系統設定 → 鍵盤 → 虛擬鍵盤，選 **IBus Wayland** → 套用，登出再登入。GNOME 不用設定。
+3. 之後每次登入會自動切換到自動注音（`~/.config/autostart/autozhuyin.desktop`）。
+
+暫時改回一般鍵盤：`ibus engine xkb:us::eng`；切回：`ibus engine autozhuyin`；移除：`./uninstall.sh`。
+
 ## 按鍵
 
 | 按鍵 | 作用 |
@@ -87,10 +97,10 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 
 ## 個人資料
 
-| | macOS | Windows |
-|---|---|---|
-| 學習紀錄（Tab 修正） | `UserDefaults`（`com.autozhuyin.inputmethod.AutoZhuyin`） | `%APPDATA%\PIME\autozhuyin\learned.json` |
-| 自訂詞 | `~/Library/Application Support/AutoZhuyin/user-phrases.txt` | `%APPDATA%\PIME\autozhuyin\user-phrases.txt` |
+| | macOS | Windows | Linux |
+|---|---|---|---|
+| 學習紀錄（Tab 修正） | `UserDefaults`（`com.autozhuyin.inputmethod.AutoZhuyin`） | `%APPDATA%\PIME\autozhuyin\learned.json` | `~/.config/autozhuyin/learned.json` |
+| 自訂詞 | `~/Library/Application Support/AutoZhuyin/user-phrases.txt` | `%APPDATA%\PIME\autozhuyin\user-phrases.txt` | `~/.config/autozhuyin/user-phrases.txt` |
 
 自訂詞的格式和 `lexicon.txt` 一樣，每行一個詞：`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`（讀音、詞、分數；分數越大越優先）。
 Mac 版可以在輸入法選單選「清除學習紀錄」。
@@ -125,6 +135,18 @@ scripts/package-windows.sh                          # 產生 build/AutoZhuyin-Wi
 - Windows 沒有內建英文字典，所以 `build_data.py` 會把 macOS 的 `/usr/share/dict/words`（韋氏字典，公有領域）轉成 `english-dict.txt` 一起打包，並預先算好 bigram 表。
 - `windows/autozhuyin/data/` 是產生出來的，不進版本控制。
 - 版本號在 `windows/autozhuyin/ime.json`。
+
+### Linux
+
+Linux 版是 IBus 輸入法（`linux/autozhuyin_ibus.py`），直接使用 Windows 版的 Python 核心（`windows/autozhuyin/core/`）和資料。
+
+```bash
+python3 -m unittest discover -s linux/tests   # 用假的 IBus 模組測試外殼
+scripts/package-linux.sh                       # 產生 build/AutoZhuyin-Linux-<版本>.tar.gz（會先跑測試）
+```
+
+- 安裝在使用者目錄，不寫入 `/usr`：開機時由 autostart 啟動 `autozhuyin_ibus.py --activate`，它會把引擎動態註冊給 ibus-daemon 並切換過去。
+- 也支援由 ibus-daemon 啟動（`--ibus`，配合 `/usr/share/ibus/component` 的 XML），之後要做 RPM 時可以用。
 
 > 修改核心邏輯時，Swift（`Sources/AutoZhuyinCore/`）和 Python（`windows/autozhuyin/core/`）兩邊都要改，並在兩邊的測試加上相同案例。
 
@@ -179,12 +201,12 @@ scripts/release.sh minor --push   # 同時 push commit 和 tag
 `release.sh` 會自動：
 1. 遞增版本號（`Resources/Info.plist` 的版本與 build 號、`windows/autozhuyin/ime.json`）
 2. 跑 Swift 和 Python 全部測試
-3. 產生 `build/AutoZhuyin-<版本>.pkg` 和 `build/AutoZhuyin-Windows-<版本>.zip`
+3. 產生 `build/AutoZhuyin-<版本>.pkg`、`build/AutoZhuyin-Windows-<版本>.zip`、`build/AutoZhuyin-Linux-<版本>.tar.gz`
 4. commit「Release v<版本>」並打上 `v<版本>` tag
 
 任何一步失敗都會把版本號改回去。只想改版本號不打包：`scripts/bump-version.sh [patch|minor|major]`。
 
-最後在 Gitea 用這個 tag 建立 Release，附上 `build/` 裡的 `.pkg` 和 `.zip`。
+最後在 Gitea 用這個 tag 建立 Release，附上 `build/` 裡的 `.pkg`、`.zip` 和 `.tar.gz`。
 
 ## 專案結構
 
@@ -212,13 +234,18 @@ windows/
   installer/                  install.bat、uninstall.bat、給使用者的 README.txt
   tests/                      Python 測試
   tools/                      產生資料檔、圖示
+linux/
+  autozhuyin_ibus.py          IBus 外殼（共用 windows/autozhuyin/core）
+  installer/                  install.sh、uninstall.sh、給使用者的 README.txt
+  tests/                      用假 IBus 模組的外殼測試
 training/                     合成資料、訓練權重、Swift/Python 一致性測試資料
 THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝檔）
 ```
 
 ## 已知限制
 
-- Windows 版還沒在實機上測試過。
+- Windows 版、Linux 版還沒在實機上測試過。
+- Linux 版只支援 IBus。KDE 上有些 Flatpak 程式（例如 Flatpak 版 Chrome）在 IBus Wayland 下可能打不出字。
 - 聲調鍵打在注音符號中間（例如 `uv3l`）無法自動修正。
 - 很短的字串本質上就有歧義。像 `up`（也是 ㄧㄣ 因）這種常用的，按空白後會先保留，看下一個詞再決定（`up jo4` = 因為、`up the` = up the）；其他判斷錯的可以按 Tab 修正，修正後會記住。
 - 安裝檔沒有簽章（macOS 沒有 Developer ID，Windows 沒有程式碼簽章憑證）。
@@ -228,6 +255,8 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝�
 - [x] 匯入完整詞庫
 - [x] 注音順序錯誤修正
 - [x] Windows 版
+- [x] Linux 版（IBus）
+- [ ] Linux Fcitx5 版（KDE 上相容性較好）
 - [x] 用資料訓練判斷權重（合成資料）
 - [ ] 加入真實打字資料一起訓練
 - [ ] 已送出的英文單字若判斷錯誤，可以「事後翻轉」

@@ -339,6 +339,8 @@ class CompositionEngine:
             return False   # English mode: everything goes to the app as typed
         if key in SPECIAL_KEYS:
             return bool(self.keys)
+        if key == BACKTICK:
+            return True
         if self.keys:
             return True
         if key == " ":

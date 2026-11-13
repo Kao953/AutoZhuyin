@@ -1,0 +1,315 @@
+#!/usr/bin/env python3
+"""IBus engine for AutoZhuyin (自動注音) on Linux.
+
+All the logic lives in autozhuyin.core (shared with Windows and the tests); this file
+only translates IBus key events and draws the preedit / candidate table.
+
+Run modes:
+  autozhuyin_ibus.py --ibus       started by ibus-daemon (from the component XML)
+  autozhuyin_ibus.py [--activate] started by the user/autostart: registers the engine
+                                  itself if ibus-daemon does not know it, and with
+                                  --activate makes it the current input method
+"""
+import json
+import os
+import sys
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+
+import gi  # noqa: E402
+
+gi.require_version("IBus", "1.0")
+from gi.repository import GLib, GObject, IBus  # noqa: E402
+
+import autozhuyin  # noqa: E402
+from autozhuyin.core.classifier import LITERAL, Classifier, LearnedPreferences  # noqa: E402
+from autozhuyin.core.engine import (  # noqa: E402
+    BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, UP, CompositionEngine,
+)
+from autozhuyin.core.english import EnglishModel  # noqa: E402
+from autozhuyin.core.lexicon import Lexicon  # noqa: E402
+from autozhuyin.core.shift_tap import ShiftTapDetector  # noqa: E402
+
+ENGINE_NAME = "autozhuyin"
+BUS_NAME = "org.freedesktop.IBus.AutoZhuyin"
+VERSION = "0.0.0"
+
+_DATA = os.path.join(os.path.dirname(os.path.abspath(autozhuyin.__file__)), "data")
+_USER_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "autozhuyin")
+_LEARNED_FILE = os.path.join(_USER_DIR, "learned.json")
+_USER_PHRASES = os.path.join(_USER_DIR, "user-phrases.txt")
+
+try:
+    with open(os.path.join(HERE, "version.txt"), encoding="utf-8") as _f:
+        VERSION = _f.read().strip() or VERSION
+except OSError:
+    pass
+
+_classifier = None
+
+
+def _save_learned(weights):
+    try:
+        os.makedirs(_USER_DIR, exist_ok=True)
+        with open(_LEARNED_FILE, "w", encoding="utf-8") as f:
+            json.dump(weights, f, ensure_ascii=False)
+    except OSError:
+        pass
+
+
+def shared_classifier():
+    """Loads the lexicon and English model once per process."""
+    global _classifier
+    if _classifier is None:
+        lexicon = Lexicon.from_file(os.path.join(_DATA, "lexicon.txt"))
+        if os.path.exists(_USER_PHRASES):
+            with open(_USER_PHRASES, encoding="utf-8") as f:
+                lexicon.load(f)
+        english = EnglishModel.from_files(
+            os.path.join(_DATA, "english-common.txt"),
+            os.path.join(_DATA, "english-dict.txt"),
+            os.path.join(_DATA, "english-bigram.json"),
+        )
+        weights = {}
+        try:
+            with open(_LEARNED_FILE, encoding="utf-8") as f:
+                weights = json.load(f)
+        except (OSError, ValueError):
+            pass
+        trained = Classifier.load_weights(os.path.join(_DATA, "classifier-weights.json"))
+        _classifier = Classifier(lexicon, english, LearnedPreferences(weights, _save_learned), trained)
+    return _classifier
+
+
+_SPECIAL = {
+    IBus.KEY_BackSpace: BACKSPACE, IBus.KEY_Return: ENTER, IBus.KEY_KP_Enter: ENTER,
+    IBus.KEY_Escape: ESCAPE, IBus.KEY_Tab: TAB,
+    IBus.KEY_Up: UP, IBus.KEY_Down: DOWN, IBus.KEY_Left: LEFT, IBus.KEY_Right: RIGHT,
+}
+_SHIFT_KEYS = (IBus.KEY_Shift_L, IBus.KEY_Shift_R)
+_SHORTCUT_MASK = (IBus.ModifierType.CONTROL_MASK | IBus.ModifierType.MOD1_MASK
+                  | IBus.ModifierType.SUPER_MASK | IBus.ModifierType.MOD4_MASK)
+_LITERAL_COLOR = 0x1E64DC   # blue hint for English segments
+
+
+class AutoZhuyinEngine(IBus.Engine):
+    __gtype_name__ = "AutoZhuyinEngine"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._setup()
+
+    def _setup(self):
+        if getattr(self, "engine", None) is not None:
+            return
+        self.engine = CompositionEngine(shared_classifier())
+        self.shift_tap = ShiftTapDetector()
+        self.table = IBus.LookupTable.new(self.engine.page_size, 0, True, False)
+        self.table.set_orientation(IBus.Orientation.VERTICAL)
+        self.mode_prop = IBus.Property(
+            key="mode", prop_type=IBus.PropType.NORMAL,
+            label=IBus.Text.new_from_string("中英自動"),
+            symbol=IBus.Text.new_from_string("自"),
+            tooltip=IBus.Text.new_from_string("單按 Shift 切換英文模式"),
+            sensitive=True, visible=True, state=IBus.PropState.UNCHECKED)
+        self.props = IBus.PropList()
+        self.props.append(self.mode_prop)
+
+    # --- keys ---
+
+    def do_process_key_event(self, keyval, keycode, state):
+        self._setup()
+        released = bool(state & IBus.ModifierType.RELEASE_MASK)
+
+        # Shift pressed and released alone: English mode (or flip the current word).
+        if keyval in _SHIFT_KEYS:
+            now = time.monotonic()
+            if not released:
+                if state & _SHORTCUT_MASK:
+                    self.shift_tap.key_pressed()
+                else:
+                    self.shift_tap.shift_down(now)
+                return False
+            if self.shift_tap.shift_up(now):
+                self.engine.handle(SHIFT_TAP)
+                self._update(None)
+                self._update_mode()
+            return False
+        if released:
+            return False
+        self.shift_tap.key_pressed()
+
+        # Shortcuts (Ctrl/Alt/Super) go to the app; commit any composition first.
+        if state & _SHORTCUT_MASK:
+            if self.engine.keys:
+                self._update(self.engine.commit_all())
+            return False
+
+        key = self._key(keyval, state)
+        if key is None:
+            return self._busy()   # swallow other keys (Delete, Home…) while composing
+        if not self.engine.wants(key):
+            return False
+        handled, commit = self.engine.handle(key)
+        self._update(commit)
+        return handled
+
+    def _key(self, keyval, state):
+        if keyval in _SPECIAL:
+            return _SPECIAL[keyval]
+        if keyval == IBus.KEY_space:
+            return " "
+        code = IBus.keyval_to_unicode(keyval)
+        if not code or not code.isprintable():
+            return None
+        # Caps Lock without Shift: keep Zhuyin working by using lowercase.
+        if state & IBus.ModifierType.LOCK_MASK and not state & IBus.ModifierType.SHIFT_MASK:
+            code = code.lower()
+        return code
+
+    def _busy(self):
+        return bool(self.engine.keys or self.engine.candidates)
+
+    # --- candidate panel (mouse) ---
+
+    def do_candidate_clicked(self, index, button, state):
+        self.engine.select_candidate(self.engine.page_start + index)
+        self._update(None)
+
+    def do_page_up(self):
+        return self._move_candidate(-self.engine.page_size)
+
+    def do_page_down(self):
+        return self._move_candidate(self.engine.page_size)
+
+    def do_cursor_up(self):
+        return self._move_candidate(-1)
+
+    def do_cursor_down(self):
+        return self._move_candidate(1)
+
+    def _move_candidate(self, delta):
+        if not self.engine.candidates:
+            return False
+        e = self.engine
+        e.candidate_index = max(0, min(len(e.candidates) - 1, e.candidate_index + delta))
+        self._update(None)
+        return True
+
+    # --- lifecycle ---
+
+    def do_focus_in(self):
+        self._setup()
+        self.register_properties(self.props)
+        self._update_mode()
+
+    def do_focus_out(self):
+        self._setup()
+        # PreeditFocusMode.COMMIT: IBus commits the shown text itself on focus out.
+        self.engine.reset()
+        self.hide_lookup_table()
+
+    def do_reset(self):
+        self._setup()
+        self.engine.reset()
+        self.hide_preedit_text()
+        self.hide_lookup_table()
+
+    def do_disable(self):
+        self.do_reset()
+
+    # --- drawing ---
+
+    def _update(self, commit):
+        if commit:
+            self.commit_text(IBus.Text.new_from_string(commit))
+        pieces = self.engine.marked_pieces
+        text = "".join(t for t, _ in pieces)
+        if text:
+            ibus_text = IBus.Text.new_from_string(text)
+            attrs = IBus.AttrList()
+            attrs.append(IBus.attr_underline_new(IBus.AttrUnderline.SINGLE, 0, len(text)))
+            pos = 0
+            for piece, mode in pieces:
+                if mode == LITERAL and piece:
+                    attrs.append(IBus.attr_foreground_new(_LITERAL_COLOR, pos, pos + len(piece)))
+                pos += len(piece)
+            ibus_text.set_attributes(attrs)
+            self.update_preedit_text_with_mode(ibus_text, self.engine.cursor_offset, True,
+                                               IBus.PreeditFocusMode.COMMIT)
+        else:
+            self.hide_preedit_text()
+
+        if self.engine.candidates:
+            self.table.clear()
+            for _, candidate in self.engine.candidates:
+                self.table.append_candidate(IBus.Text.new_from_string(candidate))
+            self.table.set_cursor_pos(self.engine.candidate_index)
+            self.update_lookup_table(self.table, True)
+        else:
+            self.hide_lookup_table()
+
+    def _update_mode(self):
+        english = self.engine.english_mode
+        self.mode_prop.set_label(IBus.Text.new_from_string("英文" if english else "中英自動"))
+        self.mode_prop.set_symbol(IBus.Text.new_from_string("英" if english else "自"))
+        self.update_property(self.mode_prop)
+
+
+# --- process setup ---
+
+def make_component(exec_path):
+    component = IBus.Component(
+        name=BUS_NAME, description="自動注音 AutoZhuyin", version=VERSION,
+        license="Private", author="AutoZhuyin", homepage="",
+        command_line=f"{sys.executable} {exec_path} --ibus", textdomain="")
+    icon = os.path.join(HERE, "icon.png")
+    component.add_engine(IBus.EngineDesc(
+        name=ENGINE_NAME, longname="自動注音", description="大千注音＋英文，自動判斷中英",
+        language="zh_TW", license="Private", author="AutoZhuyin",
+        icon=icon if os.path.exists(icon) else "", layout="us", symbol="自", rank=0))
+    return component
+
+
+def main(argv):
+    IBus.init()
+    bus = IBus.Bus()
+    loop = GLib.MainLoop()
+    started_by_ibus = "--ibus" in argv
+    activate = "--activate" in argv
+    factory = None
+
+    def on_connected(*_):
+        nonlocal factory
+        factory = IBus.Factory.new(bus.get_connection())
+        factory.add_engine(ENGINE_NAME, GObject.type_from_name("AutoZhuyinEngine"))
+        if started_by_ibus:
+            bus.request_name(BUS_NAME, 0)
+        else:
+            known = any(e.get_name() == ENGINE_NAME for e in bus.list_engines())
+            if not known:
+                bus.register_component(make_component(os.path.abspath(__file__)))
+            if activate:
+                bus.set_global_engine(ENGINE_NAME)
+
+    def on_disconnected(*_):
+        if started_by_ibus:
+            loop.quit()
+        # Otherwise wait: IBus.Bus reconnects (and emits "connected") when ibus-daemon restarts.
+
+    bus.connect("connected", on_connected)
+    bus.connect("disconnected", on_disconnected)
+    shared_classifier()   # load data before the first key
+    if bus.is_connected():
+        on_connected()
+    elif started_by_ibus:
+        print("autozhuyin: cannot connect to ibus-daemon", file=sys.stderr)
+        return 1
+    loop.run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

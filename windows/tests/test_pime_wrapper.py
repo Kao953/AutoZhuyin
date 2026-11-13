@@ -105,6 +105,10 @@ class WrapperTests(unittest.TestCase):
     def test_mixed_sentence(self):
         self.assertEqual(type_text(self.svc, "ji3 hello world su3cl3 "), "我hello world 你好")
 
+    def test_backtick_symbol(self):
+        self.assertEqual(type_text(self.svc, "`<"), "，")
+        self.assertEqual(type_text(self.svc, "ji3`."), "我。")
+
     def test_composition_shown(self):
         type_text(self.svc, "su3c")
         self.assertEqual(self.svc.reply["compositionString"], "你ㄏ")

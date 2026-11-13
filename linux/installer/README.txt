@@ -1,0 +1,57 @@
+自動注音 AutoZhuyin（Linux 測試版，IBus）
+=========================================
+
+用大千注音鍵盤直接打字，不用切換中英文，輸入法會自動判斷你打的是注音還是英文。
+
+  按鍵： ji3 hello world su3cl3 （最後按空白）
+  輸出： 我hello world 你好
+
+適用：Bazzite、SteamOS 桌面模式、Fedora 等有 IBus 的系統（KDE 或 GNOME）。
+只在桌面模式可用；Steam 遊戲模式不支援系統輸入法。
+
+
+安裝
+----
+1. 解壓縮，在終端機（Konsole）進到這個資料夾，執行：
+       ./install.sh
+   不需要 sudo，檔案只會裝在你的家目錄（~/.local/share/autozhuyin）。
+
+2. KDE（Bazzite / SteamOS 預設）：
+   系統設定 → 鍵盤 → 虛擬鍵盤，選「IBus Wayland」→ 套用，然後登出再登入。
+   GNOME：IBus 是內建的，不用另外設定。
+
+3. 之後每次登入都會自動切換到自動注音。
+
+
+使用方式
+--------
+  空白        注音：一聲；音節打完時送出中文。英文：送出單字加空白
+  Enter       送出目前組字
+  Tab         判斷錯了？按 Tab 在中／英之間翻轉，輸入法會記住這次修正
+  ← →         在組字區移動游標；游標在中間時直接打注音會插入新字，
+              Backspace 刪掉游標前的字
+  ↓           開啟游標前那個字或詞的候選字，按數字鍵 1–9 選字
+  Esc         取消組字
+  單按 Shift  切換英文模式（按鍵直接送出），再單按一次回到中英自動判斷
+  Shift+字母  打大寫字母（也會強制英文）
+  ` + 標點    強制全形標點，例如 `< 或 `, = ，  `. = 。  `/ = ？  `; = ；
+
+注音符號的順序打錯也沒關係，例如 ㄧㄒㄠˇ 會自動變成 ㄒㄧㄠˇ（小）。
+
+
+切換與移除
+----------
+  暫時改回一般鍵盤：  ibus engine xkb:us::eng
+  切回自動注音：      ibus engine autozhuyin
+  移除：              ./uninstall.sh
+
+個人資料（學習紀錄、自訂詞）在 ~/.config/autozhuyin/：
+  learned.json        按 Tab 修正的學習紀錄
+  user-phrases.txt    自訂詞，一行一個，例如：ㄗˋ-ㄉㄨㄥˋ 自動 -1
+
+
+有問題時
+--------
+在終端機手動執行看看錯誤訊息：
+    /usr/bin/python3 ~/.local/share/autozhuyin/autozhuyin_ibus.py --activate
+把畫面上的訊息回報給我。

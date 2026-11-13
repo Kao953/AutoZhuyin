@@ -384,7 +384,7 @@ final class CursorTests: XCTestCase {
         _ = type("←", into: e)
         XCTAssertEqual(e.cursorOffset, 3)
         _ = type("←←←←", into: e)
-        XCTAssertEqual(e.cursorOffset, 0)              // stops at the start
+        XCTAssertEqual(e.cursorOffset, 1)              // stops after the first character
         _ = type("→→→→", into: e)
         XCTAssertEqual(e.cursorOffset, 4)
     }
@@ -419,8 +419,10 @@ final class CursorTests: XCTestCase {
         XCTAssertEqual(type("\n", into: e), "今天氣")
     }
 
-    func testInsertAtStart() {
-        XCTAssertEqual(type("su3cl3←←ji3\n", into: engine()), "我你好")
+    func testCursorStopsAfterFirstCharacter() {
+        let e = engine()
+        _ = type("su3cl3←←←", into: e)
+        XCTAssertEqual(e.cursorOffset, 1)
     }
 
     func testBackspaceDeletesCharacterBeforeCursor() {

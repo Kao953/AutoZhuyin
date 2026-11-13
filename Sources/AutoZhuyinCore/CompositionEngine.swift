@@ -196,15 +196,19 @@ public final class CompositionEngine {
         ZhuyinParser.parse(Array(keys[seg.range])).syllables.map { seg.range.lowerBound + $0.keyRange.upperBound }
     }
 
-    /// Key indices the cursor can stop at: the start, after every Zhuyin syllable, and at
-    /// every segment boundary.
+    /// Key indices the cursor can stop at: after every Zhuyin syllable and at every segment
+    /// boundary, but never before the first Chinese character (there would be nothing to
+    /// pick candidates for).
     private var cursorPositions: [Int] {
-        var out: Set<Int> = [0, keys.count]
+        var out: Set<Int> = [keys.count]
+        var ends: [Int] = []
         for seg in segments {
             out.insert(seg.range.upperBound)
-            if seg.mode == .zhuyin { out.formUnion(syllableEnds(seg)) }
+            if seg.mode == .zhuyin { ends += syllableEnds(seg) }
         }
-        return out.sorted()
+        out.formUnion(ends)
+        let first = ends.min() ?? keys.count
+        return out.filter { $0 >= first }.sorted()
     }
 
     /// A place to open candidates: after the `local`-th syllable of Zhuyin segment `segIndex`.

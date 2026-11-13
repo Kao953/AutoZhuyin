@@ -175,14 +175,17 @@ class CompositionEngine:
         return [seg[0] + ps.end for ps in bopomofo.parse(self.keys[seg[0]:seg[1]]).syllables]
 
     def _cursor_positions(self):
-        """Key indices the cursor can stop at: the start, after every Zhuyin syllable,
-        and at every segment boundary."""
-        out = {0, len(self.keys)}
+        """Key indices the cursor can stop at: after every Zhuyin syllable and at every
+        segment boundary, but never before the first Chinese character (there would be
+        nothing to pick candidates for)."""
+        out, ends = {len(self.keys)}, []
         for seg in self.segments:
             out.add(seg[1])
             if seg[2] == ZHUYIN:
-                out.update(self._syllable_ends(seg))
-        return sorted(out)
+                ends += self._syllable_ends(seg)
+        out.update(ends)
+        first = min(ends) if ends else len(self.keys)
+        return sorted(p for p in out if p >= first)
 
     def _stop_at(self, pos):
         """(segment index, syllables before pos) for the Zhuyin segment pos is in."""

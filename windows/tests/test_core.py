@@ -247,7 +247,7 @@ class CursorTests(unittest.TestCase):
         type_keys("←", e)
         self.assertEqual(e.cursor_offset, 3)
         type_keys("←←←←", e)
-        self.assertEqual(e.cursor_offset, 0)
+        self.assertEqual(e.cursor_offset, 1)   # stops after the first character
         type_keys("→→→→", e)
         self.assertEqual(e.cursor_offset, 4)
 
@@ -278,8 +278,18 @@ class InsertInMiddleTests(unittest.TestCase):
         self.assertEqual(e.cursor_offset, 2)
         self.assertEqual(type_keys("\n", e), "今天氣")
 
-    def test_insert_at_start(self):
-        self.assertEqual(type_keys("su3cl3←←ji3\n", make_engine()), "我你好")
+    def test_cursor_stops_after_first_character(self):
+        e = make_engine()
+        type_keys("su3cl3←←←", e)
+        self.assertEqual(e.cursor_offset, 1)
+        type_keys("ji3\n", e)
+        self.assertEqual(e.marked_text, "")
+
+    def test_no_stop_before_first_chinese(self):
+        e = make_engine()
+        type_keys("hello ji3←←", e)   # "hello " held, then 我: nothing to pick before 我
+        type_keys("↓", e)
+        self.assertTrue(e.showing_candidates)
 
     def test_backspace_deletes_character_before_cursor(self):
         e = make_engine()

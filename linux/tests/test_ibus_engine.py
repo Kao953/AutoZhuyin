@@ -8,6 +8,9 @@ import types
 import unittest
 
 LINUX = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import tempfile  # noqa: E402
+
+os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp(prefix="autozhuyin-test-")   # learned / history files
 sys.path.insert(0, os.path.join(os.path.dirname(LINUX), "windows"))   # autozhuyin package
 sys.path.insert(0, LINUX)
 
@@ -107,6 +110,8 @@ def press(e, keys):
 
 class IBusEngineTests(unittest.TestCase):
     def setUp(self):
+        autozhuyin_ibus.shared_classifier().history.clear()
+        autozhuyin_ibus.shared_classifier().learned.clear()
         self.e = autozhuyin_ibus.AutoZhuyinEngine()
 
     def test_mixed_sentence(self):
@@ -156,6 +161,17 @@ class IBusEngineTests(unittest.TestCase):
     def test_insert_in_middle(self):
         press(self.e, "rup fu4←wu0 \n")
         self.assertEqual(self.e.committed, "今天氣")
+
+    def test_picked_candidate_saved(self):
+        press(self.e, "su3↓")
+        second = self.e.shown[1]
+        self.e.do_candidate_clicked(1, 1, 0)
+        press(self.e, "\n")
+        path = os.path.join(os.environ["XDG_CONFIG_HOME"], "autozhuyin", "user-history.json")
+        with open(path, encoding="utf-8") as f:
+            self.assertIn(second, f.read())
+        press(self.e, "su3 \n")
+        self.assertTrue(self.e.committed.endswith(second))
 
     def test_focus_out_resets(self):
         press(self.e, "su3")

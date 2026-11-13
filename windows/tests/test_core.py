@@ -15,6 +15,7 @@ from autozhuyin.core.engine import DOWN, ENTER, LEFT, RIGHT, SHIFT_TAP, TAB, BAC
 from autozhuyin.core.shift_tap import ShiftTapDetector  # noqa: E402
 from autozhuyin.core.english import EnglishModel  # noqa: E402
 from autozhuyin.core.lexicon import Converter, Lexicon  # noqa: E402
+from autozhuyin.core.history import UserHistory  # noqa: E402
 
 DATA = os.path.join(os.path.dirname(HERE), "autozhuyin", "data")
 _start = time.time()
@@ -362,6 +363,54 @@ class FirstWordHoldTests(unittest.TestCase):
         e = make_engine()
         self.assertEqual(type_keys("hello world ", e), "hello world ")
         self.assertEqual(type_keys("so ", e), "so ")   # right after English: commits at once
+
+
+class UserHistoryTests(unittest.TestCase):
+    def setUp(self):
+        self.saved = []
+        self.c = Classifier(LEX, ENG, weights=WEIGHTS, history=UserHistory(on_change=self.saved.append))
+
+    def pick(self, keys, phrase):
+        e = CompositionEngine(self.c)
+        type_keys(keys + "↓", e)
+        e.select_candidate([t for _, t in e.candidates].index(phrase))
+        return type_keys("\n", e)
+
+    def test_picked_candidate_comes_first(self):
+        self.assertEqual(type_keys("wu0 \n", CompositionEngine(self.c)), "天")
+        self.assertEqual(self.pick("wu0 ", "添"), "添")
+        self.assertEqual(type_keys("wu0 \n", CompositionEngine(self.c)), "添")
+        e = CompositionEngine(self.c)
+        type_keys("wu0 ↓", e)
+        self.assertEqual(e.candidates[0][1], "添")
+        self.assertEqual(self.saved[-1], {"ㄊㄧㄢ": {"添": [1, 1]}})
+
+    def test_phrases_still_win(self):
+        self.pick("wu0 ", "添")
+        self.assertEqual(type_keys("rup wu0 \n", CompositionEngine(self.c)), "今天")
+
+    def test_most_picked_wins(self):
+        self.pick("wu0 ", "添")
+        self.pick("wu0 ", "添")
+        self.pick("wu0 ", "天")
+        self.assertEqual(type_keys("wu0 \n", CompositionEngine(self.c)), "添")
+
+    def test_round_trip_and_clear(self):
+        self.pick("wu0 ", "添")
+        h = UserHistory(self.saved[-1])
+        self.assertEqual(h.data, {"ㄊㄧㄢ": {"添": [1, 1]}})
+        h.record([bopomofo.parse(list("wu0 ")).syllables[0].syllable], "天")
+        self.assertEqual(h.data["ㄊㄧㄢ"]["天"], [1, 2])
+        h.clear()
+        self.assertEqual(h.data, {})
+
+    def test_evicts_least_recent(self):
+        h = UserHistory()
+        h.max_entries = 2
+        syl = [bopomofo.parse(list("wu0 ")).syllables[0].syllable]
+        for p in ["天", "添", "田"]:
+            h.record(syl, p)
+        self.assertEqual(set(h.data["ㄊㄧㄢ"]), {"添", "田"})
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ gi.require_version("IBus", "1.0")
 from gi.repository import GLib, GObject, IBus  # noqa: E402
 
 import autozhuyin  # noqa: E402
+from autozhuyin.core.history import UserHistory  # noqa: E402
 from autozhuyin.core.classifier import LITERAL, Classifier, LearnedPreferences  # noqa: E402
 from autozhuyin.core.engine import (  # noqa: E402
     BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, UP, CompositionEngine,
@@ -40,6 +41,7 @@ _DATA = os.path.join(os.path.dirname(os.path.abspath(autozhuyin.__file__)), "dat
 _USER_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "autozhuyin")
 _LEARNED_FILE = os.path.join(_USER_DIR, "learned.json")
 _USER_PHRASES = os.path.join(_USER_DIR, "user-phrases.txt")
+_HISTORY_FILE = os.path.join(_USER_DIR, "user-history.json")
 
 try:
     with open(os.path.join(HERE, "version.txt"), encoding="utf-8") as _f:
@@ -50,13 +52,29 @@ except OSError:
 _classifier = None
 
 
-def _save_learned(weights):
+def _save_json(path, data):
     try:
         os.makedirs(_USER_DIR, exist_ok=True)
-        with open(_LEARNED_FILE, "w", encoding="utf-8") as f:
-            json.dump(weights, f, ensure_ascii=False)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
     except OSError:
         pass
+
+
+def _load_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_learned(weights):
+    _save_json(_LEARNED_FILE, weights)
+
+
+def _save_history(data):
+    _save_json(_HISTORY_FILE, data)
 
 
 def shared_classifier():
@@ -72,14 +90,9 @@ def shared_classifier():
             os.path.join(_DATA, "english-dict.txt"),
             os.path.join(_DATA, "english-bigram.json"),
         )
-        weights = {}
-        try:
-            with open(_LEARNED_FILE, encoding="utf-8") as f:
-                weights = json.load(f)
-        except (OSError, ValueError):
-            pass
         trained = Classifier.load_weights(os.path.join(_DATA, "classifier-weights.json"))
-        _classifier = Classifier(lexicon, english, LearnedPreferences(weights, _save_learned), trained)
+        _classifier = Classifier(lexicon, english, LearnedPreferences(_load_json(_LEARNED_FILE), _save_learned),
+                                 trained, UserHistory(_load_json(_HISTORY_FILE), _save_history))
     return _classifier
 
 

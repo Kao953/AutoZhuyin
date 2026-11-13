@@ -6,6 +6,9 @@ import types
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+import tempfile  # noqa: E402
+
+os.environ["APPDATA"] = tempfile.mkdtemp(prefix="autozhuyin-test-")   # learned / history files
 sys.path.insert(0, os.path.dirname(HERE))
 
 # --- stand-ins for PIME modules (only what the wrapper uses) ---
@@ -46,7 +49,7 @@ class FakeTextService:
 textService.TextService = FakeTextService
 sys.modules["textService"] = textService
 
-from autozhuyin.autozhuyin_ime import AutoZhuyinTextService  # noqa: E402
+from autozhuyin.autozhuyin_ime import AutoZhuyinTextService, _shared_classifier  # noqa: E402
 
 VK = {"\n": 0x0D, "\t": 0x09, " ": 0x20, "\b": 0x08, "↓": 0x28}
 
@@ -99,6 +102,8 @@ def type_text(svc, text):
 
 class WrapperTests(unittest.TestCase):
     def setUp(self):
+        _shared_classifier().history.clear()
+        _shared_classifier().learned.clear()
         self.svc = AutoZhuyinTextService(client=None)
         self.svc.onActivate()
 
@@ -142,6 +147,8 @@ class WrapperTests(unittest.TestCase):
 
 class ShiftTapWrapperTests(unittest.TestCase):
     def setUp(self):
+        _shared_classifier().history.clear()
+        _shared_classifier().learned.clear()
         self.svc = AutoZhuyinTextService(client=None)
         self.svc.onActivate()
 

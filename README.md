@@ -16,6 +16,7 @@
 - **注音順序打錯也能修正**：`ㄧㄒㄠˇ`、`ㄒㄠㄧˇ` 都會變成 `ㄒㄧㄠˇ`（小）
 - **可省略聲調**：`jiap7`（ㄨㄛ ㄇㄣ˙）一樣能打出「我們」
 - **候選字**：用 ← → 把游標移到要改的字後面，按 ↓ 選字；選過的會固定下來
+- **記住選字**：從候選字選過的字詞會被記住，下次打同樣的讀音會優先出現（選越多次越優先）
 - **中間補字、刪字**：游標移到前面後直接打注音，會插在游標處；Backspace 刪掉游標前的那個字
 - **全形標點**：中文語境下 `?` `!` `<` 自動變成 `？` `！` `，`；任何時候按 `` ` `` 再按標點鍵，一定得到全形標點（例如 `` `< `` = `，`）
 - **完整詞庫**：約 17 萬筆，來自小麥注音 McBopomofo（MIT 授權）
@@ -100,10 +101,12 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 | | macOS | Windows | Linux |
 |---|---|---|---|
 | 學習紀錄（Tab 修正） | `UserDefaults`（`com.autozhuyin.inputmethod.AutoZhuyin`） | `%APPDATA%\PIME\autozhuyin\learned.json` | `~/.config/autozhuyin/learned.json` |
+| 選字紀錄 | `~/Library/Application Support/AutoZhuyin/user-history.json` | `%APPDATA%\PIME\autozhuyin\user-history.json` | `~/.config/autozhuyin/user-history.json` |
 | 自訂詞 | `~/Library/Application Support/AutoZhuyin/user-phrases.txt` | `%APPDATA%\PIME\autozhuyin\user-phrases.txt` | `~/.config/autozhuyin/user-phrases.txt` |
 
 自訂詞的格式和 `lexicon.txt` 一樣，每行一個詞：`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`（讀音、詞、分數；分數越大越優先）。
-Mac 版可以在輸入法選單選「清除學習紀錄」。
+選字紀錄最多保留 2000 筆，太久沒用的會先淘汰。被選過的字只會排到同讀音第一順位，不會蓋過整個詞組（例如選過「添」之後，ㄊㄧㄢ 單打會出「添」，但「今天」還是「今天」）。
+Mac 版可以在輸入法選單選「清除學習紀錄」（中英判斷和選字紀錄一起清除）；Windows、Linux 刪除上面的檔案即可。
 
 ## 開發
 
@@ -261,7 +264,7 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝�
 - [ ] 加入真實打字資料一起訓練
 - [ ] 已送出的英文單字若判斷錯誤，可以「事後翻轉」
 - [ ] 用 Core ML 小模型取代手調分數，參考整句語境
-- [ ] 使用者詞頻學習（選過的候選字優先）
+- [x] 使用者詞頻學習（選過的候選字優先）
 - [ ] 偏好設定視窗
 
 ## 致謝與授權

@@ -84,8 +84,13 @@ TONELESS_PENALTY = -1.5
 
 
 class Converter:
-    def __init__(self, lexicon):
+    def __init__(self, lexicon, history=None):
         self.lexicon = lexicon
+        self.history = history   # UserHistory: picked candidates come first
+
+    def _entries(self, syllables):
+        entries = self.lexicon.entries(syllables)
+        return self.history.adjust(syllables, entries) if self.history else entries
 
     def _options(self, syllables, i, j, fixed):
         if (i, j) in fixed:
@@ -94,7 +99,7 @@ class Converter:
             return []
         sl = syllables[i:j]
         penalty = TONELESS_PENALTY if any(s.tone is None for s in sl) else 0.0
-        out = [(p, s + penalty) for p, s in self.lexicon.entries(sl)]
+        out = [(p, s + penalty) for p, s in self._entries(sl)]
         if not out and j - i == 1:
             out = [(sl[0].reading, UNKNOWN_SCORE)]
         return out
@@ -132,7 +137,7 @@ class Converter:
         out, seen = [], set()
         for length in range(min(self.lexicon.max_phrase_length, end), 0, -1):
             i = end - length
-            for phrase, _ in self.lexicon.entries(syllables[i:end]):
+            for phrase, _ in self._entries(syllables[i:end]):
                 if phrase not in seen:
                     seen.add(phrase)
                     out.append(((i, end), phrase))

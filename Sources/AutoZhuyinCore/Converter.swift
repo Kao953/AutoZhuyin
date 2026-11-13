@@ -13,12 +13,22 @@ public struct Candidate: Equatable {
 /// Turns a syllable sequence into the most likely Chinese text (Viterbi over the lexicon).
 public struct Converter {
     public let lexicon: Lexicon
+    /// Picked candidates come first.
+    public let history: UserHistory?
     /// Score used when a syllable has no lexicon entry; the Bopomofo itself is emitted.
     static let unknownScore = -30.0
     /// Penalty for matching an untoned syllable against all tones.
     static let tonelessPenalty = -1.5
 
-    public init(lexicon: Lexicon) { self.lexicon = lexicon }
+    public init(lexicon: Lexicon, history: UserHistory? = nil) {
+        self.lexicon = lexicon
+        self.history = history
+    }
+
+    private func entries(_ syllables: [Syllable]) -> [LexiconEntry] {
+        let e = lexicon.entries(for: syllables)
+        return history?.adjust(syllables, e) ?? e
+    }
 
     /// - Parameter fixed: user-chosen phrases by syllable range; they are always kept.
     public func convert(_ syllables: [Syllable], fixed: [Range<Int>: String] = [:]) -> [ConvertedSegment] {
@@ -57,7 +67,7 @@ public struct Converter {
         if fixed.keys.contains(where: { $0.overlaps(range) }) { return [] }
 
         let slice = Array(syllables[range])
-        var result = lexicon.entries(for: slice).map { entry -> (String, Double) in
+        var result = entries(slice).map { entry -> (String, Double) in
             let penalty = slice.contains { $0.tone == nil } ? Converter.tonelessPenalty : 0
             return (entry.phrase, entry.score + penalty)
         }
@@ -74,7 +84,7 @@ public struct Converter {
         var seen = Set<String>()
         for len in stride(from: min(lexicon.maxPhraseLength, end), through: 1, by: -1) {
             let range = (end - len)..<end
-            for entry in lexicon.entries(for: Array(syllables[range])) where !seen.contains(entry.phrase) {
+            for entry in entries(Array(syllables[range])) where !seen.contains(entry.phrase) {
                 seen.insert(entry.phrase)
                 out.append(Candidate(range: range, text: entry.phrase))
             }

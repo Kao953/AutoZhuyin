@@ -11,6 +11,7 @@ import time
 from keycodes import *  # noqa: F401,F403  (VK_* constants, provided by PIME)
 from textService import TextService
 
+from .core.history import UserHistory
 from .core.classifier import Classifier, LearnedPreferences
 from .core.engine import BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, UP, CompositionEngine
 from .core.english import EnglishModel
@@ -22,17 +23,34 @@ _DATA = os.path.join(_HERE, "data")
 _USER_DIR = os.path.join(os.environ.get("APPDATA", _HERE), "PIME", "autozhuyin")
 _LEARNED_FILE = os.path.join(_USER_DIR, "learned.json")
 _USER_PHRASES = os.path.join(_USER_DIR, "user-phrases.txt")
+_HISTORY_FILE = os.path.join(_USER_DIR, "user-history.json")
 
 _classifier = None
 
 
-def _save_learned(weights):
+def _save_json(path, data):
     try:
         os.makedirs(_USER_DIR, exist_ok=True)
-        with open(_LEARNED_FILE, "w", encoding="utf-8") as f:
-            json.dump(weights, f, ensure_ascii=False)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
     except OSError:
         pass
+
+
+def _load_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_learned(weights):
+    _save_json(_LEARNED_FILE, weights)
+
+
+def _save_history(data):
+    _save_json(_HISTORY_FILE, data)
 
 
 def _shared_classifier():
@@ -48,14 +66,9 @@ def _shared_classifier():
             os.path.join(_DATA, "english-dict.txt"),
             os.path.join(_DATA, "english-bigram.json"),
         )
-        weights = {}
-        try:
-            with open(_LEARNED_FILE, encoding="utf-8") as f:
-                weights = json.load(f)
-        except (OSError, ValueError):
-            pass
         trained = Classifier.load_weights(os.path.join(_DATA, "classifier-weights.json"))
-        _classifier = Classifier(lexicon, english, LearnedPreferences(weights, _save_learned), trained)
+        _classifier = Classifier(lexicon, english, LearnedPreferences(_load_json(_LEARNED_FILE), _save_learned),
+                                 trained, UserHistory(_load_json(_HISTORY_FILE), _save_history))
     return _classifier
 
 

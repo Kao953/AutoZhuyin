@@ -569,6 +569,76 @@ final class FirstWordHoldTests: XCTestCase {
     }
 }
 
+final class UserHistoryTests: XCTestCase {
+    var saved: [UserHistory.Data] = []
+    var classifier: Classifier!
+
+    override func setUp() {
+        saved = []
+        classifier = Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights,
+                                history: UserHistory { [unowned self] in self.saved.append($0) })
+    }
+
+    func type(_ s: String, into e: CompositionEngine) -> String {
+        var out = ""
+        for c in s {
+            let key: KeyInput = c == "↓" ? .down : c == "\n" ? .enter : .character(c)
+            let r = e.handle(key)
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return out
+    }
+
+    @discardableResult
+    func pick(_ keys: String, _ phrase: String) -> String {
+        let e = CompositionEngine(classifier: classifier)
+        _ = type(keys + "↓", into: e)
+        e.selectCandidate(e.candidates.firstIndex { $0.text == phrase }!)
+        return type("\n", into: e)
+    }
+
+    func testPickedCandidateComesFirst() {
+        XCTAssertEqual(type("wu0 \n", into: CompositionEngine(classifier: classifier)), "天")
+        XCTAssertEqual(pick("wu0 ", "添"), "添")
+        XCTAssertEqual(type("wu0 \n", into: CompositionEngine(classifier: classifier)), "添")
+        let e = CompositionEngine(classifier: classifier)
+        _ = type("wu0 ↓", into: e)
+        XCTAssertEqual(e.candidates.first?.text, "添")
+        XCTAssertEqual(saved.last, ["ㄊㄧㄢ": ["添": [1, 1]]])
+    }
+
+    func testPhrasesStillWin() {
+        pick("wu0 ", "添")
+        XCTAssertEqual(type("rup wu0 \n", into: CompositionEngine(classifier: classifier)), "今天")
+    }
+
+    func testMostPickedWins() {
+        pick("wu0 ", "添")
+        pick("wu0 ", "添")
+        pick("wu0 ", "天")
+        XCTAssertEqual(type("wu0 \n", into: CompositionEngine(classifier: classifier)), "添")
+    }
+
+    func testRoundTripAndClear() throws {
+        pick("wu0 ", "添")
+        let json = try JSONEncoder().encode(saved.last!)
+        let h = UserHistory(data: try JSONDecoder().decode(UserHistory.Data.self, from: json))
+        XCTAssertEqual(h.data, ["ㄊㄧㄢ": ["添": [1, 1]]])
+        h.record(ZhuyinParser.parse(Array("wu0 ")).syllables.map(\.syllable), phrase: "天")
+        XCTAssertEqual(h.data["ㄊㄧㄢ"]?["天"], [1, 2])
+        h.clear()
+        XCTAssertTrue(h.data.isEmpty)
+    }
+
+    func testEvictsLeastRecent() {
+        let h = UserHistory()
+        h.maxEntries = 2
+        let syl = ZhuyinParser.parse(Array("wu0 ")).syllables.map(\.syllable)
+        for p in ["天", "添", "田"] { h.record(syl, phrase: p) }
+        XCTAssertEqual(Set(h.data["ㄊㄧㄢ"]!.keys), ["添", "田"])
+    }
+}
+
 final class StartupTimingTests: XCTestCase {
     func testStartupTiming() throws {
         var t = Date()

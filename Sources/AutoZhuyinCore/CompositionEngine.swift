@@ -71,7 +71,7 @@ public final class CompositionEngine {
 
     public init(classifier: Classifier) {
         self.classifier = classifier
-        self.converter = Converter(lexicon: classifier.lexicon)
+        self.converter = Converter(lexicon: classifier.lexicon, history: classifier.history)
     }
 
     // MARK: - Derived state
@@ -537,6 +537,7 @@ public final class CompositionEngine {
     private func commitCurrent(_ given: [Segment]? = nil) -> String {
         let segs = given ?? segments
         let text = segs.map { render($0, final: true) }.joined()
+        rememberPicks(segs)
         if let forced = forcedMode {
             classifier.learned.record(String(keys), as: forced)
         }
@@ -544,6 +545,17 @@ public final class CompositionEngine {
         previousCommitTime = now()
         reset()
         return text
+    }
+
+    /// Candidates the user picked are remembered and come first next time.
+    private func rememberPicks(_ segs: [Segment]) {
+        for seg in segs where seg.mode == .zhuyin {
+            guard let picks = fixed[seg.range.lowerBound], !picks.isEmpty else { continue }
+            let syl = convertibleSyllables(seg, final: true).syllables
+            for (range, text) in picks where range.upperBound <= syl.count {
+                classifier.history.record(Array(syl[range]), phrase: text)
+            }
+        }
     }
 
     /// Commits whatever is composed (e.g. the app lost focus). Returns "" when empty.

@@ -46,7 +46,7 @@ class CompositionEngine:
 
     def __init__(self, classifier, now=time.monotonic):
         self.classifier = classifier
-        self.converter = Converter(classifier.lexicon)
+        self.converter = Converter(classifier.lexicon, classifier.history)
         self.now = now
         self.keys = []
         self.forced_mode = None
@@ -552,12 +552,24 @@ class CompositionEngine:
     def _commit(self, segs=None):
         segs = segs if segs is not None else self.segments
         text = "".join(self._render(s, True) for s in segs)
+        self._remember_picks(segs)
         if self.forced_mode:
             self.classifier.learned.record("".join(self.keys), self.forced_mode)
         self._previous_mode = segs[-1][2] if segs else None
         self._previous_time = self.now()
         self.reset()
         return text
+
+    def _remember_picks(self, segs):
+        """Candidates the user picked are remembered and come first next time."""
+        for i, seg in enumerate(segs):
+            picks = self.fixed.get(seg[0])
+            if seg[2] != ZHUYIN or not picks:
+                continue
+            syl = self._convertible(seg, True)[0]
+            for (a, b), text in picks.items():
+                if b <= len(syl):
+                    self.classifier.history.record(syl[a:b], text)
 
     def commit_all(self):
         return self._commit() if self.keys else ""

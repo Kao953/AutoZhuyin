@@ -9,6 +9,11 @@ enum Shared {
 
     static let learnedKey = "LearnedPreferences"
 
+    /// ~/Library/Application Support/AutoZhuyin (user phrases, picked-candidate history).
+    static let supportDir: URL? = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("AutoZhuyin")
+
     static let classifier: Classifier = {
         let bundle = Bundle.main
         let start = Date()
@@ -18,9 +23,9 @@ enum Shared {
             lexicon.load(data: data)
         }
         // Optional user phrases: ~/Library/Application Support/AutoZhuyin/user-phrases.txt
-        if let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            let userFile = support.appendingPathComponent("AutoZhuyin/user-phrases.txt")
-            if let text = try? String(contentsOf: userFile, encoding: .utf8) { lexicon.load(text) }
+        if let userFile = supportDir?.appendingPathComponent("user-phrases.txt"),
+           let text = try? String(contentsOf: userFile, encoding: .utf8) {
+            lexicon.load(text)
         }
         let english = EnglishModel(commonWordsURL: bundle.url(forResource: "english-common", withExtension: "txt"),
                                    dictionaryURL: bundle.url(forResource: "english-dict", withExtension: "txt"),
@@ -29,11 +34,17 @@ enum Shared {
         let learned = LearnedPreferences(weights: saved) { weights in
             UserDefaults.standard.set(weights, forKey: learnedKey)
         }
+        let historyFile = supportDir?.appendingPathComponent("user-history.json")
+        let history = UserHistory(data: historyFile.map(UserHistory.load(from:)) ?? [:]) { data in
+            guard let url = historyFile, let json = try? JSONEncoder().encode(data) else { return }
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? json.write(to: url, options: .atomic)
+        }
         let trained = Features.loadWeights(from: bundle.url(forResource: "classifier-weights", withExtension: "json"))
         NSLog("AutoZhuyin: data loaded in %.0f ms", Date().timeIntervalSince(start) * 1000)
         // Only needed for untoned syllables; build it off the startup path.
         DispatchQueue.global(qos: .utility).async { lexicon.prepareTonelessIndex() }
-        return Classifier(lexicon: lexicon, english: english, learned: learned, weights: trained)
+        return Classifier(lexicon: lexicon, english: english, learned: learned, weights: trained, history: history)
     }()
 }
 
@@ -177,5 +188,6 @@ final class InputController: IMKInputController {
 
     @objc private func clearLearned(_ sender: Any?) {
         Shared.classifier.learned.clear()
+        Shared.classifier.history.clear()
     }
 }

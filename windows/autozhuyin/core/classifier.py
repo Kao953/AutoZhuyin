@@ -1,6 +1,7 @@
 """Zhuyin-vs-literal classifier with learned corrections. Port of Classifier.swift."""
 import json
 
+from .history import UserHistory
 from .features import DEFAULT_WEIGHTS, dot, literal_features, zhuyin_features
 
 ZHUYIN = "zhuyin"
@@ -31,10 +32,11 @@ class LearnedPreferences:
 
 class Classifier:
 
-    def __init__(self, lexicon, english, learned=None, weights=None):
+    def __init__(self, lexicon, english, learned=None, weights=None, history=None):
         self.lexicon = lexicon
         self.english = english
         self.learned = learned or LearnedPreferences()
+        self.history = history or UserHistory()   # picked candidates (shared by all engines)
         self.weights = dict(DEFAULT_WEIGHTS)
         if weights:
             self.weights.update(weights)

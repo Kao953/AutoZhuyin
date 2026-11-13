@@ -55,14 +55,17 @@ public final class Classifier {
     public let lexicon: Lexicon
     public let english: EnglishModel
     public let learned: LearnedPreferences
+    /// Picked candidates (shared by every engine using this classifier).
+    public let history: UserHistory
     /// Feature weights: the hand-tuned defaults overlaid with trained ones.
     public private(set) var weights: FeatureVector
 
     public init(lexicon: Lexicon, english: EnglishModel, learned: LearnedPreferences = LearnedPreferences(),
-                weights: FeatureVector = [:]) {
+                weights: FeatureVector = [:], history: UserHistory = UserHistory()) {
         self.lexicon = lexicon
         self.english = english
         self.learned = learned
+        self.history = history
         self.weights = Features.defaultWeights.merging(weights) { _, new in new }
     }
 

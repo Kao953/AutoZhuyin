@@ -20,6 +20,9 @@ cp "$BIN" "$APP/Contents/MacOS/AutoZhuyin"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/lexicon.txt Resources/english-common.txt Resources/classifier-weights.json "$APP/Contents/Resources/"
 cp THIRD_PARTY_LICENSES.txt "$APP/Contents/Resources/"
+# "AI 選字" language model (CKIP gpt2-tiny-chinese, GPL-3.0), fetched and converted once.
+[ -s build/lm/lm.bin ] || scripts/fetch-lm.sh >/dev/null
+cp build/lm/lm.bin build/lm/lm-vocab.txt licenses/GPL-3.0.txt "$APP/Contents/Resources/"
 # Precomputed English dictionary and bigram table (shared with the Windows build).
 python3 -I windows/tools/build_data.py >/dev/null
 cp windows/autozhuyin/data/english-dict.txt windows/autozhuyin/data/english-bigram.json "$APP/Contents/Resources/"

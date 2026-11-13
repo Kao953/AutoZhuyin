@@ -50,7 +50,11 @@ enum Shared {
 
 @objc(AutoZhuyinInputController)
 final class InputController: IMKInputController {
-    private let engine = CompositionEngine(classifier: Shared.classifier)
+    private lazy var engine: CompositionEngine = {
+        let e = CompositionEngine(classifier: Shared.classifier)
+        e.reranker = AI.reranker
+        return e
+    }()
     private var shiftTap = ShiftTapDetector()
 
     // MARK: - Key events
@@ -182,9 +186,30 @@ final class InputController: IMKInputController {
 
     override func menu() -> NSMenu! {
         let menu = NSMenu()
+        let modes: [(Reranker.Mode, String, Selector)] = [
+            (.off, "AI 選字：關閉", #selector(aiOff(_:))),
+            (.saver, "AI 選字：省電", #selector(aiSaver(_:))),
+            (.standard, "AI 選字：標準", #selector(aiStandard(_:))),
+            (.quality, "AI 選字：高品質", #selector(aiQuality(_:))),
+        ]
+        for (mode, title, action) in modes {
+            let item = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
+            item.state = AI.reranker.mode == mode ? .on : .off
+        }
+        let pause = menu.addItem(withTitle: "系統忙碌時自動暫停 AI", action: #selector(toggleAutoPause(_:)), keyEquivalent: "")
+        pause.state = AI.autoPause ? .on : .off
+        let status = menu.addItem(withTitle: AI.statusText, action: nil, keyEquivalent: "")
+        status.isEnabled = false
+        menu.addItem(.separator())
         menu.addItem(withTitle: "清除學習紀錄", action: #selector(clearLearned(_:)), keyEquivalent: "")
         return menu
     }
+
+    @objc private func aiOff(_ sender: Any?) { AI.setMode(.off) }
+    @objc private func aiSaver(_ sender: Any?) { AI.setMode(.saver) }
+    @objc private func aiStandard(_ sender: Any?) { AI.setMode(.standard) }
+    @objc private func aiQuality(_ sender: Any?) { AI.setMode(.quality) }
+    @objc private func toggleAutoPause(_ sender: Any?) { AI.autoPause.toggle() }
 
     @objc private func clearLearned(_ sender: Any?) {
         Shared.classifier.learned.clear()

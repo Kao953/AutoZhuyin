@@ -22,5 +22,6 @@ else {
 Shared.server = server
 Shared.candidates = IMKCandidates(server: server, panelType: kIMKSingleColumnScrollingCandidatePanel)
 _ = Shared.classifier   // load the lexicon now rather than on the first keystroke
+AI.loadModelIfNeeded()   // "AI 選字" language model, in the background
 
 NSApplication.shared.run()

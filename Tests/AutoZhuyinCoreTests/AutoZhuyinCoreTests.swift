@@ -641,6 +641,126 @@ final class UserHistoryTests: XCTestCase {
     }
 }
 
+/// Needs build/lm/lm.bin (scripts/fetch-lm.sh); skipped otherwise.
+final class GPT2LanguageModelTests: XCTestCase {
+    static let dir = resources.deletingLastPathComponent().appendingPathComponent("build/lm")
+
+    func model() throws -> GPT2LanguageModel {
+        let bin = GPT2LanguageModelTests.dir.appendingPathComponent("lm.bin")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: bin.path), "run scripts/fetch-lm.sh")
+        return try GPT2LanguageModel(modelURL: bin, vocabURL: GPT2LanguageModelTests.dir.appendingPathComponent("lm-vocab.txt"))
+    }
+
+    /// Same numbers as the numpy reference (training/lm/gpt2.py, float32 weights).
+    func testMatchesReference() throws {
+        let m = try model()
+        let cases: [(String, String, Double)] = [("他在家", "", -14.329), ("今天天氣很好", "", -30.08),
+                                                 ("今添天氣很好", "", -44.392), ("家", "他在", -5.514),
+                                                 ("天氣很好", "今天", -23.883)]
+        for (text, context, want) in cases {
+            XCTAssertEqual(m.logProb(text, context: context), want, accuracy: 0.05, text)
+        }
+    }
+
+    func testSpeed() throws {
+        let m = try model()
+        let start = Date()
+        for _ in 0..<20 { _ = m.logProb("我們明天早上八點在車站見面", context: "好啊") }
+        let ms = Date().timeIntervalSince(start) / 20 * 1000
+        print("GPT2 logProb: \(String(format: "%.2f", ms)) ms")
+        XCTAssertLessThan(ms, 20)
+    }
+}
+
+/// A language model that likes one string and can pretend to be slow.
+private final class FakeLanguageModel: LanguageModel {
+    var liked: String
+    var onCall: () -> Void = {}
+    init(liked: String) { self.liked = liked }
+    func logProb(_ text: String, context: String) -> Double {
+        onCall()
+        return text.contains(liked) ? 0 : -50
+    }
+}
+
+final class RerankerTests: XCTestCase {
+    func engine(_ reranker: Reranker?) -> CompositionEngine {
+        let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+        e.reranker = reranker
+        return e
+    }
+
+    func type(_ s: String, into e: CompositionEngine) -> String {
+        var out = ""
+        for c in s {
+            let r = e.handle(c == "\n" ? .enter : .character(c))
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return out
+    }
+
+    func testRerankPicksWhatTheModelLikes() {
+        XCTAssertEqual(type("wu0 \n", into: engine(nil)), "天")
+        let r = Reranker(mode: .standard, model: FakeLanguageModel(liked: "添"))
+        XCTAssertEqual(type("wu0 \n", into: engine(r)), "添")
+        XCTAssertEqual(r.status, .active)
+    }
+
+    func testOffAndLoadingUseTheLexicon() {
+        let off = Reranker(mode: .off, model: FakeLanguageModel(liked: "添"))
+        XCTAssertEqual(type("wu0 \n", into: engine(off)), "天")
+        XCTAssertEqual(off.status, .off)
+        let loading = Reranker(mode: .standard, model: nil)
+        XCTAssertEqual(type("wu0 \n", into: engine(loading)), "天")
+        XCTAssertEqual(loading.status, .loading)
+    }
+
+    func testPausedWhenSystemBusy() {
+        let r = Reranker(mode: .standard, model: FakeLanguageModel(liked: "添"))
+        r.systemState = { .paused }
+        XCTAssertEqual(type("wu0 \n", into: engine(r)), "天")
+        XCTAssertEqual(r.status, .pausedBusy)
+    }
+
+    func testReducedUsesFewerPaths() {
+        let lm = FakeLanguageModel(liked: "添")
+        var calls = 0
+        lm.onCall = { calls += 1 }
+        let r = Reranker(mode: .quality, model: lm)
+        r.systemState = { .reduced }
+        _ = type("wu0 \n", into: engine(r))
+        XCTAssertLessThanOrEqual(calls, 3)
+    }
+
+    func testSlowModelIsDroppedThenPaused() {
+        var clock = Date(timeIntervalSince1970: 0)
+        let lm = FakeLanguageModel(liked: "添")
+        lm.onCall = { clock.addTimeInterval(1) }        // every call takes a "second"
+        let r = Reranker(mode: .standard, model: lm)
+        r.now = { clock }
+        for _ in 0..<3 { XCTAssertEqual(type("wu0 \n", into: engine(r)), "天") }
+        XCTAssertEqual(r.status, .pausedSlow)
+        lm.onCall = {}
+        XCTAssertEqual(type("wu0 \n", into: engine(r)), "天")   // still paused
+        clock.addTimeInterval(61)
+        XCTAssertEqual(type("wu0 \n", into: engine(r)), "添")   // back after a minute
+    }
+
+    /// With the real model (build/lm, skipped if missing): sentences the lexicon alone gets wrong.
+    func testRealModelFixesHomophones() throws {
+        let dir = GPT2LanguageModelTests.dir
+        let bin = dir.appendingPathComponent("lm.bin")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: bin.path), "run scripts/fetch-lm.sh")
+        let lm = try GPT2LanguageModel(modelURL: bin, vocabURL: dir.appendingPathComponent("lm-vocab.txt"))
+        let cases = ["w8 ql32k71u3ji3dj94cp32ji ": "他跑得比我快很多",
+                     "fu/3su3y94gji u h4cl3a87": "請你再說一次好嗎"]
+        for (keys, want) in cases {
+            XCTAssertNotEqual(type(keys + "\n", into: engine(nil)), want)
+            XCTAssertEqual(type(keys + "\n", into: engine(Reranker(mode: .standard, model: lm))), want)
+        }
+    }
+}
+
 final class StartupTimingTests: XCTestCase {
     func testStartupTiming() throws {
         var t = Date()

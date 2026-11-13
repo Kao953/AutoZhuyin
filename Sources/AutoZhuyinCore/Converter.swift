@@ -61,6 +61,32 @@ public struct Converter {
         return segments.reversed()
     }
 
+    /// The `k` best paths (log10 score, segments), best first — for language-model reranking.
+    public func kBest(_ syllables: [Syllable], fixed: [Range<Int>: String] = [:], k: Int) -> [(score: Double, segments: [ConvertedSegment])] {
+        let n = syllables.count
+        guard n > 0, k > 0 else { return [] }
+        let maxLen = max(1, lexicon.maxPhraseLength)
+        typealias Path = (score: Double, segments: [ConvertedSegment])
+        var beams: [[Path]] = Array(repeating: [], count: n + 1)
+        beams[0] = [(0, [])]
+        for j in 1...n {
+            var cand: [Path] = []
+            for len in 1...min(maxLen, j) {
+                let i = j - len
+                guard !beams[i].isEmpty else { continue }
+                let range = i..<j
+                for (text, score) in options(for: range, syllables: syllables, fixed: fixed) {
+                    for path in beams[i] {
+                        cand.append((path.score + score, path.segments + [ConvertedSegment(range: range, text: text)]))
+                    }
+                }
+            }
+            cand.sort { $0.score > $1.score }
+            beams[j] = Array(cand.prefix(k))
+        }
+        return beams[n]
+    }
+
     private func options(for range: Range<Int>, syllables: [Syllable], fixed: [Range<Int>: String]) -> [(String, Double)] {
         if let text = fixed[range] { return [(text, 0)] }
         // A span may not partially overlap or swallow a fixed span.

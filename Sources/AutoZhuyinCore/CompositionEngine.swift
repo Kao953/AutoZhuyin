@@ -63,6 +63,11 @@ public final class CompositionEngine {
     public private(set) var pendingBacktick = false
     static let holdMinScore = -3.5
 
+    /// "AI 選字" (language-model reranking); nil = lexicon only.
+    public var reranker: Reranker?
+    /// The last characters committed, used as context for the reranker.
+    private var recentText = ""
+
     private var previousMode: InputMode?
     private var previousCommitTime = Date.distantPast
     /// How long the previous segment's mode keeps influencing the next one.
@@ -186,7 +191,14 @@ public final class CompositionEngine {
     private func conversion(of seg: Segment, final: Bool) -> (segments: [ConvertedSegment], pending: String) {
         let (syl, pending) = convertibleSyllables(seg, final: final)
         let fixedHere = (fixed[seg.range.lowerBound] ?? [:]).filter { $0.key.upperBound <= syl.count }
+        if let reranker, let chosen = reranker.choose(converter, syl, fixed: fixedHere, context: rerankContext) {
+            return (chosen, pending)
+        }
         return (converter.convert(syl, fixed: fixedHere), pending)
+    }
+
+    private var rerankContext: String {
+        now().timeIntervalSince(previousCommitTime) < contextWindow ? recentText : ""
     }
 
     // MARK: - Cursor
@@ -542,6 +554,7 @@ public final class CompositionEngine {
         let segs = given ?? segments
         let text = segs.map { render($0, final: true) }.joined()
         rememberPicks(segs)
+        recentText = String((rerankContext + text).suffix(20))
         if let forced = forcedMode {
             classifier.learned.record(String(keys), as: forced)
         }

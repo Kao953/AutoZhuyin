@@ -48,3 +48,17 @@ https://github.com/EasyIME/PIME — GNU LGPL 2.1
 
 The Windows version runs as a module inside PIME, which users install
 separately. No PIME code is included in this software.
+
+
+4. CKIP GPT2 Tiny Chinese — AI 選字語言模型 (language model, macOS)
+-------------------------------------------------------------------
+https://huggingface.co/ckiplab/gpt2-tiny-chinese
+https://github.com/ckiplab/ckip-transformers
+Author: Mu Yang at CKIP, Academia Sinica (中央研究院 詞庫小組)
+License: GNU General Public License v3.0 (full text: GPL-3.0.txt)
+
+lm.bin is the model's weights converted to float16 by training/lm/export_lm.py;
+lm-vocab.txt is its vocabulary (from bert-base-chinese). They are used unmodified
+otherwise, to rerank conversion candidates ("AI 選字"). The source code of this input
+method, including the conversion script and the code that runs the model, is
+available from the project repository.

@@ -45,9 +45,11 @@ public final class CompositionEngine {
     private var fixed: [Int: [Range<Int>: String]] = [:]
     public private(set) var candidates: [Candidate] = []
     private var candidateSegmentStart = 0
-    /// Composition cursor for choosing candidates: index into `cursorStops`, nil = at the end.
-    /// ← → move it; ↓ shows candidates for the phrase ending at the cursor.
+    /// Composition cursor: a key index into `keys` (nil = at the end). ← → move it between
+    /// syllables; ↓ shows candidates for the phrase before it; typing there inserts a
+    /// syllable (kept in `inserting` until its tone key, then spliced into `keys`).
     private var cursor: Int?
+    private var inserting: [Character] = []
     public var candidateIndex = 0
     public var isShowingCandidates: Bool { !candidates.isEmpty }
 
@@ -117,12 +119,33 @@ public final class CompositionEngine {
     public var markedText: String { markedPieces.map(\.text).joined() }
 
     public var markedPieces: [MarkedPiece] {
-        let segs = segments
-        var pieces = segs.enumerated().map { i, seg in
-            MarkedPiece(text: render(seg, final: i < segs.count - 1), mode: seg.mode)
+        var pieces = segmentPieces
+        if !inserting.isEmpty {
+            // Show the syllable being inserted at the cursor.
+            var at = baseCursorOffset, out: [MarkedPiece] = [], done = false
+            for piece in pieces {
+                if !done && at <= piece.text.count {
+                    let i = piece.text.index(piece.text.startIndex, offsetBy: at)
+                    out.append(MarkedPiece(text: String(piece.text[..<i]), mode: piece.mode))
+                    out.append(MarkedPiece(text: insertingText, mode: .zhuyin))
+                    out.append(MarkedPiece(text: String(piece.text[i...]), mode: piece.mode))
+                    done = true
+                } else {
+                    out.append(piece)
+                    at -= piece.text.count
+                }
+            }
+            pieces = out.filter { !$0.text.isEmpty }
         }
         if pendingBacktick { pieces.append(MarkedPiece(text: "`", mode: .literal)) }
         return pieces
+    }
+
+    private var segmentPieces: [MarkedPiece] {
+        let segs = segments
+        return segs.enumerated().map { i, seg in
+            MarkedPiece(text: render(seg, final: i < segs.count - 1), mode: seg.mode)
+        }
     }
 
     /// Text for one segment. A non-final Zhuyin segment shows its unfinished syllable as Bopomofo.
@@ -148,43 +171,151 @@ public final class CompositionEngine {
 
     // MARK: - Cursor
 
-    /// A place the cursor can stop: after the `local`-th syllable of Zhuyin segment `segIndex`.
+    /// Absolute key index after each syllable of a Zhuyin segment.
+    private func syllableEnds(_ seg: Segment) -> [Int] {
+        ZhuyinParser.parse(Array(keys[seg.range])).syllables.map { seg.range.lowerBound + $0.keyRange.upperBound }
+    }
+
+    /// Key indices the cursor can stop at: the start, after every Zhuyin syllable, and at
+    /// every segment boundary.
+    private var cursorPositions: [Int] {
+        var out: Set<Int> = [0, keys.count]
+        for seg in segments {
+            out.insert(seg.range.upperBound)
+            if seg.mode == .zhuyin { out.formUnion(syllableEnds(seg)) }
+        }
+        return out.sorted()
+    }
+
+    /// A place to open candidates: after the `local`-th syllable of Zhuyin segment `segIndex`.
     private struct CursorStop { let segIndex: Int; let local: Int }
 
-    private var cursorStops: [CursorStop] {
+    private func stop(at pos: Int) -> CursorStop? {
         let segs = segments
-        var out: [CursorStop] = []
-        for (i, seg) in segs.enumerated() where seg.mode == .zhuyin {
+        for (i, seg) in segs.enumerated() where seg.mode == .zhuyin
+            && seg.range.lowerBound < pos && pos <= seg.range.upperBound {
             let n = convertibleSyllables(seg, final: i < segs.count - 1).syllables.count
-            for k in stride(from: 1, through: n, by: 1) { out.append(CursorStop(segIndex: i, local: k)) }
+            let local = syllableEnds(seg).filter { $0 <= pos }.count
+            return local > 0 ? CursorStop(segIndex: i, local: min(local, n)) : nil
         }
-        return out
+        return nil
+    }
+
+    /// Where ↓ opens candidates: before the cursor, or the last syllable.
+    private var candidateStop: CursorStop? {
+        if let c = cursor { return stop(at: c) }
+        let segs = segments
+        for i in segs.indices.reversed() where segs[i].mode == .zhuyin {
+            let n = convertibleSyllables(segs[i], final: i < segs.count - 1).syllables.count
+            if n > 0 { return CursorStop(segIndex: i, local: n) }
+        }
+        return nil
+    }
+
+    /// Cursor position in the rendered segments (without the syllable being inserted).
+    private var baseCursorOffset: Int {
+        let pieces = segmentPieces
+        guard let c = cursor else { return pieces.reduce(0) { $0 + $1.text.count } }
+        let segs = segments
+        for (i, seg) in segs.enumerated() where seg.range.lowerBound < c && c <= seg.range.upperBound {
+            var offset = pieces[..<i].reduce(0) { $0 + $1.text.count }
+            if seg.mode == .literal { return offset + c - seg.range.lowerBound }
+            let local = stop(at: c)?.local ?? 0
+            for conv in conversion(of: seg, final: i < segs.count - 1).segments {
+                if conv.range.upperBound <= local {
+                    offset += conv.text.count
+                } else if conv.range.lowerBound < local {
+                    offset += min(local - conv.range.lowerBound, conv.text.count)
+                }
+            }
+            return offset
+        }
+        return 0
     }
 
     /// Cursor position in `markedText`, in Characters.
-    public var cursorOffset: Int {
-        let pieces = markedPieces
-        let total = pieces.reduce(0) { $0 + $1.text.count }
-        let stops = cursorStops
-        guard let c = cursor, stops.indices.contains(c) else { return total }
-        let stop = stops[c]
-        var offset = pieces[..<stop.segIndex].reduce(0) { $0 + $1.text.count }
-        let segs = segments
-        for conv in conversion(of: segs[stop.segIndex], final: stop.segIndex < segs.count - 1).segments {
-            if conv.range.upperBound <= stop.local {
-                offset += conv.text.count
-            } else if conv.range.lowerBound < stop.local {
-                offset += min(stop.local - conv.range.lowerBound, conv.text.count)
-            }
-        }
-        return offset
+    public var cursorOffset: Int { baseCursorOffset + insertingText.count }
+
+    private var insertingText: String {
+        inserting.isEmpty ? "" : ZhuyinParser.parse(inserting).syllables.map(\.syllable.reading).joined()
     }
 
     private func moveCursor(by delta: Int) {
-        let stops = cursorStops
-        guard !stops.isEmpty else { return }
-        let next = (cursor ?? stops.count - 1) + delta
-        cursor = next >= stops.count - 1 ? nil : max(0, next)
+        inserting = []
+        let stops = cursorPositions
+        let here = cursor ?? keys.count
+        let next = delta < 0 ? (stops.last { $0 < here } ?? here) : (stops.first { $0 > here } ?? here)
+        cursor = next >= keys.count ? nil : next
+    }
+
+    // MARK: - Editing in the middle
+
+    /// Keeps picked phrases that end at or before key index `pos` (they don't move).
+    private func trimFixed(at pos: Int) {
+        var kept: [Int: [Range<Int>: String]] = [:]
+        for seg in segments where seg.mode == .zhuyin {
+            guard let picks = fixed[seg.range.lowerBound] else { continue }
+            if seg.range.upperBound <= pos {
+                kept[seg.range.lowerBound] = picks
+            } else if seg.range.lowerBound < pos {
+                let ends = syllableEnds(seg)
+                let here = picks.filter { $0.key.upperBound <= ends.count && ends[$0.key.upperBound - 1] <= pos }
+                if !here.isEmpty { kept[seg.range.lowerBound] = here }
+            }
+        }
+        fixed = kept
+    }
+
+    /// Inserts keys at the cursor and moves the cursor after them.
+    private func splice(_ newKeys: [Character]) {
+        guard let pos = cursor else { keys += newKeys; return }
+        trimFixed(at: pos)
+        keys.insert(contentsOf: newKeys, at: pos)
+        if let h = held, h >= pos { held = h + newKeys.count }
+        let next = pos + newKeys.count
+        cursor = next >= keys.count ? nil : next
+    }
+
+    /// Backspace in the middle: removes the syllable (or literal key) before the cursor.
+    private func deleteBeforeCursor(_ pos: Int) {
+        var start = pos - 1
+        for seg in segments where seg.mode == .zhuyin && seg.range.lowerBound < pos && pos <= seg.range.upperBound {
+            for ps in ZhuyinParser.parse(Array(keys[seg.range])).syllables
+            where seg.range.lowerBound + ps.keyRange.upperBound == pos {
+                start = seg.range.lowerBound + ps.keyRange.lowerBound
+            }
+        }
+        trimFixed(at: start)
+        keys.removeSubrange(start..<pos)
+        if let h = held {
+            if h >= start && h < pos { held = nil } else if h >= pos { held = h - (pos - start) }
+        }
+        cursor = start
+        if keys.isEmpty { reset() }
+    }
+
+    /// Typing with the cursor in the middle: compose one syllable, splice it in on its tone.
+    private func insertKey(_ c: Character) -> KeyResult {
+        if c == " " {
+            if inserting.isEmpty { return KeyResult(handled: true, commit: commitCurrent()) }
+            splice(inserting + [" "])
+            inserting = []
+            return .consumed
+        }
+        inserting.append(c)
+        let p = ZhuyinParser.parse(inserting)
+        if p.strayTones > 0 || p.foreignKeys > 0 {
+            inserting.removeLast()   // a tone with nothing to attach to
+        } else if p.syllables.count == 1, p.syllables[0].toned {
+            splice(inserting)
+            inserting = []
+        } else if p.syllables.count > 1 {
+            // A new syllable started without a tone: splice the first one as it is.
+            let first = p.syllables[0].keyRange.upperBound
+            splice(Array(inserting[..<first]))
+            inserting = Array(inserting[first...])
+        }
+        return .consumed
     }
 
     // MARK: - Key handling
@@ -192,13 +323,20 @@ public final class CompositionEngine {
     public func handle(_ key: KeyInput) -> KeyResult {
         if isShowingCandidates { return handleCandidateKey(key) }
         if pendingBacktick { return afterBacktick(key) }
+        if !inserting.isEmpty && (key == .backspace || key == .escape) {
+            if key == .backspace { inserting.removeLast() } else { inserting = [] }
+            return .consumed
+        }
 
         switch key {
         case .character(let c):
             return handleCharacter(c)
         case .backspace:
             guard !keys.isEmpty else { return .passThrough }
-            cursor = nil
+            if let c = cursor {
+                if c > 0 { deleteBeforeCursor(c) }
+                return .consumed
+            }
             keys.removeLast()
             if let h = held, keys.count <= h { held = nil }
             fixed = fixed.filter { $0.key < keys.count }
@@ -206,6 +344,7 @@ public final class CompositionEngine {
             return .consumed
         case .enter:
             guard !keys.isEmpty else { return .passThrough }
+            if !inserting.isEmpty { splice(inserting); inserting = [] }
             return KeyResult(handled: true, commit: commitCurrent())
         case .escape:
             guard !keys.isEmpty else { return .passThrough }
@@ -227,7 +366,7 @@ public final class CompositionEngine {
             return .consumed
         case .down:
             guard !keys.isEmpty else { return .passThrough }
-            openCandidates()
+            if inserting.isEmpty { openCandidates() }
             return .consumed
         case .left:
             guard !keys.isEmpty else { return .passThrough }
@@ -248,7 +387,11 @@ public final class CompositionEngine {
     }
 
     private func handleCharacter(_ c: Character) -> KeyResult {
-        cursor = nil   // typing always continues at the end
+        if cursor != nil, !keys.isEmpty, c == " " || DachenLayout.isZhuyinKey(c) {
+            return insertKey(c)
+        }
+        if !inserting.isEmpty { splice(inserting); inserting = [] }
+        cursor = nil   // anything else continues at the end
         // English mode: every key goes to the app as typed.
         if isEnglishMode && keys.isEmpty { return .passThrough }
         if c == "`" {
@@ -329,9 +472,7 @@ public final class CompositionEngine {
 
     /// Opens candidates for the phrase ending at the cursor (default: the last syllable).
     private func openCandidates() {
-        let stops = cursorStops
-        guard !stops.isEmpty else { return }
-        let stop = stops[min(cursor ?? stops.count - 1, stops.count - 1)]
+        guard let stop = candidateStop else { return }
         let segs = segments
         let seg = segs[stop.segIndex]
         let syl = convertibleSyllables(seg, final: stop.segIndex < segs.count - 1).syllables
@@ -392,6 +533,7 @@ public final class CompositionEngine {
 
     public func reset() {
         keys = []
+        inserting = []
         held = nil
         pendingBacktick = false
         cursor = nil

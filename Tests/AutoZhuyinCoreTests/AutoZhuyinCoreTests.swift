@@ -369,7 +369,8 @@ final class CursorTests: XCTestCase {
     func type(_ s: String, into e: CompositionEngine) -> String {
         var out = ""
         for c in s {
-            let key: KeyInput = c == "←" ? .left : c == "→" ? .right : c == "↓" ? .down : c == "\n" ? .enter : .character(c)
+            let key: KeyInput = c == "←" ? .left : c == "→" ? .right : c == "↓" ? .down : c == "\n" ? .enter
+                : c == "\u{8}" ? .backspace : .character(c)
             let r = e.handle(key)
             if let t = r.commit { out += t } else if !r.handled { out.append(c) }
         }
@@ -383,7 +384,7 @@ final class CursorTests: XCTestCase {
         _ = type("←", into: e)
         XCTAssertEqual(e.cursorOffset, 3)
         _ = type("←←←←", into: e)
-        XCTAssertEqual(e.cursorOffset, 1)              // stops after the first character
+        XCTAssertEqual(e.cursorOffset, 0)              // stops at the start
         _ = type("→→→→", into: e)
         XCTAssertEqual(e.cursorOffset, 4)
     }
@@ -399,12 +400,48 @@ final class CursorTests: XCTestCase {
         XCTAssertEqual(type("\n", into: e), "今添天氣")
     }
 
-    func testTypingReturnsCursorToEnd() {
+    func testPunctuationCommitsFromTheMiddle() {
         let e = engine()
         _ = type("rup wu0 ←", into: e)
         XCTAssertEqual(e.cursorOffset, 1)
-        _ = type("wu0 ", into: e)
-        XCTAssertEqual(e.cursorOffset, e.markedText.count)
+        _ = type("?", into: e)
+        XCTAssertEqual(e.markedText, "")
+    }
+
+    func testInsertSyllable() {
+        let e = engine()
+        _ = type("rup fu4←wu", into: e)
+        XCTAssertEqual(e.markedText, "今ㄊㄧ氣")
+        XCTAssertEqual(e.cursorOffset, 3)
+        _ = type("0 ", into: e)
+        XCTAssertEqual(e.markedText, "今天氣")
+        XCTAssertEqual(e.cursorOffset, 2)
+        XCTAssertEqual(type("\n", into: e), "今天氣")
+    }
+
+    func testInsertAtStart() {
+        XCTAssertEqual(type("su3cl3←←ji3\n", into: engine()), "我你好")
+    }
+
+    func testBackspaceDeletesCharacterBeforeCursor() {
+        let e = engine()
+        _ = type("rup wu0 wu0 fu4←←\u{8}", into: e)
+        XCTAssertEqual(e.markedText, "今天氣")
+        XCTAssertEqual(e.cursorOffset, 1)
+    }
+
+    func testBackspaceInsideInsertedSyllable() {
+        let e = engine()
+        _ = type("rup fu4←wu\u{8}", into: e)
+        XCTAssertEqual(e.markedText, "今ㄊ氣")
+    }
+
+    func testKeepsPickedPhraseBeforeCursor() {
+        let e = engine()
+        _ = type("rup wu0 ↓", into: e)
+        e.selectCandidate(e.candidates.firstIndex { $0.text == "添" }!)
+        _ = type("fu4←wu0 ", into: e)                  // insert 天 between 添 and 氣
+        XCTAssertEqual(String(e.markedText.prefix(3)), "今添天")
     }
 
     func testCandidatesForChineseBeforeEnglish() {

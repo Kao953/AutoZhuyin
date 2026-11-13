@@ -42,7 +42,7 @@ def make_engine():
 def type_keys(s, e):
     out = ""
     for c in s:
-        key = {"\n": ENTER, "\t": TAB, "⇧": SHIFT_TAP, "←": LEFT, "→": RIGHT, "↓": DOWN}.get(c, c)
+        key = {"\n": ENTER, "\t": TAB, "⇧": SHIFT_TAP, "←": LEFT, "→": RIGHT, "↓": DOWN, "\b": BACKSPACE}.get(c, c)
         handled, commit = e.handle(key)
         if commit is not None:
             out += commit
@@ -246,7 +246,7 @@ class CursorTests(unittest.TestCase):
         type_keys("←", e)
         self.assertEqual(e.cursor_offset, 3)
         type_keys("←←←←", e)
-        self.assertEqual(e.cursor_offset, 1)
+        self.assertEqual(e.cursor_offset, 0)
         type_keys("→→→→", e)
         self.assertEqual(e.cursor_offset, 4)
 
@@ -258,12 +258,45 @@ class CursorTests(unittest.TestCase):
         e.select_candidate([t for _, t in e.candidates].index("添"))
         self.assertEqual(type_keys("\n", e), "今添天氣")
 
-    def test_typing_returns_cursor_to_end(self):
+    def test_english_returns_cursor_to_end(self):
         e = make_engine()
         type_keys("rup wu0 ←", e)
         self.assertEqual(e.cursor_offset, 1)
-        type_keys("wu0 ", e)
-        self.assertEqual(e.cursor_offset, len(e.marked_text))
+        type_keys("?", e)
+        self.assertEqual(e.marked_text, "")
+
+
+class InsertInMiddleTests(unittest.TestCase):
+    def test_insert_syllable(self):
+        e = make_engine()
+        type_keys("rup fu4←wu", e)
+        self.assertEqual(e.marked_text, "今ㄊㄧ氣")
+        self.assertEqual(e.cursor_offset, 3)
+        type_keys("0 ", e)
+        self.assertEqual(e.marked_text, "今天氣")
+        self.assertEqual(e.cursor_offset, 2)
+        self.assertEqual(type_keys("\n", e), "今天氣")
+
+    def test_insert_at_start(self):
+        self.assertEqual(type_keys("su3cl3←←ji3\n", make_engine()), "我你好")
+
+    def test_backspace_deletes_character_before_cursor(self):
+        e = make_engine()
+        type_keys("rup wu0 wu0 fu4←←\b", e)
+        self.assertEqual(e.marked_text, "今天氣")
+        self.assertEqual(e.cursor_offset, 1)
+
+    def test_backspace_inside_inserted_syllable(self):
+        e = make_engine()
+        type_keys("rup fu4←wu\b", e)
+        self.assertEqual(e.marked_text, "今ㄊ氣")
+
+    def test_keeps_picked_phrase_before_cursor(self):
+        e = make_engine()
+        type_keys("rup wu0 ↓", e)
+        e.select_candidate([t for _, t in e.candidates].index("添"))
+        type_keys("fu4←wu0 ", e)   # insert 天 between 添 and 氣
+        self.assertEqual(e.marked_text[:3], "今添天")
 
     def test_candidates_for_chinese_before_english(self):
         e = make_engine()

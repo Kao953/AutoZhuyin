@@ -55,8 +55,11 @@ class CompositionEngine:
         self.candidates = []
         self.candidate_index = 0
         self._candidate_segment_start = 0
-        # Composition cursor for choosing candidates: index into _cursor_stops(), None = end.
+        # Composition cursor: a key index into self.keys (None = at the end). ← → move it
+        # between syllables; ↓ opens candidates for the phrase before it; typing there
+        # inserts a syllable (kept in self.inserting until its tone key, then spliced in).
         self.cursor = None
+        self.inserting = []
         # Index of a held space (see HOLD_MIN_SCORE), or None.
         self.held = None
         self._previous_mode = None
@@ -144,47 +147,179 @@ class CompositionEngine:
 
     # --- cursor ---
 
-    def _cursor_stops(self):
-        """[(segment index, syllables before the stop)] for every Zhuyin syllable."""
-        segs = self.segments
-        out = []
-        for i, seg in enumerate(segs):
+    def _syllable_ends(self, seg):
+        """Absolute key index after each syllable of a Zhuyin segment."""
+        return [seg[0] + ps.end for ps in bopomofo.parse(self.keys[seg[0]:seg[1]]).syllables]
+
+    def _cursor_positions(self):
+        """Key indices the cursor can stop at: the start, after every Zhuyin syllable,
+        and at every segment boundary."""
+        out = {0, len(self.keys)}
+        for seg in self.segments:
+            out.add(seg[1])
             if seg[2] == ZHUYIN:
+                out.update(self._syllable_ends(seg))
+        return sorted(out)
+
+    def _stop_at(self, pos):
+        """(segment index, syllables before pos) for the Zhuyin segment pos is in."""
+        segs = self.segments
+        for i, seg in enumerate(segs):
+            if seg[2] == ZHUYIN and seg[0] < pos <= seg[1]:
                 n = len(self._convertible(seg, i < len(segs) - 1)[0])
-                out.extend((i, k) for k in range(1, n + 1))
-        return out
+                local = sum(1 for e in self._syllable_ends(seg) if e <= pos)
+                return (i, min(local, n)) if local else None
+        return None
+
+    def _candidate_stop(self):
+        """Where ↓ opens candidates: before the cursor, or the last syllable."""
+        if self.cursor is not None:
+            return self._stop_at(self.cursor)
+        segs = self.segments
+        for i in range(len(segs) - 1, -1, -1):
+            if segs[i][2] == ZHUYIN:
+                n = len(self._convertible(segs[i], i < len(segs) - 1)[0])
+                if n:
+                    return i, n
+        return None
+
+    def _base_cursor_offset(self):
+        """Cursor position in the rendered segments (without the syllable being inserted)."""
+        pieces = self._segment_pieces()
+        if self.cursor is None:
+            return sum(len(t) for t, _ in pieces)
+        segs = self.segments
+        for i, seg in enumerate(segs):
+            if not seg[0] < self.cursor <= seg[1]:
+                continue
+            offset = sum(len(t) for t, _ in pieces[:i])
+            if seg[2] == LITERAL:
+                return offset + self.cursor - seg[0]
+            stop = self._stop_at(self.cursor)
+            local = stop[1] if stop else 0
+            for (a, b), text in self._conversion(seg, i < len(segs) - 1)[0]:
+                if b <= local:
+                    offset += len(text)
+                elif a < local:
+                    offset += min(local - a, len(text))
+            return offset
+        return 0
 
     @property
     def cursor_offset(self):
         """Cursor position in marked_text (characters)."""
-        pieces = self.marked_pieces
-        stops = self._cursor_stops()
-        if self.cursor is None or not 0 <= self.cursor < len(stops):
-            return sum(len(t) for t, _ in pieces)
-        seg_index, local = stops[self.cursor]
-        offset = sum(len(t) for t, _ in pieces[:seg_index])
-        segs = self.segments
-        for (a, b), text in self._conversion(segs[seg_index], seg_index < len(segs) - 1)[0]:
-            if b <= local:
-                offset += len(text)
-            elif a < local:
-                offset += min(local - a, len(text))
-        return offset
+        return self._base_cursor_offset() + len(self._inserting_text())
 
     def _move_cursor(self, delta):
-        stops = self._cursor_stops()
-        if not stops:
-            return
-        nxt = (len(stops) - 1 if self.cursor is None else self.cursor) + delta
-        self.cursor = None if nxt >= len(stops) - 1 else max(0, nxt)
+        self.inserting = []
+        stops = self._cursor_positions()
+        here = len(self.keys) if self.cursor is None else self.cursor
+        if delta < 0:
+            before = [p for p in stops if p < here]
+            nxt = before[-1] if before else here
+        else:
+            after = [p for p in stops if p > here]
+            nxt = after[0] if after else here
+        self.cursor = None if nxt >= len(self.keys) else nxt
+
+    def _inserting_text(self):
+        if not self.inserting:
+            return ""
+        return "".join(ps.syllable.reading for ps in bopomofo.parse(self.inserting).syllables)
+
+    # --- editing in the middle ---
+
+    def _trim_fixed(self, pos):
+        """Keeps picked phrases that end at or before key index pos (they don't move)."""
+        kept = {}
+        for seg in self.segments:
+            picks = self.fixed.get(seg[0])
+            if not picks or seg[2] != ZHUYIN:
+                continue
+            if seg[1] <= pos:
+                kept[seg[0]] = picks
+            elif seg[0] < pos:
+                ends = self._syllable_ends(seg)
+                here = {r: t for r, t in picks.items() if r[1] <= len(ends) and ends[r[1] - 1] <= pos}
+                if here:
+                    kept[seg[0]] = here
+        self.fixed = kept
+
+    def _splice(self, new_keys):
+        """Inserts keys at the cursor and moves the cursor after them."""
+        pos = self.cursor
+        self._trim_fixed(pos)
+        self.keys[pos:pos] = new_keys
+        if self.held is not None and self.held >= pos:
+            self.held += len(new_keys)
+        self.cursor = pos + len(new_keys)
+        if self.cursor >= len(self.keys):
+            self.cursor = None
+
+    def _delete_before_cursor(self):
+        """Backspace in the middle: removes the syllable (or literal key) before the cursor."""
+        pos = self.cursor
+        start = pos - 1
+        for seg in self.segments:
+            if seg[2] == ZHUYIN and seg[0] < pos <= seg[1]:
+                for ps in bopomofo.parse(self.keys[seg[0]:seg[1]]).syllables:
+                    if seg[0] + ps.end == pos:
+                        start = seg[0] + ps.start
+        self._trim_fixed(start)
+        del self.keys[start:pos]
+        if self.held is not None:
+            if start <= self.held < pos:
+                self.held = None
+            elif self.held >= pos:
+                self.held -= pos - start
+        self.cursor = start
+        if not self.keys:
+            self.reset()
+
+    def _insert_key(self, c):
+        """Typing with the cursor in the middle: compose one syllable, splice it in on its tone."""
+        if c == " ":
+            if not self.inserting:
+                return True, self._commit()
+            self._splice(self.inserting + [" "])
+            self.inserting = []
+            return CONSUMED
+        self.inserting.append(c)
+        p = bopomofo.parse(self.inserting)
+        if p.stray_tones or p.foreign_keys:
+            self.inserting.pop()   # a tone with nothing to attach to
+            return CONSUMED
+        if p.syllables and p.syllables[-1].toned and len(p.syllables) == 1:
+            self._splice(self.inserting)
+            self.inserting = []
+        elif len(p.syllables) > 1:
+            # A new syllable started without a tone: splice the first one as it is.
+            first = p.syllables[0].end
+            self._splice(self.inserting[:first])
+            self.inserting = self.inserting[first:]
+        return CONSUMED
 
     @property
     def marked_pieces(self):
-        segs = self.segments
-        pieces = [(self._render(s, i < len(segs) - 1), s[2]) for i, s in enumerate(segs)]
+        pieces = self._segment_pieces()
+        if self.inserting:
+            # Show the syllable being inserted at the cursor.
+            at, out, done = self._base_cursor_offset(), [], False
+            for text, mode in pieces:
+                if not done and at <= len(text):
+                    out += [(text[:at], mode), (self._inserting_text(), ZHUYIN), (text[at:], mode)]
+                    done = True
+                else:
+                    out.append((text, mode))
+                    at -= len(text)
+            pieces = [(t, m) for t, m in out if t]
         if self.backtick:
             pieces.append((BACKTICK, LITERAL))
         return pieces
+
+    def _segment_pieces(self):
+        segs = self.segments
+        return [(self._render(s, i < len(segs) - 1), s[2]) for i, s in enumerate(segs)]
 
     @property
     def marked_text(self):
@@ -198,7 +333,7 @@ class CompositionEngine:
 
     def wants(self, key):
         """Whether handle(key) would consume the key, without changing state."""
-        if self.candidates or key == SHIFT_TAP or self.backtick:
+        if self.candidates or key == SHIFT_TAP or self.backtick or self.inserting:
             return True
         if self.english_mode and not self.keys:
             return False   # English mode: everything goes to the app as typed
@@ -217,10 +352,19 @@ class CompositionEngine:
             return self._handle_candidate_key(key)
         if self.backtick:
             return self._after_backtick(key)
+        if self.inserting and key in (BACKSPACE, ESCAPE):
+            if key == BACKSPACE:
+                self.inserting.pop()
+            else:
+                self.inserting = []
+            return CONSUMED
         if key == BACKSPACE:
             if not self.keys:
                 return PASS
-            self.cursor = None
+            if self.cursor is not None:
+                if self.cursor > 0:
+                    self._delete_before_cursor()
+                return CONSUMED
             self.keys.pop()
             if self.held is not None and len(self.keys) <= self.held:
                 self.held = None
@@ -232,6 +376,9 @@ class CompositionEngine:
         if key == ENTER:
             if not self.keys:
                 return PASS
+            if self.inserting:
+                self._splice(self.inserting)
+                self.inserting = []
             return True, self._commit()
         if key == ESCAPE:
             if not self.keys:
@@ -255,7 +402,8 @@ class CompositionEngine:
         if key == DOWN:
             if not self.keys:
                 return PASS
-            self._open_candidates()
+            if not self.inserting:
+                self._open_candidates()
             return CONSUMED
         if key in (LEFT, RIGHT):
             if not self.keys:
@@ -286,7 +434,12 @@ class CompositionEngine:
         return bopomofo.parse(self.keys[start:end])
 
     def _handle_character(self, c):
-        self.cursor = None   # typing always continues at the end
+        if self.cursor is not None and self.keys and (c == " " or bopomofo.is_zhuyin_key(c)):
+            return self._insert_key(c)
+        if self.inserting:
+            self._splice(self.inserting)
+            self.inserting = []
+        self.cursor = None   # anything else continues at the end
         if self.english_mode and not self.keys:
             return PASS   # English mode: every key goes to the app as typed
         if c == BACKTICK:
@@ -330,10 +483,10 @@ class CompositionEngine:
 
     def _open_candidates(self):
         """Candidates for the phrase ending at the cursor (default: the last syllable)."""
-        stops = self._cursor_stops()
-        if not stops:
+        stop = self._candidate_stop()
+        if stop is None:
             return
-        seg_index, local = stops[min(len(stops) - 1 if self.cursor is None else self.cursor, len(stops) - 1)]
+        seg_index, local = stop
         segs = self.segments
         seg = segs[seg_index]
         syl = self._convertible(seg, seg_index < len(segs) - 1)[0]
@@ -386,6 +539,7 @@ class CompositionEngine:
 
     def reset(self):
         self.keys = []
+        self.inserting = []
         self.held = None
         self.backtick = False
         self.cursor = None

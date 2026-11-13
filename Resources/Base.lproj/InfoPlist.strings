@@ -1,0 +1,6 @@
+/* Names shown in System Settings and the input menu. */
+CFBundleName = "自動注音";
+CFBundleDisplayName = "自動注音";
+"com.autozhuyin.inputmethod.AutoZhuyin" = "自動注音";
+"com.autozhuyin.inputmethod.AutoZhuyin.Auto" = "自動注音（中英自動）";
+"com.autozhuyin.inputmethod.AutoZhuyin.English" = "自動注音（英文）";

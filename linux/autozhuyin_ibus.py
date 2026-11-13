@@ -345,6 +345,9 @@ class AutoZhuyinEngine(IBus.Engine):
         english = self.engine.english_mode
         self.mode_prop.set_label(IBus.Text.new_from_string("英文" if english else "中英自動"))
         self.mode_prop.set_symbol(IBus.Text.new_from_string("英" if english else "自"))
+        icon = os.path.join(HERE, "icon-en.png" if english else "icon.png")
+        if os.path.exists(icon):
+            self.mode_prop.set_icon(icon)      # panels that show property icons
         self.update_property(self.mode_prop)
 
 

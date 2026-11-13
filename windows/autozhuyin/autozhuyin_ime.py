@@ -40,6 +40,7 @@ _ai = None
 ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR = 1, 2, 3, 4
 ID_AI_MODE = {mode: 10 + i for i, mode in enumerate(MODES)}   # 10..13
 _ICON = os.path.join(_HERE, "icon.ico")
+_ICON_EN = os.path.join(_HERE, "icon-en.ico")     # shown while English mode is on
 
 
 def _save_json(path, data):
@@ -114,7 +115,8 @@ class AutoZhuyinTextService(TextService):
         self.setSelKeys("123456789")
         self.customizeUI(candFontSize=16, candPerRow=1, candUseCursor=True)
         # Taskbar IME icon (Windows 8+) and language bar button; both open the settings menu.
-        self.addButton("windows-mode-icon", icon=_ICON, tooltip="自動注音（右鍵：設定）",
+        self._icon_english = self.engine.english_mode
+        self.addButton("windows-mode-icon", icon=self._mode_icon(), tooltip=self._mode_tooltip(),
                        commandId=ID_MODE_ICON)
         self.addButton("autozhuyin-settings", icon=_ICON, tooltip="自動注音設定", type="menu")
 
@@ -123,6 +125,20 @@ class AutoZhuyinTextService(TextService):
         self.removeButton("windows-mode-icon")
         self.removeButton("autozhuyin-settings")
         TextService.onDeactivate(self)
+
+    # --- taskbar icon: "注" for 中英自動, "A" for English mode ---
+
+    def _mode_icon(self):
+        return _ICON_EN if self.engine.english_mode and os.path.exists(_ICON_EN) else _ICON
+
+    def _mode_tooltip(self):
+        return ("英文模式" if self.engine.english_mode else "中英自動") + "（左鍵切換，右鍵設定）"
+
+    def _update_mode_icon(self):
+        if getattr(self, "_icon_english", None) == self.engine.english_mode:
+            return
+        self._icon_english = self.engine.english_mode
+        self.changeButton("windows-mode-icon", icon=self._mode_icon(), tooltip=self._mode_tooltip())
 
     # --- menu (AI 選字 settings) ---
 
@@ -145,6 +161,7 @@ class AutoZhuyinTextService(TextService):
         ai = _shared_ai()
         if commandId == ID_MODE_ICON and commandType == COMMAND_LEFT_CLICK and not self.engine.keys:
             self.engine.handle(SHIFT_TAP)    # left click: English mode on / off
+            self._update_mode_icon()
             self.showMessage("英文" if self.engine.english_mode else "中英自動", 1)
             return
         for mode, cid in ID_AI_MODE.items():
@@ -219,6 +236,7 @@ class AutoZhuyinTextService(TextService):
             return False
         self.engine.handle(SHIFT_TAP)
         self._update(None)
+        self._update_mode_icon()
         if not self.engine.keys:
             self.showMessage("英文" if self.engine.english_mode else "中英自動", 1)
         return True

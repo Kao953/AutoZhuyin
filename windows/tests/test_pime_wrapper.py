@@ -42,6 +42,7 @@ class FakeTextService:
     def showMessage(self, message, duration=3): self.reply["showMessage"] = message
     def addButton(self, button_id, **kw): self.reply.setdefault("addButton", []).append(button_id)
     def removeButton(self, button_id): self.reply.setdefault("removeButton", []).append(button_id)
+    def changeButton(self, button_id, **kw): self.reply.setdefault("changeButton", []).append((button_id, kw))
 
     def setShowCandidates(self, show):
         self.showCandidates = show
@@ -131,8 +132,12 @@ class WrapperTests(unittest.TestCase):
         self.assertIsNone(self.svc.onMenu("other"))
 
     def test_mode_icon_click_toggles_english(self):
+        self.svc.reply = {}
         self.svc.onCommand(1, 0)
         self.assertTrue(self.svc.engine.english_mode)
+        (button, kw), = self.svc.reply["changeButton"]
+        self.assertEqual(button, "windows-mode-icon")
+        self.assertTrue(kw["icon"].endswith("icon-en.ico") or kw["icon"].endswith("icon.ico"))
         self.svc.onCommand(1, 0)
         self.assertFalse(self.svc.engine.english_mode)
 
@@ -173,6 +178,12 @@ class ShiftTapWrapperTests(unittest.TestCase):
         _shared_classifier().learned.clear()
         self.svc = AutoZhuyinTextService(client=None)
         self.svc.onActivate()
+
+    def test_shift_tap_changes_icon(self):
+        tap_shift(self.svc)
+        self.assertEqual(self.svc.reply["changeButton"][0][0], "windows-mode-icon")
+        tap_shift(self.svc)
+        self.assertIn("changeButton", self.svc.reply)
 
     def test_tap_forces_english_lowercase(self):
         reply = tap_shift(self.svc)

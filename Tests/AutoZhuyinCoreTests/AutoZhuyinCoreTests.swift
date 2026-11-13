@@ -133,6 +133,16 @@ final class EngineTests: XCTestCase {
         return out
     }
 
+    /// The menu-bar input mode can switch English mode directly.
+    func testSetEnglishMode() {
+        let e = makeEngine()
+        e.setEnglishMode(true)
+        XCTAssertTrue(e.isEnglishMode)
+        XCTAssertEqual(e.handle(.character("a")).handled, false)   // goes to the app
+        e.setEnglishMode(false)
+        XCTAssertEqual(type("su3cl3 ", into: e), "你好")
+    }
+
     func testMixedSentence() {
         let e = makeEngine()
         // 我 + "hello world " + 你好

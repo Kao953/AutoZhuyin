@@ -1,8 +1,9 @@
-// Renders the menu-bar icon ("注" with a small "A") to a TIFF.
-// Usage: swift scripts/make-icon.swift <output.tiff>
+// Renders a menu-bar icon (one character, "注" by default; "A" for English mode) to a TIFF.
+// Usage: swift scripts/make-icon.swift <output.tiff> [character]
 import AppKit
 
 let out = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "icon.tiff"
+let glyph = CommandLine.arguments.count > 2 ? CommandLine.arguments[2] : "注"
 let reps: [NSBitmapImageRep] = [16, 32].map { size in
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size,
                                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -11,7 +12,7 @@ let reps: [NSBitmapImageRep] = [16, 32].map { size in
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
     let font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-    let text = NSAttributedString(string: "注", attributes: [.font: font, .foregroundColor: NSColor.black])
+    let text = NSAttributedString(string: glyph, attributes: [.font: font, .foregroundColor: NSColor.black])
     let s = text.size()
     text.draw(at: NSPoint(x: (16 - s.width) / 2, y: (16 - s.height) / 2))
     NSGraphicsContext.restoreGraphicsState()

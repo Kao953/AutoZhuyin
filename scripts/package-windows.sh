@@ -18,6 +18,10 @@ if [ ! -f build/icon.tiff ]; then
 fi
 sips -s format png -z 32 32 build/icon.tiff --out build/icon-32.png >/dev/null
 python3 -I windows/tools/png_to_ico.py build/icon-32.png windows/autozhuyin/icon.ico
+# English-mode icon ("A") for the taskbar while English mode is on.
+[ -f build/icon-en.tiff ] || DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}" xcrun swift scripts/make-icon.swift build/icon-en.tiff A
+sips -s format png -z 32 32 build/icon-en.tiff --out build/icon-en-32.png >/dev/null
+python3 -I windows/tools/png_to_ico.py build/icon-en-32.png windows/autozhuyin/icon-en.ico
 
 rm -rf "$OUT" "$OUT.zip"
 mkdir -p "$OUT"

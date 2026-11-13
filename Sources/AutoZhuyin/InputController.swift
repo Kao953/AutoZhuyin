@@ -1,3 +1,4 @@
+import Carbon
 import Cocoa
 import InputMethodKit
 import AutoZhuyinCore
@@ -74,8 +75,11 @@ final class InputController: IMKInputController {
                 otherModifiers: !flags.intersection([.command, .control, .option, .function]).isEmpty,
                 time: event.timestamp)
             if tapped {
+                let idle = engine.keys.isEmpty
                 _ = engine.handle(.shiftTap)
                 updateComposition(client)
+                // English mode on/off: switch input mode so the menu-bar icon shows it.
+                if idle { InputModes.select(english: engine.isEnglishMode) }
             }
             return false
         }
@@ -150,6 +154,18 @@ final class InputController: IMKInputController {
         } else {
             Shared.candidates.hide()
         }
+    }
+
+    /// The input mode changed (menu bar, keyboard shortcut, or our own Shift tap).
+    override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
+        if tag == kTextServiceInputModePropertyTag, let id = value as? String {
+            let english = InputModes.isEnglish(id)
+            if english != engine.isEnglishMode {
+                commitComposition(sender)
+                engine.setEnglishMode(english)
+            }
+        }
+        super.setValue(value, forTag: tag, client: sender)
     }
 
     override func commitComposition(_ sender: Any!) {

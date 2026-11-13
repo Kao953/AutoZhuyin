@@ -27,6 +27,8 @@ mkdir -p "$OUT/tools"
 cp windows/tools/fetch_numpy.py "$OUT/tools/"     # install.sh downloads numpy if the system has none
 echo "$VERSION" > "$OUT/version.txt"
 sips -s format png -z 64 64 build/icon.tiff --out "$OUT/icon.png" >/dev/null
+[ -f build/icon-en.tiff ] || DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}" xcrun swift scripts/make-icon.swift build/icon-en.tiff A
+sips -s format png -z 64 64 build/icon-en.tiff --out "$OUT/icon-en.png" >/dev/null
 chmod +x "$OUT/install.sh" "$OUT/uninstall.sh" "$OUT/autozhuyin_ibus.py"
 
 # Plain ustar without macOS extended attributes, so GNU tar doesn't warn.

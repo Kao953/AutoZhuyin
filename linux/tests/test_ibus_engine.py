@@ -58,6 +58,7 @@ class Property:
     def set_label(self, t): self.label = t.text
     def set_symbol(self, t): pass
     def set_state(self, s): self.state = s
+    def set_icon(self, path): self.icon = path
 
 
 class Engine:

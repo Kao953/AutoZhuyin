@@ -31,6 +31,9 @@ if [ ! -f build/icon.tiff ]; then
     xcrun swift scripts/make-icon.swift build/icon.tiff
 fi
 cp build/icon.tiff "$APP/Contents/Resources/icon.tiff"
+# English-mode icon ("A"), shown in the menu bar while English mode is on.
+[ -f build/icon-en.tiff ] || xcrun swift scripts/make-icon.swift build/icon-en.tiff A
+cp build/icon-en.tiff "$APP/Contents/Resources/icon-en.tiff"
 
 codesign --force --sign - "$APP"
 echo "Built $APP"

@@ -417,6 +417,16 @@ public final class CompositionEngine {
         }
     }
 
+    /// Turns English mode on or off directly (e.g. the input mode was switched in the menu
+    /// bar). Commit any composition first.
+    public func setEnglishMode(_ on: Bool) {
+        guard on != isEnglishMode else { return }
+        reset()
+        isEnglishMode = on
+        previousMode = on ? .literal : nil
+        previousCommitTime = now()
+    }
+
     /// Forces the whole buffer into the other mode (a correction that is learned).
     private func flip() {
         forcedMode = (mode == .zhuyin) ? .literal : .zhuyin

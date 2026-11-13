@@ -15,9 +15,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.11.0</string>
+	<string>0.12.0</string>
 	<key>CFBundleVersion</key>
-	<string>19</string>
+	<string>20</string>
 	<key>InputMethodConnectionName</key>
 	<string>com.autozhuyin.inputmethod.AutoZhuyin_Connection</string>
 	<key>InputMethodServerControllerClass</key>

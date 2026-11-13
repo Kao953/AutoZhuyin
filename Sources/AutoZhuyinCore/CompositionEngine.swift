@@ -53,9 +53,10 @@ public final class CompositionEngine {
     public var candidateIndex = 0
     public var isShowingCandidates: Bool { !candidates.isEmpty }
 
-    /// Index of a held space: an English word that is also a common one-syllable Chinese
-    /// reading ("up " = ㄧㄣ 因) is not committed on space; the next word decides
-    /// ("up jo4" = 因為, "up the" = up the).
+    /// Index of a held space: the first word of a composition that also reads as Zhuyin is
+    /// not committed as English on space; the next word decides ("up jo4" = 因為,
+    /// "up the" = up the, "no su3" = no 你). Right after English text only common
+    /// one-syllable readings are held (up = 因, url = 教), so English typing isn't delayed.
     private var held: Int?
     /// "`" was typed: if the next key is in `symbols` it gives that full-width symbol
     /// whatever the context; anything else makes it a plain backtick (so ``` still works).
@@ -94,19 +95,38 @@ public final class CompositionEngine {
         let rest = classifier.segment(Array(keys[base...]), finishing: finishing, previous: nil).map {
             Segment(range: ($0.range.lowerBound + base)..<($0.range.upperBound + base), mode: $0.mode)
         }
-        if let first = rest.first, first.mode == .zhuyin {
+        if let first = rest.first, first.mode == .zhuyin,
+           heldReadsAsChinese(keys, held: h, end: first.range.upperBound, finishing: finishing) {
             return [Segment(range: 0..<first.range.upperBound, mode: .zhuyin)] + rest.dropFirst()
         }
         return [Segment(range: 0..<base, mode: .literal)] + rest
+    }
+
+    /// Chinese all the way to `end` vs. the held English word followed by Chinese.
+    private func heldReadsAsChinese(_ keys: [Character], held h: Int, end: Int, finishing: Bool) -> Bool {
+        let c = classifier, w = classifier.weights, ctx = context
+        let isLast = end == keys.count
+        guard let zhWhole = c.segmentFeatures(Array(keys[..<end]), isLast: isLast, afterOther: false,
+                                              finishing: finishing, previous: ctx).0 else { return false }
+        guard let word = c.segmentFeatures(Array(keys[..<h]), isLast: false, afterOther: false,
+                                           finishing: true, previous: ctx).1,
+              let zhRest = c.segmentFeatures(Array(keys[(h + 1)..<end]), isLast: isLast, afterOther: true,
+                                             finishing: finishing, previous: nil).0 else { return true }
+        return Features.dot(w, zhWhole) >= Features.dot(w, word) + Features.dot(w, zhRest)
     }
 
     /// Whether keys + space also read as a common Chinese syllable (see `held`).
     private func isAmbiguousWord(_ keys: [Character]) -> Bool {
         guard keys.allSatisfy({ $0.isASCII && $0.isLetter }) else { return false }
         let p = ZhuyinParser.parse(keys + [" "])
-        guard p.pending == nil, p.syllables.count == 1 else { return false }
-        guard let best = classifier.lexicon.entries(for: p.syllables.map(\.syllable)).first else { return false }
-        return best.score >= CompositionEngine.holdMinScore
+        guard p.pending == nil, !p.syllables.isEmpty, p.strayTones == 0, p.foreignKeys == 0 else { return false }
+        var best: [Double] = []
+        for ps in p.syllables {
+            guard let e = classifier.lexicon.entries(for: [ps.syllable]).first else { return false }
+            best.append(e.score)
+        }
+        if context != .literal { return true }   // first word: hold anything that reads as Zhuyin
+        return best.count == 1 && best[0] >= CompositionEngine.holdMinScore
     }
 
     /// Current split of the buffer into Zhuyin / literal runs.

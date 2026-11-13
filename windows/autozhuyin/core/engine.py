@@ -8,6 +8,7 @@ import time
 
 from . import bopomofo
 from .classifier import LITERAL, ZHUYIN
+from .features import dot
 from .lexicon import Converter
 
 BACKSPACE, ENTER, ESCAPE, TAB = "<backspace>", "<enter>", "<escape>", "<tab>"
@@ -20,8 +21,10 @@ FULLWIDTH = {
     "{": "『", "}": "』", "[": "「", "]": "」", "~": "～", "_": "——",
 }
 
-# An English word that is also a common one-syllable Chinese reading ("up " = ㄧㄣ 因)
-# is not committed on space; the next word decides ("up jo4" = 因為, "up the" = up the).
+# The first word of a composition that also reads as Zhuyin is not committed as English
+# on space; the next word decides ("up jo4" = 因為, "up the" = up the, "no su3" = no 你).
+# Right after English text only common one-syllable readings are held (up = 因, url = 教),
+# so normal English typing is not delayed.
 HOLD_MIN_SCORE = -3.5
 
 # "`" then one of these keys always gives the full-width symbol, whatever the context.
@@ -94,19 +97,39 @@ class CompositionEngine:
         rest = keys[held + 1:]
         base = held + 1
         rest_segs = [(a + base, b + base, m) for a, b, m in self.classifier.segment(rest, finishing, None)]
-        if rest_segs and rest_segs[0][2] == ZHUYIN:
+        if rest_segs and rest_segs[0][2] == ZHUYIN and self._held_reads_as_chinese(keys, held, rest_segs[0][1], finishing):
             return [(0, rest_segs[0][1], ZHUYIN)] + rest_segs[1:]
         return [(0, base, LITERAL)] + rest_segs
+
+    def _held_reads_as_chinese(self, keys, held, end, finishing):
+        """Chinese all the way to `end` vs. the held English word followed by Chinese."""
+        c, w, ctx = self.classifier, self.classifier.weights, self.context
+        is_last = end == len(keys)
+        zh_whole = c.segment_features(keys[:end], is_last, False, finishing, ctx)[0]
+        word = c.segment_features(keys[:held], False, False, True, ctx)[1]
+        zh_rest = c.segment_features(keys[held + 1:end], is_last, True, finishing, None)[0]
+        if zh_whole is None:
+            return False
+        if word is None or zh_rest is None:
+            return True
+        return dot(w, zh_whole) >= dot(w, word) + dot(w, zh_rest)
 
     def _is_ambiguous_word(self, keys):
         """Whether keys + space also read as a common Chinese syllable (see HOLD_MIN_SCORE)."""
         if not all(k.isascii() and k.isalpha() for k in keys):
             return False
         p = bopomofo.parse(list(keys) + [" "])
-        if p.pending is not None or len(p.syllables) != 1:
+        if p.pending is not None or not p.syllables or p.stray_tones or p.foreign_keys:
             return False
-        entries = self.classifier.lexicon.entries([s.syllable for s in p.syllables])
-        return bool(entries) and entries[0][1] >= HOLD_MIN_SCORE
+        best = []
+        for ps in p.syllables:
+            entries = self.classifier.lexicon.entries([ps.syllable])
+            if not entries:
+                return False
+            best.append(entries[0][1])
+        if self.context != LITERAL:
+            return True    # first word: hold anything that reads as Zhuyin
+        return len(best) == 1 and best[0] >= HOLD_MIN_SCORE
 
     @property
     def segments(self):

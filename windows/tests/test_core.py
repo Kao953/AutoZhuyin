@@ -308,8 +308,10 @@ class FirstToneAfterEnglishTests(unittest.TestCase):
     def test_first_tone_after_english(self):
         for keys in ["ru", "t", "gj", "vup", "tj", "el"]:
             e = make_engine()
-            self.assertEqual(type_keys("hello " + keys + " ", e), "hello ", keys)
-            self.assertEqual(len(e.marked_text), 1, keys)
+            out = type_keys("hello " + keys + " \n", e)
+            self.assertEqual(out[:6], "hello ", keys)
+            self.assertEqual(len(out), 7, keys)          # one Chinese character after it
+            self.assertFalse(out[6].isascii(), keys)
 
 
 class HeldWordTests(unittest.TestCase):
@@ -346,6 +348,20 @@ class BacktickSymbolTests(unittest.TestCase):
         type_keys("su3`", e)
         e.handle(BACKSPACE)
         self.assertEqual(e.marked_text, "你")
+
+
+class FirstWordHoldTests(unittest.TestCase):
+    """The first word is not committed as English on space if it also reads as Zhuyin."""
+    def test_next_word_decides(self):
+        cases = {"el ji3 ": "高我", "no su3cl3 ": "no 你好", "ok ji3 ": "ok 我",
+                 "i love you ": "i love you ", "up the ": "up the "}
+        for keys, want in cases.items():
+            self.assertEqual(type_keys(keys, make_engine()), want, keys)
+
+    def test_not_held_after_english(self):
+        e = make_engine()
+        self.assertEqual(type_keys("hello world ", e), "hello world ")
+        self.assertEqual(type_keys("so ", e), "so ")   # right after English: commits at once
 
 
 if __name__ == "__main__":

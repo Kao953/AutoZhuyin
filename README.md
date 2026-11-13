@@ -247,7 +247,7 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝�
 - Windows 版、Linux 版還沒在實機上測試過。
 - Linux 版只支援 IBus。KDE 上有些 Flatpak 程式（例如 Flatpak 版 Chrome）在 IBus Wayland 下可能打不出字。
 - 聲調鍵打在注音符號中間（例如 `uv3l`）無法自動修正。
-- 很短的字串本質上就有歧義。像 `up`（也是 ㄧㄣ 因）這種常用的，按空白後會先保留，看下一個詞再決定（`up jo4` = 因為、`up the` = up the）；其他判斷錯的可以按 Tab 修正，修正後會記住。
+- 很短的字串本質上就有歧義。開頭第一個詞如果也能讀成注音，按空白後會先保留（顯示成英文），看下一個詞再決定：`up jo4` = 因為、`el ji3` = 高我、`no su3cl3` = no 你好、`up the` = up the。接在英文後面時只保留 `up`（因）這種很常見的讀音，不會拖慢打英文。還是判斷錯的話按 Tab 修正，修正後會記住。
 - 安裝檔沒有簽章（macOS 沒有 Developer ID，Windows 沒有程式碼簽章憑證）。
 
 ## 下一步（Roadmap）

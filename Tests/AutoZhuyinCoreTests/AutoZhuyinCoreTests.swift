@@ -459,8 +459,10 @@ final class FirstToneAfterEnglishTests: XCTestCase {
             let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
             var out = ""
             for c in "hello " + keys + " " { if let t = e.handle(.character(c)).commit { out += t } }
-            XCTAssertEqual(out, "hello ", keys)
-            XCTAssertEqual(e.markedText.count, 1, keys)   // still composing one Chinese character
+            out += e.handle(.enter).commit ?? ""
+            XCTAssertEqual(String(out.prefix(6)), "hello ", keys)
+            XCTAssertEqual(out.count, 7, keys)                 // one Chinese character after it
+            XCTAssertFalse(out.last!.isASCII, keys)
         }
     }
 }
@@ -534,6 +536,36 @@ final class BacktickSymbolTests: XCTestCase {
         _ = type("su3`", into: e)
         _ = e.handle(.backspace)
         XCTAssertEqual(e.markedText, "你")
+    }
+}
+
+final class FirstWordHoldTests: XCTestCase {
+    func makeEngine() -> CompositionEngine {
+        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+    }
+
+    func type(_ s: String, into e: CompositionEngine) -> String {
+        var out = ""
+        for c in s {
+            let r = e.handle(c == "\n" ? .enter : .character(c))
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return out
+    }
+
+    /// The first word is not committed as English on space if it also reads as Zhuyin.
+    func testNextWordDecides() {
+        let cases = ["el ji3 ": "高我", "no su3cl3 ": "no 你好", "ok ji3 ": "ok 我",
+                     "i love you ": "i love you ", "up the ": "up the "]
+        for (keys, want) in cases {
+            XCTAssertEqual(type(keys, into: makeEngine()), want, keys)
+        }
+    }
+
+    func testNotHeldAfterEnglish() {
+        let e = makeEngine()
+        XCTAssertEqual(type("hello world ", into: e), "hello world ")
+        XCTAssertEqual(type("so ", into: e), "so ")   // right after English: commits at once
     }
 }
 

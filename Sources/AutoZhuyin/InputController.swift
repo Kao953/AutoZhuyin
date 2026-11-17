@@ -78,8 +78,8 @@ final class InputController: IMKInputController {
                 let idle = engine.keys.isEmpty
                 _ = engine.handle(.shiftTap)
                 updateComposition(client)
-                // English mode on/off: switch input mode so the menu-bar icon shows it.
-                if idle { InputModes.select(english: engine.isEnglishMode) }
+                // English mode on/off: show 中 / A by the cursor.
+                if idle { ModeIndicator.show(english: engine.isEnglishMode, client: client) }
             }
             return false
         }
@@ -156,18 +156,6 @@ final class InputController: IMKInputController {
         }
     }
 
-    /// The input mode changed (menu bar, keyboard shortcut, or our own Shift tap).
-    override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
-        if tag == kTextServiceInputModePropertyTag, let id = value as? String {
-            let english = InputModes.isEnglish(id)
-            if english != engine.isEnglishMode {
-                commitComposition(sender)
-                engine.setEnglishMode(english)
-            }
-        }
-        super.setValue(value, forTag: tag, client: sender)
-    }
-
     override func commitComposition(_ sender: Any!) {
         guard let client = sender as? IMKTextInput else { return }
         commit(engine.commitAll(), to: client)
@@ -202,6 +190,9 @@ final class InputController: IMKInputController {
 
     override func menu() -> NSMenu! {
         let menu = NSMenu()
+        let english = menu.addItem(withTitle: "英文模式（單按 Shift）", action: #selector(toggleEnglish(_:)), keyEquivalent: "")
+        english.state = engine.isEnglishMode ? .on : .off
+        menu.addItem(.separator())
         let modes: [(Reranker.Mode, String, Selector)] = [
             (.off, "AI 選字：關閉", #selector(aiOff(_:))),
             (.saver, "AI 選字：省電", #selector(aiSaver(_:))),
@@ -219,6 +210,11 @@ final class InputController: IMKInputController {
         menu.addItem(.separator())
         menu.addItem(withTitle: "清除學習紀錄", action: #selector(clearLearned(_:)), keyEquivalent: "")
         return menu
+    }
+
+    @objc private func toggleEnglish(_ sender: Any?) {
+        if let client = client() { commitComposition(client) }
+        engine.setEnglishMode(!engine.isEnglishMode)
     }
 
     @objc private func aiOff(_ sender: Any?) { AI.setMode(.off) }

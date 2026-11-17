@@ -18,67 +18,6 @@
 	<string>0.13.2</string>
 	<key>CFBundleVersion</key>
 	<string>23</string>
-	<key>ComponentInputModeDict</key>
-	<dict>
-		<key>tsInputModeListKey</key>
-		<dict>
-			<key>com.autozhuyin.inputmethod.AutoZhuyin.Auto</key>
-			<dict>
-				<key>TISInputSourceID</key>
-				<string>com.autozhuyin.inputmethod.AutoZhuyin.Auto</string>
-				<key>TISIntendedLanguage</key>
-				<string>zh-Hant</string>
-				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>icon.tiff</string>
-				<key>tsInputModeCharacterRepertoireKey</key>
-				<array>
-					<string>Hant</string>
-				</array>
-				<key>tsInputModeDefaultStateKey</key>
-				<true/>
-				<key>tsInputModeIsVisibleKey</key>
-				<true/>
-				<key>tsInputModeMenuIconFileKey</key>
-				<string>icon.tiff</string>
-				<key>tsInputModePaletteIconFileKey</key>
-				<string>icon.tiff</string>
-				<key>tsInputModePrimaryInScriptKey</key>
-				<true/>
-				<key>tsInputModeScriptKey</key>
-				<string>smTradChinese</string>
-			</dict>
-			<key>com.autozhuyin.inputmethod.AutoZhuyin.English</key>
-			<dict>
-				<key>TISInputSourceID</key>
-				<string>com.autozhuyin.inputmethod.AutoZhuyin.English</string>
-				<key>TISIntendedLanguage</key>
-				<string>zh-Hant</string>
-				<key>tsInputModeAlternateMenuIconFileKey</key>
-				<string>icon-en.tiff</string>
-				<key>tsInputModeCharacterRepertoireKey</key>
-				<array>
-					<string>Hant</string>
-				</array>
-				<key>tsInputModeDefaultStateKey</key>
-				<true/>
-				<key>tsInputModeIsVisibleKey</key>
-				<true/>
-				<key>tsInputModeMenuIconFileKey</key>
-				<string>icon-en.tiff</string>
-				<key>tsInputModePaletteIconFileKey</key>
-				<string>icon-en.tiff</string>
-				<key>tsInputModePrimaryInScriptKey</key>
-				<false/>
-				<key>tsInputModeScriptKey</key>
-				<string>smTradChinese</string>
-			</dict>
-		</dict>
-		<key>tsVisibleInputModeOrderedArrayKey</key>
-		<array>
-			<string>com.autozhuyin.inputmethod.AutoZhuyin.Auto</string>
-			<string>com.autozhuyin.inputmethod.AutoZhuyin.English</string>
-		</array>
-	</dict>
 	<key>InputMethodConnectionName</key>
 	<string>com.autozhuyin.inputmethod.AutoZhuyin_Connection</string>
 	<key>InputMethodServerControllerClass</key>

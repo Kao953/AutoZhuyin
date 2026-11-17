@@ -2,5 +2,3 @@
 CFBundleName = "AutoZhuyin";
 CFBundleDisplayName = "AutoZhuyin";
 "com.autozhuyin.inputmethod.AutoZhuyin" = "AutoZhuyin";
-"com.autozhuyin.inputmethod.AutoZhuyin.Auto" = "AutoZhuyin (Auto)";
-"com.autozhuyin.inputmethod.AutoZhuyin.English" = "AutoZhuyin (English)";

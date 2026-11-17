@@ -6,7 +6,6 @@ import InputMethodKit
 // in System Settings without logging out (used by the installer's postinstall script).
 if CommandLine.arguments.contains("--register") {
     let status = TISRegisterInputSource(Bundle.main.bundleURL as CFURL)
-    if status == noErr { InputModes.enableAll() }   // "中英自動" and "英文" (menu-bar icons)
     print(status == noErr ? "Registered \(Bundle.main.bundlePath)" : "TISRegisterInputSource failed: \(status)")
     exit(status == noErr ? 0 : 1)
 }

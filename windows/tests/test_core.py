@@ -340,6 +340,23 @@ class HeldWordTests(unittest.TestCase):
         self.assertEqual(e.marked_text, "up")
         self.assertEqual(type_keys(" the ", e), "up the ")
 
+    def _engine(self, learned):
+        return CompositionEngine(Classifier(LEX, ENG, learned, weights=WEIGHTS))
+
+    def test_held_word_with_digit_keys(self):
+        """Words with digits / punctuation keys are held too: "0 " is 安, "5j; " is 裝."""
+        learned = LearnedPreferences({"0": -2})   # "0" once learned as a number
+        self.assertEqual(type_keys("0 5j; \n", self._engine(learned)), "安裝")
+        self.assertEqual(type_keys("0 \n", self._engine(learned)), "0 ")
+
+    def test_tab_overrides_learned(self):
+        """One Tab undoes a wrong learned preference, and only the word flipped is learned."""
+        learned = LearnedPreferences({"0": -2})
+        self.assertEqual(type_keys("0\t 5j; \n", self._engine(learned)), "安裝")
+        self.assertEqual(learned.weights["0"], 1)
+        self.assertNotIn("0 5j; ", learned.weights)
+        self.assertEqual(type_keys("hello 0 5j; \n", self._engine(learned)), "hello 安裝")
+
 
 class BacktickSymbolTests(unittest.TestCase):
     def test_forced_symbols(self):

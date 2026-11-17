@@ -19,7 +19,9 @@ class LearnedPreferences:
 
     def record(self, keys, mode):
         delta = 1 if mode == ZHUYIN else -1
-        self.weights[keys] = max(-3, min(3, self.weights.get(keys, 0) + delta))
+        old = self.weights.get(keys, 0)
+        # A correction against what was learned replaces it, so one Tab is enough to undo it.
+        self.weights[keys] = delta if old * delta < 0 else max(-3, min(3, old + delta))
         self._on_change(self.weights)
 
     def clear(self):

@@ -37,7 +37,9 @@ public final class LearnedPreferences {
 
     public func record(_ keys: String, as mode: InputMode) {
         let delta = mode == .zhuyin ? 1 : -1
-        weights[keys] = max(-3, min(3, (weights[keys] ?? 0) + delta))
+        let old = weights[keys] ?? 0
+        // A correction against what was learned replaces it, so one Tab is enough to undo it.
+        weights[keys] = old * delta < 0 ? delta : max(-3, min(3, old + delta))
         onChange(weights)
     }
 

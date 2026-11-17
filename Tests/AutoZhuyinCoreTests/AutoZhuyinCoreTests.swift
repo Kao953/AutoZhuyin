@@ -487,7 +487,7 @@ final class HeldWordTests: XCTestCase {
     func type(_ s: String, into e: CompositionEngine) -> String {
         var out = ""
         for c in s {
-            let key: KeyInput = c == "\n" ? .enter : .character(c)
+            let key: KeyInput = c == "\n" ? .enter : c == "\t" ? .tab : .character(c)
             let r = e.handle(key)
             if let t = r.commit { out += t } else if !r.handled { out.append(c) }
         }
@@ -510,6 +510,24 @@ final class HeldWordTests: XCTestCase {
         _ = e.handle(.backspace)
         XCTAssertEqual(e.markedText, "up")
         XCTAssertEqual(type(" the ", into: e), "up the ")
+    }
+
+    /// Words with digits / punctuation keys are held too: "0 " is 安, "5j; " is 裝.
+    func testHeldWordWithDigitKeys() {
+        let learned = LearnedPreferences(weights: ["0": -2])   // "0" once learned as a number
+        let c = Classifier(lexicon: sharedLexicon, english: sharedEnglish, learned: learned, weights: sharedWeights)
+        XCTAssertEqual(type("0 5j; \n", into: CompositionEngine(classifier: c)), "安裝")
+        XCTAssertEqual(type("0 \n", into: CompositionEngine(classifier: c)), "0 ")
+    }
+
+    /// One Tab undoes a wrong learned preference, and only the word flipped is learned.
+    func testTabOverridesLearned() {
+        let learned = LearnedPreferences(weights: ["0": -2])
+        let c = Classifier(lexicon: sharedLexicon, english: sharedEnglish, learned: learned, weights: sharedWeights)
+        XCTAssertEqual(type("0\t 5j; \n", into: CompositionEngine(classifier: c)), "安裝")
+        XCTAssertEqual(learned.weights["0"], 1)
+        XCTAssertNil(learned.weights["0 5j; "])
+        XCTAssertEqual(type("hello 0 5j; \n", into: CompositionEngine(classifier: c)), "hello 安裝")
     }
 }
 

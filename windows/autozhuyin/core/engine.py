@@ -50,6 +50,7 @@ class CompositionEngine:
         self.now = now
         self.keys = []
         self.forced_mode = None
+        self.forced_count = 0
         # English mode, toggled by a Shift tap when nothing is being typed: keys go straight
         # to the app (no composition, no underline) until Shift is tapped again.
         self.english_mode = False
@@ -117,8 +118,9 @@ class CompositionEngine:
         return dot(w, zh_whole) >= dot(w, word) + dot(w, zh_rest)
 
     def _is_ambiguous_word(self, keys):
-        """Whether keys + space also read as a common Chinese syllable (see HOLD_MIN_SCORE)."""
-        if not all(k.isascii() and k.isalpha() for k in keys):
+        """Whether keys + space also read as a common Chinese syllable (see HOLD_MIN_SCORE).
+        Any Dachen keys count, not only letters: "0" is ㄢ (安), "5j;" is ㄓㄨㄤ (裝)."""
+        if not all(bopomofo.is_zhuyin_key(k) for k in keys):
             return False
         p = bopomofo.parse(list(keys) + [" "])
         if p.pending is not None or not p.syllables or p.stray_tones or p.foreign_keys:
@@ -365,6 +367,7 @@ class CompositionEngine:
     def _flip(self):
         """Forces the whole buffer into the other mode (a correction that is learned)."""
         self.forced_mode = LITERAL if self.mode == ZHUYIN else ZHUYIN
+        self.forced_count = len(self.keys)   # that word is learned, not what is typed after it
 
     def wants(self, key):
         """Whether handle(key) would consume the key, without changing state."""
@@ -567,7 +570,7 @@ class CompositionEngine:
         self._remember_picks(segs)
         self._recent_text = (self._rerank_context() + text)[-20:]
         if self.forced_mode:
-            self.classifier.learned.record("".join(self.keys), self.forced_mode)
+            self.classifier.learned.record("".join(self.keys[:self.forced_count]), self.forced_mode)
         self._previous_mode = segs[-1][2] if segs else None
         self._previous_time = self.now()
         self.reset()

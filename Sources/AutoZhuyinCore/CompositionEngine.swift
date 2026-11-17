@@ -38,6 +38,9 @@ public final class CompositionEngine {
     /// Set by Tab / a Shift tap while typing: overrides the classifier for the whole
     /// buffer. It is a correction, learned on commit.
     public private(set) var forcedMode: InputMode?
+    /// How many keys there were when the user flipped: that word is what gets learned, not
+    /// whatever was typed after it.
+    private var forcedCount = 0
     /// English mode, toggled by a Shift tap when nothing is being typed. Keys go straight
     /// to the app (no composition, no underline) until Shift is tapped again.
     public private(set) var isEnglishMode = false
@@ -120,9 +123,10 @@ public final class CompositionEngine {
         return Features.dot(w, zhWhole) >= Features.dot(w, word) + Features.dot(w, zhRest)
     }
 
-    /// Whether keys + space also read as a common Chinese syllable (see `held`).
+    /// Whether keys + space also read as a common Chinese syllable (see `held`). Any Dachen
+    /// keys count, not only letters: "0" is ㄢ (安), "5j;" is ㄓㄨㄤ (裝).
     private func isAmbiguousWord(_ keys: [Character]) -> Bool {
-        guard keys.allSatisfy({ $0.isASCII && $0.isLetter }) else { return false }
+        guard keys.allSatisfy(DachenLayout.isZhuyinKey) else { return false }
         let p = ZhuyinParser.parse(keys + [" "])
         guard p.pending == nil, !p.syllables.isEmpty, p.strayTones == 0, p.foreignKeys == 0 else { return false }
         var best: [Double] = []
@@ -430,6 +434,7 @@ public final class CompositionEngine {
     /// Forces the whole buffer into the other mode (a correction that is learned).
     private func flip() {
         forcedMode = (mode == .zhuyin) ? .literal : .zhuyin
+        forcedCount = keys.count
     }
 
     private func handleCharacter(_ c: Character) -> KeyResult {
@@ -566,7 +571,7 @@ public final class CompositionEngine {
         rememberPicks(segs)
         recentText = String((rerankContext + text).suffix(20))
         if let forced = forcedMode {
-            classifier.learned.record(String(keys), as: forced)
+            classifier.learned.record(String(keys.prefix(forcedCount)), as: forced)
         }
         previousMode = segs.last?.mode
         previousCommitTime = now()

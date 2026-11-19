@@ -158,6 +158,11 @@ class IBusEngineTests(unittest.TestCase):
         self.assertFalse(self.e.do_process_key_event(ord("c"), 0, M.CONTROL_MASK))
         self.assertEqual(self.e.committed, "你")
 
+    def test_ctrl_semicolon(self):
+        press(self.e, "ji3")
+        self.assertTrue(self.e.do_process_key_event(ord(";"), 0, M.CONTROL_MASK))
+        self.assertEqual(self.e.committed, "我；")
+
     def test_backtick_symbol(self):
         press(self.e, "`<")
         self.assertEqual(self.e.committed, "，")

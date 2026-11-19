@@ -86,6 +86,14 @@ final class InputController: IMKInputController {
         guard event.type == .keyDown else { return false }
         shiftTap.keyPressed()
 
+        // Ctrl + ; ' , . / → full-width ；、，。？
+        if event.modifierFlags.intersection([.command, .control, .option]) == .control,
+           let c = event.charactersIgnoringModifiers?.first, let r = engine.handleControl(c) {
+            if let text = r.commit { commit(text, to: client) }
+            updateComposition(client)
+            return true
+        }
+
         // Shortcuts (⌘C, ⌃A, ⌥…) go to the app; commit any composition first.
         if !event.modifierFlags.intersection([.command, .control, .option]).isEmpty {
             commit(engine.commitAll(), to: client)
@@ -182,8 +190,11 @@ final class InputController: IMKInputController {
     override func candidateSelected(_ candidateString: NSAttributedString!) {
         guard let s = candidateString?.string,
               let i = engine.candidates.firstIndex(where: { $0.text == s }) else { return }
-        engine.selectCandidate(i)
-        if let client = client() { updateComposition(client) }
+        let text = engine.selectCandidate(i)
+        if let client = client() {
+            if let text { commit(text, to: client) }
+            updateComposition(client)
+        }
     }
 
     // MARK: - Menu

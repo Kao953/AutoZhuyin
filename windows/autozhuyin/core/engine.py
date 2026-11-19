@@ -18,7 +18,7 @@ SPECIAL_KEYS = {BACKSPACE, ENTER, ESCAPE, TAB, UP, DOWN, LEFT, RIGHT, SHIFT_TAP}
 
 FULLWIDTH = {
     "<": "，", ">": "。", "?": "？", "!": "！", ":": "：", '"': "「", "(": "（", ")": "）",
-    "{": "『", "}": "』", "[": "「", "]": "」", "~": "～", "_": "——",
+    "{": "『", "}": "』", "[": "「", "]": "」", "~": "～", "_": "——", "\\": "、",
 }
 
 # The first word of a composition that also reads as Zhuyin is not committed as English
@@ -35,6 +35,20 @@ SYMBOLS = {
     "'": "、", "\\": "、", '"': "「", "[": "「", "]": "」", "{": "『", "}": "』",
     "(": "（", ")": "）", "!": "！", "~": "～", "-": "——", "_": "——", "=": "＝",
 }
+
+# Ctrl + key → full-width symbol, whatever the context.
+CONTROL_SYMBOLS = {";": "；", "'": "、", ",": "，", ".": "。", "/": "？"}
+
+# "`" then space (or ↓): every full-width symbol, most used first.
+SYMBOL_TABLE = [
+    "，", "。", "、", "；", "：", "？", "！", "「", "」",
+    "『", "』", "（", "）", "《", "》", "〈", "〉", "…",
+    "——", "～", "・", "【", "】", "〔", "〕", "＂", "＇",
+    "＋", "－", "×", "÷", "＝", "≠", "≦", "≧", "％",
+    "＃", "＆", "＊", "＠", "／", "＼", "｜", "＿", "※",
+    "○", "●", "△", "▲", "□", "■", "☆", "★", "◎",
+    "→", "←", "↑", "↓", "℃", "°", "√", "∞", "　",
+]
 
 PASS = (False, None)
 CONSUMED = (True, None)
@@ -57,6 +71,7 @@ class CompositionEngine:
         self.backtick = False    # "`" typed; the next key may be a forced symbol
         self.fixed = {}          # zhuyin segment start -> {(syl_start, syl_end): text}
         self.candidates = []
+        self.symbol_table = False   # candidates are the "`" + space symbol table
         self.candidate_index = 0
         self._candidate_segment_start = 0
         # Composition cursor: a key index into self.keys (None = at the end). ← → move it
@@ -458,9 +473,14 @@ class CompositionEngine:
         self.backtick = False
         if key in (ESCAPE, BACKSPACE):
             return CONSUMED
+        # After English ("`ls` "), space keeps the backtick literal (Markdown code).
+        opens_table = key == DOWN or (key == " " and (not self.keys or self.mode == ZHUYIN))
         committed = self._commit() if self.keys else ""
         if key in SYMBOLS:
             return True, committed + SYMBOLS[key]
+        if opens_table:
+            self._open_symbol_table()
+            return True, committed or None
         # Not a symbol: the backtick was meant literally; then handle the key as usual.
         handled, more = self.handle(key)
         if not handled and len(key) == 1:
@@ -533,6 +553,26 @@ class CompositionEngine:
         self.candidates = self.converter.candidates(syl, local)
         self._candidate_segment_start = seg[0]
         self.candidate_index = 0
+        self.symbol_table = False
+
+    def _open_symbol_table(self):
+        self.candidates = [((0, 0), s) for s in SYMBOL_TABLE]
+        self.candidate_index = 0
+        self.symbol_table = True
+
+    def handle_control(self, key):
+        """Ctrl + ; ' , . / → ；、，。？ (commits any composition first). None: not one of
+        them, the key is a shortcut for the app."""
+        symbol = CONTROL_SYMBOLS.get(key)
+        if symbol is None:
+            return None
+        self.candidates = []
+        self.backtick = False
+        if self.inserting:
+            self._splice(self.inserting)
+            self.inserting = []
+        committed = self._commit() if self.keys else ""
+        return True, committed + symbol
 
     def page(self):
         """Candidates on the current page and the cursor within it."""
@@ -540,27 +580,35 @@ class CompositionEngine:
         return [t for _, t in self.candidates[start:start + self.page_size]], self.candidate_index - start
 
     def select_candidate(self, index):
+        """Picks a candidate. Returns the text to commit when it comes from the symbol table."""
         if not 0 <= index < len(self.candidates):
-            return
+            return None
         rng, text = self.candidates[index]
+        if self.symbol_table:
+            self.candidates = []
+            self.symbol_table = False
+            return text
         here = {k: v for k, v in self.fixed.get(self._candidate_segment_start, {}).items()
                 if not (k[0] < rng[1] and rng[0] < k[1])}
         here[rng] = text
         self.fixed[self._candidate_segment_start] = here
         self.candidates = []
+        return None
 
     def _handle_candidate_key(self, key):
+        commit = None
         if len(key) == 1 and key.isdigit() and key != "0":
-            self.select_candidate(self.page_start + int(key) - 1)
+            commit = self.select_candidate(self.page_start + int(key) - 1)
         elif key in (" ", ENTER):
-            self.select_candidate(self.candidate_index)
+            commit = self.select_candidate(self.candidate_index)
         elif key in (DOWN, RIGHT):
             self.candidate_index = min(len(self.candidates) - 1, self.candidate_index + 1)
         elif key in (UP, LEFT):
             self.candidate_index = max(0, self.candidate_index - 1)
         elif key in (ESCAPE, BACKSPACE):
             self.candidates = []
-        return CONSUMED
+            self.symbol_table = False
+        return True, commit
 
     # --- commit ---
 
@@ -599,3 +647,4 @@ class CompositionEngine:
         self.forced_mode = None
         self.fixed = {}
         self.candidates = []
+        self.symbol_table = False

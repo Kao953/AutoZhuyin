@@ -55,6 +55,8 @@ public final class CompositionEngine {
     private var inserting: [Character] = []
     public var candidateIndex = 0
     public var isShowingCandidates: Bool { !candidates.isEmpty }
+    /// The candidates are the symbol table ("`" then space), not readings of the composition.
+    public private(set) var isSymbolTable = false
 
     /// Index of a held space: the first word of a composition that also reads as Zhuyin is
     /// not committed as English on space; the next word decides ("up jo4" = 因為,
@@ -497,9 +499,15 @@ public final class CompositionEngine {
     private func afterBacktick(_ key: KeyInput) -> KeyResult {
         pendingBacktick = false
         if key == .escape || key == .backspace { return .consumed }
+        // After English ("`ls` "), space keeps the backtick literal (Markdown code).
+        let opensTable = key == .down || (key == .character(" ") && (keys.isEmpty || mode == .zhuyin))
         let committed = keys.isEmpty ? "" : commitCurrent()
         if case .character(let c) = key, let symbol = CompositionEngine.symbols[c] {
             return KeyResult(handled: true, commit: committed + symbol)
+        }
+        if opensTable {
+            openSymbolTable()
+            return KeyResult(handled: true, commit: committed.isEmpty ? nil : committed)
         }
         // Not a symbol: the backtick was meant literally; then handle the key as usual.
         var r = handle(key)
@@ -516,8 +524,41 @@ public final class CompositionEngine {
 
     static let fullwidth: [Character: String] = [
         "<": "，", ">": "。", "?": "？", "!": "！", ":": "：", "\"": "「", "(": "（", ")": "）",
-        "{": "『", "}": "』", "[": "「", "]": "」", "~": "～", "_": "——",
+        "{": "『", "}": "』", "[": "「", "]": "」", "~": "～", "_": "——", "\\": "、",
     ]
+
+    /// Ctrl + key → full-width symbol, whatever the context.
+    static let controlSymbols: [Character: String] = [
+        ";": "；", "'": "、", ",": "，", ".": "。", "/": "？",
+    ]
+
+    /// "`" then space (or ↓): every full-width symbol, most used first.
+    static let symbolTable: [String] = [
+        "，", "。", "、", "；", "：", "？", "！", "「", "」",
+        "『", "』", "（", "）", "《", "》", "〈", "〉", "…",
+        "——", "～", "・", "【", "】", "〔", "〕", "＂", "＇",
+        "＋", "－", "×", "÷", "＝", "≠", "≦", "≧", "％",
+        "＃", "＆", "＊", "＠", "／", "＼", "｜", "＿", "※",
+        "○", "●", "△", "▲", "□", "■", "☆", "★", "◎",
+        "→", "←", "↑", "↓", "℃", "°", "√", "∞", "　",
+    ]
+
+    /// Ctrl + ; ' , . / → ；、，。？ (commits any composition first). nil: not one of them,
+    /// the key is a shortcut for the app.
+    public func handleControl(_ c: Character) -> KeyResult? {
+        guard let symbol = CompositionEngine.controlSymbols[c] else { return nil }
+        candidates = []
+        pendingBacktick = false
+        if !inserting.isEmpty { splice(inserting); inserting = [] }
+        let committed = keys.isEmpty ? "" : commitCurrent()
+        return KeyResult(handled: true, commit: committed + symbol)
+    }
+
+    private func openSymbolTable() {
+        candidates = CompositionEngine.symbolTable.map { Candidate(range: 0..<0, text: $0) }
+        candidateIndex = 0
+        isSymbolTable = true
+    }
 
     // MARK: - Candidates (for the last Zhuyin segment)
 
@@ -530,33 +571,44 @@ public final class CompositionEngine {
         candidates = converter.candidates(syl, endingAt: stop.local)
         candidateSegmentStart = seg.range.lowerBound
         candidateIndex = 0
+        isSymbolTable = false
     }
 
-    public func selectCandidate(_ index: Int) {
-        guard candidates.indices.contains(index) else { return }
+    /// Picks a candidate. Returns the text to commit when it comes from the symbol table.
+    @discardableResult
+    public func selectCandidate(_ index: Int) -> String? {
+        guard candidates.indices.contains(index) else { return nil }
         let c = candidates[index]
+        if isSymbolTable {
+            candidates = []
+            isSymbolTable = false
+            return c.text
+        }
         var here = (fixed[candidateSegmentStart] ?? [:]).filter { !$0.key.overlaps(c.range) }
         here[c.range] = c.text
         fixed[candidateSegmentStart] = here
         candidates = []
+        return nil
     }
 
     private func handleCandidateKey(_ key: KeyInput) -> KeyResult {
+        var commit: String?
         switch key {
         case .character(let c) where c.isNumber && c != "0":
-            selectCandidate(Int(String(c))! - 1 + pageStart)
+            commit = selectCandidate(Int(String(c))! - 1 + pageStart)
         case .character(" "), .enter:
-            selectCandidate(candidateIndex)
+            commit = selectCandidate(candidateIndex)
         case .down, .right:
             candidateIndex = min(candidates.count - 1, candidateIndex + 1)
         case .up, .left:
             candidateIndex = max(0, candidateIndex - 1)
         case .escape, .backspace:
             candidates = []
+            isSymbolTable = false
         default:
             break
         }
-        return .consumed
+        return KeyResult(handled: true, commit: commit)
     }
 
     public var pageSize = 9
@@ -604,5 +656,6 @@ public final class CompositionEngine {
         forcedMode = nil
         fixed = [:]
         candidates = []
+        isSymbolTable = false
     }
 }

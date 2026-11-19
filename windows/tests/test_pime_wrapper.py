@@ -118,6 +118,18 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(type_text(self.svc, "`<"), "，")
         self.assertEqual(type_text(self.svc, "ji3`."), "我。")
 
+    def test_ctrl_semicolon(self):
+        self.assertEqual(type_text(self.svc, "ji3"), "")
+        eaten, reply = press(self.svc, ";", ctrl=True)
+        self.assertTrue(eaten)
+        self.assertEqual(reply.get("commitString"), "我；")
+        self.assertFalse(press(self.svc, "c", ctrl=True)[0])   # other shortcuts go to the app
+
+    def test_symbol_table(self):
+        type_text(self.svc, "` ")
+        self.assertTrue(self.svc.reply.get("showCandidates"))
+        self.assertEqual(type_text(self.svc, "3"), "、")
+
     def test_settings_menu(self):
         from autozhuyin import autozhuyin_ime as ime
         self.assertIn("autozhuyin-settings", self.svc.reply["addButton"])

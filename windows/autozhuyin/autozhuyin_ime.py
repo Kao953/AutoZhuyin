@@ -99,6 +99,9 @@ _SPECIAL = {
     VK_BACK: BACKSPACE, VK_RETURN: ENTER, VK_ESCAPE: ESCAPE, VK_TAB: TAB,  # noqa: F405
     VK_UP: UP, VK_DOWN: DOWN, VK_LEFT: LEFT, VK_RIGHT: RIGHT,  # noqa: F405
 }
+# Ctrl + these keys gives full-width symbols (engine.handle_control). Virtual-key codes of
+# ; ' , . / (VK_OEM_1, VK_OEM_7, VK_OEM_COMMA, VK_OEM_PERIOD, VK_OEM_2).
+_CONTROL_KEYS = {0xBA: ";", 0xDE: "'", 0xBC: ",", 0xBE: ".", 0xBF: "/"}
 
 
 class AutoZhuyinTextService(TextService):
@@ -209,6 +212,8 @@ class AutoZhuyinTextService(TextService):
                 self.shift_tap.shift_down(time.monotonic())
             return False
         self.shift_tap.key_pressed()
+        if self._control_key(ev):
+            return True
         # Shortcuts (Ctrl/Alt) go to the app.
         if ev.isKeyDown(VK_CONTROL) or ev.isKeyDown(VK_MENU):  # noqa: F405
             return False
@@ -217,7 +222,18 @@ class AutoZhuyinTextService(TextService):
             return self._busy()   # swallow other keys (Delete, Home…) while composing
         return self.engine.wants(key)
 
+    def _control_key(self, ev):
+        """Ctrl + ; ' , . / (without Alt) → the key, else None."""
+        if ev.isKeyDown(VK_CONTROL) and not ev.isKeyDown(VK_MENU):  # noqa: F405
+            return _CONTROL_KEYS.get(ev.keyCode)
+        return None
+
     def onKeyDown(self, ev):
+        control = self._control_key(ev)
+        if control:
+            handled, commit = self.engine.handle_control(control)
+            self._update(commit)
+            return handled
         key = self._key(ev)
         if key is None:
             return self._busy()

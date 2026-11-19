@@ -205,6 +205,13 @@ class AutoZhuyinEngine(IBus.Engine):
             return False
         self.shift_tap.key_pressed()
 
+        # Ctrl + ; ' , . / → full-width ；、，。？
+        if state & _SHORTCUT_MASK == IBus.ModifierType.CONTROL_MASK:
+            result = self.engine.handle_control(IBus.keyval_to_unicode(keyval))
+            if result:
+                self._update(result[1])
+                return True
+
         # Shortcuts (Ctrl/Alt/Super) go to the app; commit any composition first.
         if state & _SHORTCUT_MASK:
             if self.engine.keys:
@@ -239,8 +246,7 @@ class AutoZhuyinEngine(IBus.Engine):
     # --- candidate panel (mouse) ---
 
     def do_candidate_clicked(self, index, button, state):
-        self.engine.select_candidate(self.engine.page_start + index)
-        self._update(None)
+        self._update(self.engine.select_candidate(self.engine.page_start + index))
 
     def do_page_up(self):
         return self._move_candidate(-self.engine.page_size)

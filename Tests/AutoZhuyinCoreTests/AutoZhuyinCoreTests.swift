@@ -554,6 +554,36 @@ final class BacktickSymbolTests: XCTestCase {
         }
     }
 
+    func testBackslashIsDunhao() {
+        XCTAssertEqual(type("ji3\\", into: makeEngine()), "我、")
+        XCTAssertEqual(type("hello\\", into: makeEngine()), "hello\\")
+    }
+
+    func testControlSymbols() {
+        let e = makeEngine()
+        _ = type("ji3", into: e)
+        XCTAssertEqual(e.handleControl(";"), KeyResult(handled: true, commit: "我；"))
+        XCTAssertEqual(e.handleControl("'"), KeyResult(handled: true, commit: "、"))
+        XCTAssertNil(e.handleControl("c"))
+    }
+
+    func testSymbolTable() {
+        let e = makeEngine()
+        XCTAssertEqual(type("ji3` ", into: e), "我")
+        XCTAssertTrue(e.isSymbolTable)
+        XCTAssertEqual(type("4", into: e), "；")
+        _ = e.handle(.character("`"))
+        _ = e.handle(.down)
+        _ = e.handle(.down)
+        XCTAssertEqual(e.handle(.enter).commit, "。")
+        _ = type("` ", into: e)
+        XCTAssertEqual(e.selectCandidate(2), "、")   // mouse click
+        _ = type("` ", into: e)
+        _ = e.handle(.escape)
+        XCTAssertFalse(e.isShowingCandidates)
+        XCTAssertEqual(type("su3 ", into: e), "你")
+    }
+
     func testPlainBacktick() {
         let e = makeEngine()
         XCTAssertEqual(type("`", into: e), "")

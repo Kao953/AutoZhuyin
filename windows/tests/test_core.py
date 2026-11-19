@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 from autozhuyin.core import bopomofo  # noqa: E402
 from autozhuyin.core.classifier import LITERAL, ZHUYIN, Classifier, LearnedPreferences  # noqa: E402
-from autozhuyin.core.engine import DOWN, ENTER, LEFT, RIGHT, SHIFT_TAP, TAB, BACKSPACE, CompositionEngine  # noqa: E402
+from autozhuyin.core.engine import DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, BACKSPACE, CompositionEngine  # noqa: E402
 from autozhuyin.core.shift_tap import ShiftTapDetector  # noqa: E402
 from autozhuyin.core.english import EnglishModel  # noqa: E402
 from autozhuyin.core.lexicon import Converter, Lexicon  # noqa: E402
@@ -43,7 +43,7 @@ def make_engine():
 def type_keys(s, e):
     out = ""
     for c in s:
-        key = {"\n": ENTER, "\t": TAB, "⇧": SHIFT_TAP, "←": LEFT, "→": RIGHT, "↓": DOWN, "\b": BACKSPACE}.get(c, c)
+        key = {"\n": ENTER, "\t": TAB, "⇧": SHIFT_TAP, "←": LEFT, "→": RIGHT, "↓": DOWN, "\b": BACKSPACE, "\x1b": ESCAPE}.get(c, c)
         handled, commit = e.handle(key)
         if commit is not None:
             out += commit
@@ -359,6 +359,27 @@ class HeldWordTests(unittest.TestCase):
 
 
 class BacktickSymbolTests(unittest.TestCase):
+    def test_backslash_is_dunhao(self):
+        self.assertEqual(type_keys("ji3\\", make_engine()), "我、")
+        self.assertEqual(type_keys("hello\\", make_engine()), "hello\\")
+
+    def test_control_symbols(self):
+        e = make_engine()
+        type_keys("ji3", e)
+        self.assertEqual(e.handle_control(";"), (True, "我；"))
+        self.assertEqual(e.handle_control("'"), (True, "、"))
+        self.assertIsNone(e.handle_control("c"))
+
+    def test_symbol_table(self):
+        e = make_engine()
+        self.assertEqual(type_keys("ji3` ", e), "我")
+        self.assertTrue(e.symbol_table)
+        self.assertEqual(type_keys("4", e), "；")
+        self.assertEqual(type_keys("`↓↓\n", e), "。")
+        type_keys("` \x1b", e)   # Esc closes the table
+        self.assertFalse(e.candidates)
+        self.assertEqual(type_keys("su3 ", e), "你")
+
     def test_forced_symbols(self):
         cases = {"`<": "，", "`.": "。", "`?": "？", "`;": "；", "`[": "「",
                  "hello`,": "hello，", "su3cl3`.": "你好。", "```\n": "```"}

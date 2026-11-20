@@ -7,9 +7,14 @@ connection per text service instance. Started at sign-in (Run key) or by the DLL
 Protocol, UTF-8, one message each way:
   request   op [TAB arg]
             test <key> | key <key> | testctrl <c> | ctrl <c> | shift | select <i> | commit | reset
+            | forget | flippable | flip
   reply     lines "name=value" (value with \\ and newlines escaped):
             handled, commit, preedit, cursor, cand (one per candidate on the page),
-            candsel, english
+            candsel, english; for flippable: text
+"test" of a key the engine doesn't take, and "forget" (a key the DLL passed on without
+asking), end the chance to flip the last commit. Tab right after a commit: the DLL asks
+"flippable", checks that text is right before the caret, then "flip" gives the
+replacement in "commit".
 Keys: one character, or BS ENTER ESC TAB UP DOWN LEFT RIGHT.
 """
 import json
@@ -30,6 +35,7 @@ from autozhuyin.core.engine import (BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT,
 from autozhuyin.core.english import EnglishModel  # noqa: E402
 from autozhuyin.core.history import UserHistory  # noqa: E402
 from autozhuyin.core.lexicon import Lexicon  # noqa: E402
+from autozhuyin.core.user_phrases import UserPhrasesFile  # noqa: E402
 
 DATA = os.path.join(HERE, "autozhuyin", "data")
 USER_DIR = os.path.join(os.environ.get("APPDATA", HERE), "AutoZhuyin")
@@ -58,10 +64,6 @@ def _saver(name):
 
 def load_classifier():
     lexicon = Lexicon.from_file(os.path.join(DATA, "lexicon.txt"))
-    phrases = os.path.join(USER_DIR, "user-phrases.txt")
-    if os.path.exists(phrases):
-        with open(phrases, encoding="utf-8") as f:
-            lexicon.load(f)
     english = EnglishModel.from_files(os.path.join(DATA, "english-common.txt"),
                                       os.path.join(DATA, "english-dict.txt"),
                                       os.path.join(DATA, "english-bigram.json"))
@@ -86,7 +88,15 @@ class Session:
         op, _, arg = message.partition("\t")
         e = self.engine
         if op == "test":
-            return "handled=%d" % e.wants(KEYS.get(arg, arg))
+            wanted = e.wants(KEYS.get(arg, arg))
+            if not wanted:
+                e.forget_last_commit()
+            return "handled=%d" % wanted
+        if op == "forget":
+            e.forget_last_commit()
+            return "handled=0"
+        if op == "flippable":
+            return "text=" + _escape(e.flippable_text or "")
         if op == "testctrl":
             return "handled=%d" % (arg in (";", "'", ",", ".", "/"))
         if op == "key":
@@ -97,6 +107,9 @@ class Session:
             handled, commit = e.handle(SHIFT_TAP)
         elif op == "select":
             handled, commit = True, e.select_candidate(e.page_start + int(arg))
+        elif op == "flip":
+            new = e.flip_last_commit()
+            handled, commit = new is not None, new
         elif op == "commit":
             handled, commit = True, e.commit_all()
         elif op == "reset":
@@ -127,6 +140,8 @@ def serve():
         return   # another server already owns the pipe
     classifier = load_classifier()
     ai = AI(DATA, USER_DIR)
+    # Hand edits to user-phrases.txt apply from the next key (a stat per key is cheap).
+    phrases = UserPhrasesFile(os.path.join(USER_DIR, "user-phrases.txt"), classifier.lexicon)
     lock = threading.Lock()
 
     def run(conn):
@@ -135,6 +150,8 @@ def serve():
             while True:
                 message = conn.recv_bytes().decode("utf-8")
                 with lock:
+                    if phrases.reload_if_changed() is not None:
+                        ai.reranker.clear_cache()
                     reply = session.request(message)
                 conn.send_bytes(reply.encode("utf-8"))
         except (EOFError, OSError):

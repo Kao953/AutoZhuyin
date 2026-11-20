@@ -143,6 +143,27 @@ class WrapperTests(unittest.TestCase):
         self.svc.onCommand(ime.ID_AI_MODE["standard"], 2)
         self.assertIsNone(self.svc.onMenu("other"))
 
+    def test_user_phrases_reload_and_edit(self):
+        from autozhuyin import autozhuyin_ime as ime
+        os.makedirs(os.path.dirname(ime._USER_PHRASES), exist_ok=True)
+        with open(ime._USER_PHRASES, "w", encoding="utf-8") as f:
+            f.write("ㄋㄧˇ 妳 -1\n亂寫\n")
+        try:
+            self.svc.reply = {}
+            self.svc.onActivate()
+            self.assertEqual(self.svc.reply.get("showMessage"), "自訂詞第 2 行看不懂，請檢查格式")
+            self.assertEqual(type_text(self.svc, "su3 "), "妳")
+            opened = []
+            ime.os.startfile = opened.append
+            self.assertIn("編輯自訂詞…", [m.get("text") for m in self.svc.onMenu("autozhuyin-settings")])
+            self.svc.onCommand(ime.ID_EDIT_PHRASES, 2)
+            self.assertEqual(opened, [ime._USER_PHRASES])
+        finally:
+            os.remove(ime._USER_PHRASES)
+            ime._reload_user_phrases()
+            del ime.os.startfile
+        self.assertEqual(type_text(self.svc, "su3 "), "你")
+
     def test_mode_icon_click_toggles_english(self):
         self.svc.reply = {}
         self.svc.onCommand(1, 0)

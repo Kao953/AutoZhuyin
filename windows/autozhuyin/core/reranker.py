@@ -45,6 +45,10 @@ class Reranker:
         self._mode = value
         self._cache.clear()
 
+    def clear_cache(self):
+        """Forgets cached results (the lexicon changed)."""
+        self._cache.clear()
+
     @property
     def model(self):
         return self._model

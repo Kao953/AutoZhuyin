@@ -42,6 +42,7 @@ struct EngineReply {
     std::vector<std::wstring> candidates;   // the current page
     int candidateIndex = 0;
     bool english = false;
+    std::wstring text;   // "flippable"
 };
 
 class EngineClient {
@@ -129,8 +130,15 @@ private:
     std::string KeyName(WPARAM vk) const;
     bool ControlChar(WPARAM vk, std::string* c) const;
     bool ShortcutModifiers() const;
-    // Runs `fn` in a synchronous read/write edit session on `ctx`.
-    void Edit(ITfContext* ctx, const std::function<void(TfEditCookie)>& fn, bool async = false);
+    // Runs `fn` in a read/write edit session on `ctx` (synchronous unless `async`).
+    // Returns false if the session wasn't granted.
+    bool Edit(ITfContext* ctx, const std::function<void(TfEditCookie)>& fn, bool async = false,
+              bool readOnly = false);
+    // The selection, if it is a caret right after `text`, widened to cover `text`.
+    ITfRange* RangeBeforeCaret(TfEditCookie ec, ITfContext* ctx, const std::wstring& text);
+    // Tab right after a commit: whether the committed text is still before the caret.
+    bool CanFlip(ITfContext* ctx);
+    void Flip(ITfContext* ctx);
     // Puts the engine's reply on screen: committed text, composition, candidates.
     void Apply(ITfContext* ctx, const EngineReply& reply, bool async = false);
     void ApplyInSession(TfEditCookie ec, ITfContext* ctx, const EngineReply& reply);
@@ -148,6 +156,7 @@ private:
     EngineClient engine_;
     CandidateWindow candidates_;
     bool english_ = false;
+    std::wstring flipText_;   // the commit Tab would replace (set by CanFlip)
 
     // Shift pressed and released alone (port of ShiftTapDetector).
     ULONGLONG shiftDownAt_ = 0;

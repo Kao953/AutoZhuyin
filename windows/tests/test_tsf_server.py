@@ -58,6 +58,21 @@ class TSFServerTests(unittest.TestCase):
         self.assertEqual(r["preedit"], "妳")
         self.assertEqual(parse(self.s.request("key\tENTER"))["commit"], "妳")
 
+    def test_flip_last_commit(self):
+        out, _ = self.type(list("so "))
+        self.assertEqual(out, "so ")
+        self.assertEqual(parse(self.s.request("flippable"))["text"], "so ")
+        r = parse(self.s.request("flip"))
+        self.assertEqual(r["handled"], "1")
+        self.assertNotIn("s", r["commit"])
+        self.assertEqual(parse(self.s.request("flippable"))["text"], r["commit"])   # Tab again flips back
+        self.s.request("forget")
+        self.assertEqual(parse(self.s.request("flippable"))["text"], "")
+        self.assertEqual(parse(self.s.request("flip"))["handled"], "0")
+        self.type(list("so "))
+        self.s.request("test\tTAB")                 # passed on to the app
+        self.assertEqual(parse(self.s.request("flippable"))["text"], "")
+
     def test_control_shift_and_reset(self):
         self.assertEqual(parse(self.s.request("testctrl\t."))["handled"], "1")
         self.assertEqual(parse(self.s.request("testctrl\tc"))["handled"], "0")

@@ -66,6 +66,7 @@ AI 選字
   learned.json        按 Tab 修正的學習紀錄
   user-history.json   選字紀錄（選過的候選字）
   user-phrases.txt    自訂詞，一行一個，例如：ㄗˋ-ㄉㄨㄥˋ 自動 -1
+                      （IBus 選單「設定」→「編輯自訂詞…」有編輯視窗，改了馬上生效）
 
 
 有問題時

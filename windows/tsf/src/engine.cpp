@@ -120,6 +120,7 @@ EngineReply EngineClient::Request(const std::string& op, const std::string& arg)
                 else if (name == "cand") reply.candidates.push_back(Unescape(value));
                 else if (name == "candsel") reply.candidateIndex = atoi(value.c_str());
                 else if (name == "english") reply.english = value == "1";
+                else if (name == "text") reply.text = Unescape(value);
             }
             start = end + 1;
         }

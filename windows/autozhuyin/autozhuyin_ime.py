@@ -26,6 +26,7 @@ from .core.engine import BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP,
 from .core.english import EnglishModel
 from .core.lexicon import Lexicon
 from .core.shift_tap import ShiftTapDetector
+from .core.user_phrases import UserPhrasesFile
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _DATA = os.path.join(_HERE, "data")
@@ -36,8 +37,9 @@ _HISTORY_FILE = os.path.join(_USER_DIR, "user-history.json")
 
 _classifier = None
 _ai = None
+_phrases = None   # UserPhrasesFile
 
-ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR = 1, 2, 3, 4
+ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR, ID_EDIT_PHRASES = 1, 2, 3, 4, 5
 ID_AI_MODE = {mode: 10 + i for i, mode in enumerate(MODES)}   # 10..13
 _ICON = os.path.join(_HERE, "icon.ico")
 _ICON_EN = os.path.join(_HERE, "icon-en.ico")     # shown while English mode is on
@@ -70,12 +72,11 @@ def _save_history(data):
 
 def _shared_classifier():
     """Loads the lexicon and English model once per PIME server process."""
-    global _classifier
+    global _classifier, _phrases
     if _classifier is None:
         lexicon = Lexicon.from_file(os.path.join(_DATA, "lexicon.txt"))
-        if os.path.exists(_USER_PHRASES):
-            with open(_USER_PHRASES, encoding="utf-8") as f:
-                lexicon.load(f)
+        _phrases = UserPhrasesFile(_USER_PHRASES, lexicon)
+        _phrases.reload_if_changed()
         english = EnglishModel.from_files(
             os.path.join(_DATA, "english-common.txt"),
             os.path.join(_DATA, "english-dict.txt"),
@@ -85,6 +86,15 @@ def _shared_classifier():
         _classifier = Classifier(lexicon, english, LearnedPreferences(_load_json(_LEARNED_FILE), _save_learned),
                                  trained, UserHistory(_load_json(_HISTORY_FILE), _save_history))
     return _classifier
+
+
+def _reload_user_phrases():
+    """Rereads user-phrases.txt if it changed. Returns its bad line numbers, or None."""
+    _shared_classifier()
+    bad = _phrases.reload_if_changed()
+    if bad is not None:
+        _shared_ai().reranker.clear_cache()
+    return bad
 
 
 def _shared_ai():
@@ -122,6 +132,9 @@ class AutoZhuyinTextService(TextService):
         self.addButton("windows-mode-icon", icon=self._mode_icon(), tooltip=self._mode_tooltip(),
                        commandId=ID_MODE_ICON)
         self.addButton("autozhuyin-settings", icon=_ICON, tooltip="自動注音設定", type="menu")
+        bad = _reload_user_phrases()
+        if bad:
+            self.showMessage("自訂詞第 %s 行看不懂，請檢查格式" % "、".join(str(n) for n in bad[:5]), 5)
 
     def onDeactivate(self):
         self.engine.reset()
@@ -156,6 +169,7 @@ class AutoZhuyinTextService(TextService):
             {"text": "系統忙碌時自動暫停 AI", "id": ID_AUTO_PAUSE, "checked": ai.auto_pause},
             {"text": ai.status_text(), "id": ID_STATUS, "enabled": False},
             {},
+            {"text": "編輯自訂詞…", "id": ID_EDIT_PHRASES},
             {"text": "清除學習紀錄", "id": ID_CLEAR},
         ]
         return items
@@ -172,7 +186,10 @@ class AutoZhuyinTextService(TextService):
                 ai.set_mode(mode)
                 self.showMessage("AI 選字：" + MODE_NAMES[mode], 1)
                 return
-        if commandId == ID_AUTO_PAUSE:
+        if commandId == ID_EDIT_PHRASES:
+            # Opens in the default editor (Notepad); saved changes load on the next activation.
+            os.startfile(_phrases.ensure_exists())
+        elif commandId == ID_AUTO_PAUSE:
             ai.set_auto_pause(not ai.auto_pause)
         elif commandId == ID_CLEAR:
             _shared_classifier().learned.clear()

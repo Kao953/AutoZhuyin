@@ -179,6 +179,10 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM vk, LPARAM, BOOL
         return S_OK;
     }
     if (shiftDownAt_) shiftUsed_ = true;
+    if (vk == VK_TAB && !composition_ && !ShortcutModifiers() && !Down(VK_SHIFT) && CanFlip(ctx)) {
+        *eaten = TRUE;
+        return S_OK;
+    }
     std::string c;
     if (ControlChar(vk, &c)) {
         *eaten = engine_.Request("testctrl", c).handled;
@@ -188,11 +192,13 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM vk, LPARAM, BOOL
         // Shortcuts go to the app; commit the composition first (like ⌘C on the Mac). A test
         // handler can't edit the document synchronously.
         if (composition_) Apply(ctx, engine_.Request("commit"), true);
+        else engine_.Request("forget");
         return S_OK;
     }
     std::string key = KeyName(vk);
     if (key.empty()) {
         *eaten = composition_ != nullptr;   // swallow Delete, Home… while composing
+        if (!composition_) engine_.Request("forget");
         return S_OK;
     }
     *eaten = engine_.Request("test", key).handled;
@@ -202,6 +208,10 @@ STDMETHODIMP TextService::OnTestKeyDown(ITfContext* ctx, WPARAM vk, LPARAM, BOOL
 STDMETHODIMP TextService::OnKeyDown(ITfContext* ctx, WPARAM vk, LPARAM lp, BOOL* eaten) {
     OnTestKeyDown(ctx, vk, lp, eaten);
     if (!*eaten || vk == VK_SHIFT) return S_OK;
+    if (!flipText_.empty()) {
+        Flip(ctx);
+        return S_OK;
+    }
     std::string c;
     if (ControlChar(vk, &c)) {
         Apply(ctx, engine_.Request("ctrl", c));
@@ -249,12 +259,67 @@ STDMETHODIMP TextService::OnPreservedKey(ITfContext*, REFGUID, BOOL* eaten) {
 
 // ---- putting text in the app ----
 
-void TextService::Edit(ITfContext* ctx, const std::function<void(TfEditCookie)>& fn, bool async) {
-    if (!ctx) return;
+bool TextService::Edit(ITfContext* ctx, const std::function<void(TfEditCookie)>& fn, bool async, bool readOnly) {
+    if (!ctx) return false;
     EditSession* session = new EditSession(fn);
-    HRESULT hr;
-    ctx->RequestEditSession(clientId_, session, (async ? TF_ES_ASYNCDONTCARE : TF_ES_SYNC) | TF_ES_READWRITE, &hr);
+    HRESULT hr = E_FAIL;
+    HRESULT requested = ctx->RequestEditSession(
+        clientId_, session, (async ? TF_ES_ASYNCDONTCARE : TF_ES_SYNC) | (readOnly ? TF_ES_READ : TF_ES_READWRITE), &hr);
     session->Release();
+    return SUCCEEDED(requested) && (async || SUCCEEDED(hr));
+}
+
+// ---- Tab right after a commit: retype it in the other mode ----
+
+ITfRange* TextService::RangeBeforeCaret(TfEditCookie ec, ITfContext* ctx, const std::wstring& text) {
+    TF_SELECTION sel;
+    ULONG n = 0;
+    if (FAILED(ctx->GetSelection(ec, TF_DEFAULT_SELECTION, 1, &sel, &n)) || n != 1) return nullptr;
+    BOOL empty = FALSE;
+    LONG want = -(LONG)text.size(), moved = 0;
+    std::wstring got(text.size(), L'\0');
+    ULONG gotLength = 0;
+    if (SUCCEEDED(sel.range->IsEmpty(ec, &empty)) && empty &&
+        SUCCEEDED(sel.range->ShiftStart(ec, want, &moved, nullptr)) && moved == want &&
+        SUCCEEDED(sel.range->GetText(ec, 0, &got[0], (ULONG)got.size(), &gotLength)) &&
+        gotLength == text.size() && got == text) {
+        return sel.range;
+    }
+    sel.range->Release();
+    return nullptr;
+}
+
+bool TextService::CanFlip(ITfContext* ctx) {
+    flipText_.clear();
+    std::wstring old = engine_.Request("flippable").text;
+    if (old.empty()) return false;
+    bool found = false;
+    // A read-only look from the key test; if the app won't allow it, Tab is just Tab.
+    Edit(ctx, [&](TfEditCookie ec) {
+        if (ITfRange* range = RangeBeforeCaret(ec, ctx, old)) {
+            found = true;
+            range->Release();
+        }
+    }, false, true);
+    if (found) flipText_ = old;
+    return found;
+}
+
+void TextService::Flip(ITfContext* ctx) {
+    std::wstring old = flipText_;
+    flipText_.clear();
+    Edit(ctx, [&](TfEditCookie ec) {
+        ITfRange* range = RangeBeforeCaret(ec, ctx, old);
+        if (!range) return;   // changed since the test: leave the text alone
+        EngineReply reply = engine_.Request("flip");
+        if (reply.handled) {
+            range->SetText(ec, 0, reply.commit.c_str(), (LONG)reply.commit.size());
+            range->Collapse(ec, TF_ANCHOR_END);
+            TF_SELECTION sel = {range, {TF_AE_NONE, FALSE}};
+            ctx->SetSelection(ec, 1, &sel);
+        }
+        range->Release();
+    });
 }
 
 void TextService::Apply(ITfContext* ctx, const EngineReply& reply, bool async) {

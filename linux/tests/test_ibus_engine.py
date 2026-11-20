@@ -153,6 +153,31 @@ class IBusEngineTests(unittest.TestCase):
         self.e.committed += "x"                  # the caret moved on
         self.assertEqual(press(self.e, "\t"), [False])
 
+    def test_user_phrases_reload_on_focus(self):
+        path = autozhuyin_ibus._USER_PHRASES
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("ㄋㄧˇ 妳 -1\n")
+        try:
+            self.e.do_focus_in()
+            press(self.e, "su3 ")
+            self.assertEqual(self.e.committed, "妳")
+        finally:
+            os.remove(path)
+            autozhuyin_ibus.reload_user_phrases()
+
+    def test_edit_phrases_starts_editor(self):
+        started = []
+        real = autozhuyin_ibus.subprocess.Popen
+        autozhuyin_ibus.subprocess.Popen = started.append
+        try:
+            self.e.do_property_activate("phrases", 0)
+        finally:
+            autozhuyin_ibus.subprocess.Popen = real
+        (cmd,) = started
+        self.assertTrue(cmd[1].endswith("phrase_editor.py"))
+        self.assertEqual(cmd[2], autozhuyin_ibus._USER_PHRASES)
+
     def test_space_passes_through_when_idle(self):
         self.assertEqual(press(self.e, " "), [False])
 

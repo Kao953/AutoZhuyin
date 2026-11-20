@@ -50,7 +50,7 @@ PKG 會裝到 `/Library/Input Methods/`，系統上所有使用者都能用。
 SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安裝：「設定 → 應用程式」裡的「自動注音 AutoZhuyin」（PIME 會留著，不需要的話另外移除）。
 也可以用 zip 版手動安裝：先裝好 PIME，解壓縮 `AutoZhuyin-Windows-<版本>.zip`，以系統管理員身分執行 `install.bat`（移除用 `uninstall.bat`）。
 
-**獨立版（實驗）**：`AutoZhuyin-Windows-Standalone-<版本>-setup.exe` 不需要 PIME，自帶輸入法元件和 Python，需要 64 位元的 Windows 10 / 11。在鍵盤清單裡叫「自動注音（獨立版）」，可以和 PIME 版同時安裝。還沒在實機上測過；目前沒有設定選單（AI 選字固定「標準」）、送出後按 Tab 翻轉不支援，Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能打不出字。學習紀錄和自訂詞在 `%APPDATA%\AutoZhuyin`。
+**獨立版（實驗）**：`AutoZhuyin-Windows-Standalone-<版本>-setup.exe` 不需要 PIME，自帶輸入法元件和 Python，需要 64 位元的 Windows 10 / 11。在鍵盤清單裡叫「自動注音（獨立版）」，可以和 PIME 版同時安裝。還沒在實機上測過；目前沒有設定選單（AI 選字固定「標準」，自訂詞直接改 `%APPDATA%\AutoZhuyin\user-phrases.txt`，存檔後馬上生效），Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能打不出字。學習紀錄和自訂詞在 `%APPDATA%\AutoZhuyin`。
 
 ### Linux（Bazzite、SteamOS 桌面模式、Fedora…）
 
@@ -68,7 +68,7 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 |---|---|
 | 空白 | 注音：一聲；音節已完成時送出中文。英文：送出單字加空白 |
 | Enter | 送出目前組字 |
-| **Tab** | 判斷錯了？按 Tab 把整段翻轉成另一種語言，輸入法會**記住**這次修正。**已經送出了**（按了空白或 Enter）也可以：緊接著按 Tab，剛送出的字會被換成另一種語言（`so ` → 內，`su3cl3` 被打成你好 → `su3cl3 `），再按一次換回來。只限送出後的下一個鍵，中間打了別的字、移動游標或點了別處就是一般的 Tab。Mac 和 Linux（程式要支援讀取游標前文字）可用，Windows 版還不支援 |
+| **Tab** | 判斷錯了？按 Tab 把整段翻轉成另一種語言，輸入法會**記住**這次修正。**已經送出了**（按了空白或 Enter）也可以：緊接著按 Tab，剛送出的字會被換成另一種語言（`so ` → 內，`su3cl3` 被打成你好 → `su3cl3 `），再按一次換回來。只限送出後的下一個鍵，中間打了別的字、移動游標或點了別處就是一般的 Tab。Mac、Linux 和 Windows 獨立版可用（程式要支援讀取游標前文字）；Windows 的 PIME 版做不到（PIME 不能讀取或刪除已送出的字） |
 | ← → | 在組字區移動游標（最左停在第一個中文字後面）。游標在中間時：直接打注音會**插入**新字，Backspace 刪掉游標前的字，↓ 選游標前的字 |
 | ↓ | 開啟游標前那個字或詞的候選字（游標預設在最後），數字鍵 1–9 選字，Esc 關閉 |
 | Esc | 取消組字 |
@@ -154,10 +154,13 @@ Windows、Linux 版用 numpy 執行同一個模型（`windows/autozhuyin/core/lm
 | 選字紀錄 | `~/Library/Application Support/AutoZhuyin/user-history.json` | `%APPDATA%\PIME\autozhuyin\user-history.json` | `~/.config/autozhuyin/user-history.json` |
 | 自訂詞 | `~/Library/Application Support/AutoZhuyin/user-phrases.txt` | `%APPDATA%\PIME\autozhuyin\user-phrases.txt` | `~/.config/autozhuyin/user-phrases.txt` |
 
-Mac 版可以在輸入法選單選「編輯自訂詞…」：打好詞會自動填入常用讀音（可以改，注音符號或大千鍵位都行），按加入就生效，不用重新登入；用這個視窗加入的詞分數是 -1，會排在同讀音的內建詞前面。表格裡的詞和注音可以直接點兩下修改。
-自訂詞的格式和 `lexicon.txt` 一樣，每行一個詞：`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`（讀音、詞、分數；分數越大越優先）。Mac 版直接改檔案也會在下次切換輸入法時重新讀取；Windows、Linux 版改完要重新啟動輸入法。
+輸入法選單的「編輯自訂詞…」：
+- Mac、Linux：打開編輯視窗。打好詞會自動填入常用讀音（可以改，注音符號或大千鍵位都行），按加入就生效；用這個視窗加入的詞分數是 -1，會排在同讀音的內建詞前面。表格裡的詞和注音可以直接點兩下修改。
+- Windows（PIME 版）：用記事本打開自訂詞檔（第一次會附上格式說明），存檔後下次切換到輸入法時生效，看不懂的行會提示行號。
+
+自訂詞的格式和 `lexicon.txt` 一樣，每行一個詞：`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`（讀音、詞、分數；分數越大越優先）。自訂詞會蓋過內建詞庫裡同一個詞、同一個讀音的分數。直接改檔案也可以，三個平台都會自動重新讀取。
 選字紀錄最多保留 2000 筆，太久沒用的會先淘汰。被選過的字只會排到同讀音第一順位，不會蓋過整個詞組（例如選過「添」之後，ㄊㄧㄢ 單打會出「添」，但「今天」還是「今天」）。
-Mac 版可以在輸入法選單選「清除學習紀錄」（中英判斷和選字紀錄一起清除）；Windows、Linux 刪除上面的檔案即可。
+輸入法選單的「清除學習紀錄」會把中英判斷和選字紀錄一起清除（Windows 獨立版沒有選單，刪除上面的檔案即可）。
 
 ## 開發
 
@@ -339,10 +342,10 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進三個平台�
 - [ ] Linux Fcitx5 版（KDE 上相容性較好）
 - [x] 用資料訓練判斷權重（合成資料）
 - [ ] 加入真實打字資料一起訓練
-- [x] 已送出的英文單字若判斷錯誤，可以「事後翻轉」（macOS、Linux；Windows 待 PIME 支援）
+- [x] 已送出的英文單字若判斷錯誤，可以「事後翻轉」（macOS、Linux、Windows 獨立版；PIME 版做不到）
 - [x] AI 選字：語言模型參考前後文挑同音字（macOS、Windows、Linux）
 - [x] 使用者詞頻學習（選過的候選字優先）
-- [ ] 偏好設定視窗（macOS 已有自訂詞編輯視窗）
+- [ ] 偏好設定視窗（已有自訂詞編輯：macOS、Linux 是視窗，Windows 用記事本）
 
 ## 致謝與授權
 

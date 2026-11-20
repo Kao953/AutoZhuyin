@@ -30,7 +30,7 @@ if [ -d "$DEST/vendor" ]; then      # keep numpy downloaded by an earlier instal
 fi
 rm -rf "$DEST"
 mkdir -p "$DEST"
-cp -R autozhuyin autozhuyin_ibus.py version.txt tools "$DEST/"
+cp -R autozhuyin autozhuyin_ibus.py phrase_editor.py version.txt tools "$DEST/"
 for f in icon.png icon-en.png THIRD_PARTY_LICENSES.txt GPL-3.0.txt; do [ -f "$f" ] && cp "$f" "$DEST/"; done
 [ -n "$VENDOR_BACKUP" ] && mv "$VENDOR_BACKUP/vendor" "$DEST/" && rmdir "$VENDOR_BACKUP"
 chmod +x "$DEST/autozhuyin_ibus.py"

@@ -67,6 +67,7 @@ AI 選字
   - 在哪個程式裡打字（Word、LINE、Chrome…）
 
 自訂詞：%APPDATA%\PIME\autozhuyin\user-phrases.txt
+  （輸入法選單的「編輯自訂詞…」會用記事本打開，存檔後下次切換到輸入法時生效）
   每行一個詞，格式：ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4
 
 解除安裝：在 uninstall.bat 上按右鍵 →「以系統管理員身分執行」。

@@ -12,6 +12,7 @@ Run modes:
 """
 import json
 import os
+import subprocess
 import sys
 import time
 
@@ -38,6 +39,7 @@ from autozhuyin.core.engine import (  # noqa: E402
 from autozhuyin.core.english import EnglishModel  # noqa: E402
 from autozhuyin.core.lexicon import Lexicon  # noqa: E402
 from autozhuyin.core.shift_tap import ShiftTapDetector  # noqa: E402
+from autozhuyin.core.user_phrases import UserPhrasesFile  # noqa: E402
 
 ENGINE_NAME = "autozhuyin"
 BUS_NAME = "org.freedesktop.IBus.AutoZhuyin"
@@ -57,6 +59,14 @@ except OSError:
 
 _classifier = None
 _ai = None
+_phrases = None   # UserPhrasesFile
+
+
+def reload_user_phrases():
+    """Rereads user-phrases.txt if it changed (the editor or a hand edit)."""
+    shared_classifier()
+    if _phrases.reload_if_changed() is not None:
+        shared_ai().reranker.clear_cache()
 
 
 def shared_ai():
@@ -94,12 +104,11 @@ def _save_history(data):
 
 def shared_classifier():
     """Loads the lexicon and English model once per process."""
-    global _classifier
+    global _classifier, _phrases
     if _classifier is None:
         lexicon = Lexicon.from_file(os.path.join(_DATA, "lexicon.txt"))
-        if os.path.exists(_USER_PHRASES):
-            with open(_USER_PHRASES, encoding="utf-8") as f:
-                lexicon.load(f)
+        _phrases = UserPhrasesFile(_USER_PHRASES, lexicon)
+        _phrases.reload_if_changed()
         english = EnglishModel.from_files(
             os.path.join(_DATA, "english-common.txt"),
             os.path.join(_DATA, "english-dict.txt"),
@@ -166,12 +175,17 @@ class AutoZhuyinEngine(IBus.Engine):
             label=IBus.Text.new_from_string(ai.status_text()),
             tooltip=IBus.Text.new_from_string(""), sensitive=False, visible=True,
             state=IBus.PropState.UNCHECKED)
+        self.phrases_prop = IBus.Property(
+            key="phrases", prop_type=IBus.PropType.NORMAL,
+            label=IBus.Text.new_from_string("編輯自訂詞…"),
+            tooltip=IBus.Text.new_from_string(""), sensitive=True, visible=True,
+            state=IBus.PropState.UNCHECKED)
         self.clear_prop = IBus.Property(
             key="clear", prop_type=IBus.PropType.NORMAL,
             label=IBus.Text.new_from_string("清除學習紀錄"),
             tooltip=IBus.Text.new_from_string(""), sensitive=True, visible=True,
             state=IBus.PropState.UNCHECKED)
-        for prop in (self.pause_prop, self.status_prop, self.clear_prop):
+        for prop in (self.pause_prop, self.status_prop, self.phrases_prop, self.clear_prop):
             sub.append(prop)
         self.ai_menu = IBus.Property(
             key="ai", prop_type=IBus.PropType.MENU,
@@ -296,6 +310,10 @@ class AutoZhuyinEngine(IBus.Engine):
                 ai.set_mode(prop_name[3:])
         elif prop_name == "ai.autopause":
             ai.set_auto_pause(state == IBus.PropState.CHECKED)
+        elif prop_name == "phrases":
+            # A separate process, so the editor can be typed into with this engine.
+            subprocess.Popen([sys.executable, os.path.join(HERE, "phrase_editor.py"), _USER_PHRASES,
+                              os.path.join(_DATA, "lexicon.txt")])
         elif prop_name == "clear":
             shared_classifier().learned.clear()
             shared_classifier().history.clear()
@@ -318,6 +336,7 @@ class AutoZhuyinEngine(IBus.Engine):
 
     def do_focus_in(self):
         self._setup()
+        reload_user_phrases()
         self.get_surrounding_text()   # IBus only sends the app's text once an engine asks
         self.register_properties(self.props)
         self._update_mode()

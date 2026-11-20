@@ -16,7 +16,11 @@ class Lexicon:
 
     def __init__(self):
         self.exact = {}
+        # User phrases (set_user_phrases), kept apart so they can be replaced while running.
+        # They override a built-in entry for the same phrase and reading.
+        self.user = {}
         self._toneless = None      # built on first use (only untoned syllables need it)
+        self._readings = None      # phrase -> (reading, score), for reading_of
         self.max_phrase_length = 1
 
     @classmethod
@@ -46,6 +50,44 @@ class Lexicon:
             if len(v) > 1:
                 v.sort(key=lambda e: -e[1])
         self._toneless = None
+        self._readings = None
+
+    def set_user_phrases(self, text):
+        """Replaces the user phrases (user-phrases.txt, lexicon format)."""
+        parsed = Lexicon()
+        parsed.load(text.splitlines())
+        self.user = parsed.exact
+        self.max_phrase_length = max(self.max_phrase_length, parsed.max_phrase_length)
+        self._toneless = None
+        self._readings = None
+
+    def _merged(self, key, built_in):
+        mine = self.user.get(key)
+        if not mine:
+            return built_in
+        phrases = {p for p, _ in mine}
+        return sorted(mine + [e for e in built_in if e[0] not in phrases], key=lambda e: -e[1])
+
+    def reading_of(self, phrase):
+        """The most likely reading of a phrase: its own entry if the lexicon has one,
+        otherwise the most common reading of each character. None if a character has none."""
+        if self._readings is None:
+            index = {}
+            for source in (self.exact, self.user):
+                for reading, entries in source.items():
+                    for p, score in entries:
+                        if p not in index or score > index[p][1]:
+                            index[p] = (reading, score)
+            self._readings = index
+        if phrase in self._readings:
+            return self._readings[phrase][0]
+        out = []
+        for c in phrase:
+            r = self._readings.get(c)
+            if r is None or "-" in r[0]:
+                return None
+            out.append(r[0])
+        return "-".join(out) or None
 
     def add(self, reading, phrase, score):
         syllables = [s[1:] + "˙" if s.startswith("˙") else s for s in reading.split("-")]
@@ -55,13 +97,14 @@ class Lexicon:
         if not any(p == phrase for p, _ in entries):
             entries.append((phrase, score))
         self._toneless = None
+        self._readings = None
 
     @property
     def toneless(self):
         """Index ignoring tones: toneless reading -> [(phrase, best score)], best first."""
         if self._toneless is None:
             best = {}
-            for reading, entries in self.exact.items():
+            for reading, entries in list(self.exact.items()) + list(self.user.items()):
                 bucket = best.setdefault(_strip_tones(reading), {})
                 for phrase, score in entries:
                     if score > bucket.get(phrase, float("-inf")):
@@ -71,7 +114,8 @@ class Lexicon:
 
     def entries(self, syllables):
         if all(s.tone is not None for s in syllables):
-            return self.exact.get("-".join(s.reading for s in syllables), [])
+            key = "-".join(s.reading for s in syllables)
+            return self._merged(key, self.exact.get(key, []))
         return self.toneless.get("-".join(s.toneless for s in syllables), [])
 
     def best_score(self, syllable):

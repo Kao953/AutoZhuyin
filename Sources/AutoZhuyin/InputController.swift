@@ -79,6 +79,17 @@ final class InputController: IMKInputController {
         return e
     }()
     private var shiftTap = ShiftTapDetector()
+    /// The first activation picks the starting mode for this app (see `englishFirstApps`);
+    /// after that the mode is whatever the user last chose here.
+    private var startingModeChosen = false
+
+    /// Terminals start in English mode: commands and paths are English, and a Shift tap
+    /// still switches to 中英自動 for the odd Chinese text.
+    private static let englishFirstApps: Set<String> = [
+        "com.apple.Terminal", "com.googlecode.iterm2", "dev.warp.Warp-Stable", "com.mitchellh.ghostty",
+        "net.kovidgoyal.kitty", "org.alacritty", "io.alacritty", "com.github.wez.wezterm",
+        "co.zeit.hyper", "org.tabby", "dev.commandline.waveterm",
+    ]
 
     // MARK: - Key events
 
@@ -214,6 +225,13 @@ final class InputController: IMKInputController {
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         Shared.reloadUserPhrasesIfChanged()
+        if !startingModeChosen, let client = sender as? IMKTextInput {
+            startingModeChosen = true
+            if let app = client.bundleIdentifier(), InputController.englishFirstApps.contains(app) {
+                engine.setEnglishMode(true)
+                ModeIndicator.show(english: true, client: client)
+            }
+        }
     }
 
     override func deactivateServer(_ sender: Any!) {

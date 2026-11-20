@@ -1,4 +1,5 @@
 // Renders a menu-bar icon (one character, "注" by default; "A" for English mode) to a TIFF.
+// Drawn black on transparent: Info.plist sets TISIconIsTemplate, so macOS recolors it to match the menu bar.
 // Usage: swift scripts/make-icon.swift <output.tiff> [character]
 import AppKit
 

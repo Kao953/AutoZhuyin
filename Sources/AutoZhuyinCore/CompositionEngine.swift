@@ -73,13 +73,14 @@ public final class CompositionEngine {
     /// The last characters committed, used as context for the reranker.
     private var recentText = ""
 
-    /// The last space / Enter commit, until the next key: Tab right after it retypes the
-    /// same keys in the other mode (an after-the-fact correction, learned like a Tab flip).
+    /// The last commit by space, until the next key: Tab right after it retypes the same
+    /// keys in the other mode (an after-the-fact correction, learned like a Tab flip).
+    /// Not after Enter: that confirms the text, and Tab next is completion or indenting
+    /// ("cd shell" ⏎ Tab in a terminal).
     private struct LastCommit {
         var keys: [Character]
         var text: String
         var mode: InputMode
-        var space: Bool
         var recentText: String
     }
     private var lastCommit: LastCommit?
@@ -399,7 +400,7 @@ public final class CompositionEngine {
         case .enter:
             guard !keys.isEmpty else { return .passThrough }
             if !inserting.isEmpty { splice(inserting); inserting = [] }
-            return KeyResult(handled: true, commit: commitFlippable(space: false))
+            return KeyResult(handled: true, commit: commitCurrent())
         case .escape:
             guard !keys.isEmpty else { return .passThrough }
             reset()
@@ -473,13 +474,13 @@ public final class CompositionEngine {
                     keys.append(" ")
                     return .consumed
                 }
-                return KeyResult(handled: true, commit: commitFlippable(segs, space: true))
+                return KeyResult(handled: true, commit: commitFlippable(segs))
             }
             if parse(ofLast: segs)?.pending != nil {
                 keys.append(" ")       // first tone
                 return .consumed
             }
-            return KeyResult(handled: true, commit: commitFlippable(segs, space: true))
+            return KeyResult(handled: true, commit: commitFlippable(segs))
         }
 
         let composable = DachenLayout.isZhuyinKey(c) || (c.isASCII && c.isLetter) || (c == "'" && !keys.isEmpty)
@@ -646,16 +647,16 @@ public final class CompositionEngine {
         return text
     }
 
-    /// Commits on space / Enter and remembers it for an after-the-fact Tab flip. English
-    /// committed by space gets the space too.
-    private func commitFlippable(_ given: [Segment]? = nil, space: Bool) -> String {
+    /// Commits on space and remembers it for an after-the-fact Tab flip. English gets the
+    /// space too.
+    private func commitFlippable(_ given: [Segment]? = nil) -> String {
         let segs = given ?? segments
         let typed = keys, context = recentText
         let mode = segs.last?.mode ?? .zhuyin
-        let text = commitCurrent(segs) + (space && mode == .literal ? " " : "")
+        let text = commitCurrent(segs) + (mode == .literal ? " " : "")
         // Only Dachen keys can be reread as Zhuyin ("Hello" or "C++" cannot).
         let canFlip = mode == .zhuyin || typed.allSatisfy { $0 == " " || DachenLayout.isZhuyinKey($0) }
-        lastCommit = canFlip ? LastCommit(keys: typed, text: text, mode: mode, space: space, recentText: context) : nil
+        lastCommit = canFlip ? LastCommit(keys: typed, text: text, mode: mode, recentText: context) : nil
         return text
     }
 
@@ -676,7 +677,7 @@ public final class CompositionEngine {
         }
         forcedMode = last.mode == .zhuyin ? .literal : .zhuyin
         forcedCount = keys.count
-        return commitFlippable(space: last.space)
+        return commitFlippable()
     }
 
     /// A key the engine didn't see (the shell passed it on): no flip after it.

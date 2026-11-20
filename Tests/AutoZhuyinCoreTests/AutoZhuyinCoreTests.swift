@@ -194,8 +194,12 @@ final class EngineTests: XCTestCase {
 
         XCTAssertEqual(type("su3cl3 ", into: e), "你好")
         XCTAssertEqual(e.flipLastCommit(), "su3cl3 ")
-        XCTAssertEqual(type("ji \n", into: e).count, 1)    // first tone, then Enter
-        XCTAssertEqual(e.flipLastCommit(), "ji")           // no tone space, no trailing space
+        XCTAssertEqual(type("ji  ", into: e).count, 1)     // first tone, then space commits
+        XCTAssertEqual(e.flipLastCommit(), "ji ")          // the tone space isn't kept
+
+        // Not after Enter: Tab next is completion ("cd shell" ⏎ Tab in a terminal).
+        XCTAssertEqual(type("shell\n", into: e), "shell")
+        XCTAssertNil(e.flippableText)
     }
 
     /// Only right after the commit, and only for keys that can be reread.

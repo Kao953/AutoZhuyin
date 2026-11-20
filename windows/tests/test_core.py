@@ -136,8 +136,11 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(e.flip_last_commit(), "so ")
         self.assertEqual(type_keys("su3cl3 ", e), "你好")
         self.assertEqual(e.flip_last_commit(), "su3cl3 ")
-        self.assertEqual(len(type_keys("ji \n", e)), 1)
-        self.assertEqual(e.flip_last_commit(), "ji")
+        self.assertEqual(len(type_keys("ji  ", e)), 1)
+        self.assertEqual(e.flip_last_commit(), "ji ")
+        # Not after Enter: Tab next is completion ("cd shell" ⏎ Tab in a terminal).
+        self.assertEqual(type_keys("shell\n", e), "shell")
+        self.assertIsNone(e.flippable_text)
 
     def test_flip_last_commit_limits(self):
         e = make_engine()

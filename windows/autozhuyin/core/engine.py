@@ -83,9 +83,10 @@ class CompositionEngine:
         self.held = None
         self.reranker = None     # "AI 選字" (reranker.Reranker); None = lexicon only
         self._recent_text = ""   # last characters committed: context for the reranker
-        # The last space / Enter commit, until the next key: Tab right after it retypes the
-        # same keys in the other mode (an after-the-fact correction, learned like a Tab flip).
-        # (keys, text, mode, space, recent_text) or None.
+        # The last commit by space, until the next key: Tab right after it retypes the same
+        # keys in the other mode (an after-the-fact correction, learned like a Tab flip). Not
+        # after Enter: that confirms the text, and Tab next is completion or indenting.
+        # (keys, text, mode, recent_text) or None.
         self._last_commit = None
         self._previous_mode = None
         self._previous_time = float("-inf")
@@ -439,7 +440,7 @@ class CompositionEngine:
             if self.inserting:
                 self._splice(self.inserting)
                 self.inserting = []
-            return True, self._commit_flippable(space=False)
+            return True, self._commit()
         if key == ESCAPE:
             if not self.keys:
                 return PASS
@@ -520,12 +521,12 @@ class CompositionEngine:
                     self.held = len(self.keys)
                     self.keys.append(" ")
                     return CONSUMED
-                return True, self._commit_flippable(segs, space=True)
+                return True, self._commit_flippable(segs)
             p = self._last_parse(segs)
             if p is not None and p.pending is not None:
                 self.keys.append(" ")
                 return CONSUMED
-            return True, self._commit_flippable(segs, space=True)
+            return True, self._commit_flippable(segs)
 
         composable = bopomofo.is_zhuyin_key(c) or (c.isascii() and c.isalpha()) or (c == "'" and self.keys)
         if composable:
@@ -631,16 +632,16 @@ class CompositionEngine:
         self.reset()
         return text
 
-    def _commit_flippable(self, segs=None, space=False):
-        """Commits on space / Enter and remembers it for an after-the-fact Tab flip. English
-        committed by space gets the space too."""
+    def _commit_flippable(self, segs=None):
+        """Commits on space and remembers it for an after-the-fact Tab flip. English gets the
+        space too."""
         segs = segs if segs is not None else self.segments
         typed, context = list(self.keys), self._recent_text
         mode = segs[-1][2] if segs else ZHUYIN
-        text = self._commit(segs) + (" " if space and mode == LITERAL else "")
+        text = self._commit(segs) + (" " if mode == LITERAL else "")
         # Only Dachen keys can be reread as Zhuyin ("Hello" or "C++" cannot).
         can_flip = mode == ZHUYIN or all(k == " " or bopomofo.is_zhuyin_key(k) for k in typed)
-        self._last_commit = (typed, text, mode, space, context) if can_flip else None
+        self._last_commit = (typed, text, mode, context) if can_flip else None
         return text
 
     @property
@@ -655,7 +656,7 @@ class CompositionEngine:
         text to put in place of flippable_text. Tab again flips it back."""
         if not self._last_commit or not self._last_commit[0]:
             return None
-        keys, _, mode, space, context = self._last_commit
+        keys, _, mode, context = self._last_commit
         self.reset()
         self.keys = list(keys)
         self._recent_text = context
@@ -664,7 +665,7 @@ class CompositionEngine:
                 self.keys.pop()   # first-tone spaces aren't English
         self.forced_mode = LITERAL if mode == ZHUYIN else ZHUYIN
         self.forced_count = len(self.keys)
-        return self._commit_flippable(space=space)
+        return self._commit_flippable()
 
     def forget_last_commit(self):
         """A key the engine didn't see (the shell passed it on): no flip after it."""

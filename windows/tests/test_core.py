@@ -124,6 +124,36 @@ class EngineTests(unittest.TestCase):
     def test_enter_commits_english(self):
         self.assertEqual(type_keys("github\n", make_engine()), "github")
 
+    def test_flip_last_commit(self):
+        """Tab right after a commit retypes it in the other mode and learns the correction."""
+        e = make_engine()
+        self.assertEqual(type_keys("so ", e), "so ")
+        self.assertEqual(e.flippable_text, "so ")
+        zh = e.flip_last_commit()
+        self.assertNotIn("s", zh)
+        self.assertEqual(e.classifier.learned.weights["so"], 1)
+        self.assertEqual(e.flippable_text, zh)      # Tab again flips it back
+        self.assertEqual(e.flip_last_commit(), "so ")
+        self.assertEqual(type_keys("su3cl3 ", e), "你好")
+        self.assertEqual(e.flip_last_commit(), "su3cl3 ")
+        self.assertEqual(len(type_keys("ji \n", e)), 1)
+        self.assertEqual(e.flip_last_commit(), "ji")
+
+    def test_flip_last_commit_limits(self):
+        e = make_engine()
+        type_keys("hello a", e)
+        self.assertIsNone(e.flippable_text)
+        e.commit_all()
+        type_keys("Hello ", e)
+        self.assertIsNone(e.flippable_text)        # capitals aren't Dachen keys
+        type_keys("so ", e)
+        e.handle(LEFT)
+        self.assertIsNone(e.flippable_text)
+        self.assertEqual(e.handle(TAB), (False, None))
+        type_keys("so ", e)
+        e.handle_control(".")
+        self.assertIsNone(e.flippable_text)
+
     def test_tab_learns(self):
         e = make_engine()
         type_keys("so", e)

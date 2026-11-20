@@ -135,6 +135,7 @@ class AutoZhuyinEngine(IBus.Engine):
         self.engine = CompositionEngine(shared_classifier())
         self.engine.reranker = shared_ai().reranker
         self.shift_tap = ShiftTapDetector()
+        self._caps = 0   # client capabilities (do_set_capabilities)
         self.table = IBus.LookupTable.new(self.engine.page_size, 0, True, False)
         self.table.set_orientation(IBus.Orientation.VERTICAL)
         self.mode_prop = IBus.Property(
@@ -220,8 +221,13 @@ class AutoZhuyinEngine(IBus.Engine):
 
         key = self._key(keyval, state)
         if key is None:
+            self.engine.forget_last_commit()
             return self._busy()   # swallow other keys (Delete, Home…) while composing
+        # Tab right after a commit: retype it in the other mode, if it is still before the caret.
+        if key == TAB and self._flip_last_commit():
+            return True
         if not self.engine.wants(key):
+            self.engine.forget_last_commit()
             return False
         handled, commit = self.engine.handle(key)
         self._update(commit)
@@ -239,6 +245,18 @@ class AutoZhuyinEngine(IBus.Engine):
         if state & IBus.ModifierType.LOCK_MASK and not state & IBus.ModifierType.SHIFT_MASK:
             code = code.lower()
         return code
+
+    def _flip_last_commit(self):
+        old = self.engine.flippable_text
+        if not old or not self._caps & IBus.Capabilite.SURROUNDING_TEXT:
+            return False
+        text, cursor, anchor = self.get_surrounding_text()
+        if cursor != anchor or not text.get_text()[:cursor].endswith(old):
+            return False
+        new = self.engine.flip_last_commit()
+        self.delete_surrounding_text(-len(old), len(old))
+        self._update(new)
+        return True
 
     def _busy(self):
         return bool(self.engine.keys or self.engine.candidates)
@@ -295,8 +313,12 @@ class AutoZhuyinEngine(IBus.Engine):
 
     # --- lifecycle ---
 
+    def do_set_capabilities(self, caps):
+        self._caps = caps
+
     def do_focus_in(self):
         self._setup()
+        self.get_surrounding_text()   # IBus only sends the app's text once an engine asks
         self.register_properties(self.props)
         self._update_mode()
         self._refresh_ai_props()
@@ -305,11 +327,13 @@ class AutoZhuyinEngine(IBus.Engine):
         self._setup()
         # PreeditFocusMode.COMMIT: IBus commits the shown text itself on focus out.
         self.engine.reset()
+        self.engine.forget_last_commit()
         self.hide_lookup_table()
 
     def do_reset(self):
         self._setup()
         self.engine.reset()
+        self.engine.forget_last_commit()
         self.hide_preedit_text()
         self.hide_lookup_table()
 

@@ -179,6 +179,42 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(e.classifier.learned.weights["so"], 1)
     }
 
+    /// Tab right after a commit retypes it in the other mode and learns the correction.
+    func testFlipLastCommit() {
+        let e = makeEngine()
+        XCTAssertEqual(type("so ", into: e), "so ")
+        XCTAssertEqual(e.flippableText, "so ")
+        let zh = e.flipLastCommit()
+        XCTAssertNotNil(zh)
+        XCTAssertFalse(zh!.contains("s"))
+        XCTAssertEqual(e.classifier.learned.weights["so"], 1)
+        // Tab again flips it back.
+        XCTAssertEqual(e.flippableText, zh)
+        XCTAssertEqual(e.flipLastCommit(), "so ")
+
+        XCTAssertEqual(type("su3cl3 ", into: e), "你好")
+        XCTAssertEqual(e.flipLastCommit(), "su3cl3 ")
+        XCTAssertEqual(type("ji \n", into: e).count, 1)    // first tone, then Enter
+        XCTAssertEqual(e.flipLastCommit(), "ji")           // no tone space, no trailing space
+    }
+
+    /// Only right after the commit, and only for keys that can be reread.
+    func testFlipLastCommitLimits() {
+        let e = makeEngine()
+        _ = type("hello a", into: e)
+        XCTAssertNil(e.flippableText)                       // typing goes on
+        _ = e.commitAll()
+        _ = type("Hello ", into: e)
+        XCTAssertNil(e.flippableText)                       // capitals aren't Dachen keys
+        _ = type("so ", into: e)
+        _ = e.handle(.left)                                 // any key forgets it
+        XCTAssertNil(e.flippableText)
+        XCTAssertEqual(e.handle(.tab), .passThrough)
+        _ = type("so ", into: e)
+        _ = e.handleControl(".")
+        XCTAssertNil(e.flippableText)
+    }
+
     func testEnglishPunctuation() {
         let e = makeEngine()
         XCTAssertEqual(type("hello, ", into: e), "hello, ")

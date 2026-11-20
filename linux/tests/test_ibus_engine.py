@@ -37,6 +37,7 @@ class Text:
     @staticmethod
     def new_from_string(s): return Text(s)
     def set_attributes(self, a): self.attrs = a
+    def get_text(self): return self.text
 
 
 class AttrList(list):
@@ -67,6 +68,10 @@ class Engine:
         self.preedit_attrs = None
 
     def commit_text(self, t): self.committed += t.text
+    def get_surrounding_text(self): return Text(self.committed), len(self.committed), len(self.committed)
+    def delete_surrounding_text(self, offset, n):
+        end = len(self.committed) + offset + n
+        self.committed = self.committed[:len(self.committed) + offset] + self.committed[end:]
     def update_preedit_text_with_mode(self, t, cursor, visible, mode):
         self.preedit, self.cursor, self.preedit_attrs = t.text, cursor, t.attrs
     def hide_preedit_text(self): self.preedit = ""
@@ -87,6 +92,7 @@ IBus.Orientation = types.SimpleNamespace(VERTICAL=1)
 IBus.PropType = types.SimpleNamespace(NORMAL=0, TOGGLE=1, RADIO=2, MENU=3)
 IBus.PropState = types.SimpleNamespace(UNCHECKED=0, CHECKED=1)
 IBus.PreeditFocusMode = types.SimpleNamespace(COMMIT=1)
+IBus.Capabilite = types.SimpleNamespace(SURROUNDING_TEXT=32)
 
 gi = types.ModuleType("gi")
 gi.require_version = lambda *a: None
@@ -128,6 +134,24 @@ class IBusEngineTests(unittest.TestCase):
         self.assertEqual(self.e.preedit, "我hello")
         self.assertIn(("color", 1, 6), self.e.preedit_attrs)
         self.assertEqual(self.e.cursor, 6)
+
+    def test_tab_flips_last_commit(self):
+        self.e.do_set_capabilities(IBus.Capabilite.SURROUNDING_TEXT)
+        press(self.e, "su3cl3 ")
+        self.assertEqual(self.e.committed, "你好")
+        self.assertEqual(press(self.e, "\t"), [True])
+        self.assertEqual(self.e.committed, "su3cl3 ")
+        press(self.e, "\t")                       # and back
+        self.assertEqual(self.e.committed, "你好")
+
+    def test_tab_after_commit_needs_surrounding_text(self):
+        press(self.e, "su3cl3 ")
+        self.assertEqual(press(self.e, "\t"), [False])   # app can't report its text: plain Tab
+        self.assertEqual(self.e.committed, "你好")
+        self.e.do_set_capabilities(IBus.Capabilite.SURROUNDING_TEXT)
+        press(self.e, "so ")
+        self.e.committed += "x"                  # the caret moved on
+        self.assertEqual(press(self.e, "\t"), [False])
 
     def test_space_passes_through_when_idle(self):
         self.assertEqual(press(self.e, " "), [False])

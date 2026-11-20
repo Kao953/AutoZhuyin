@@ -106,7 +106,16 @@ final class InputController: IMKInputController {
             return true
         }
 
-        guard let key = keyInput(for: event) else { return false }
+        guard let key = keyInput(for: event) else {
+            engine.forgetLastCommit()
+            return false
+        }
+        // Tab right after a commit: retype it in the other mode, if it is still before the caret.
+        if key == .tab, let old = engine.flippableText,
+           let range = range(of: old, beforeCaretIn: client), let text = engine.flipLastCommit() {
+            client.insertText(text, replacementRange: range)
+            return true
+        }
         let result = engine.handle(key)
         if let text = result.commit { commit(text, to: client) }
         updateComposition(client)
@@ -138,6 +147,16 @@ final class InputController: IMKInputController {
     private func commit(_ text: String, to client: IMKTextInput) {
         guard !text.isEmpty else { return }
         client.insertText(text, replacementRange: NSRange(location: NSNotFound, length: 0))
+    }
+
+    /// Where `text` is, right before the caret with nothing selected; nil if it isn't there
+    /// (the caret moved, or the app doesn't report its text).
+    private func range(of text: String, beforeCaretIn client: IMKTextInput) -> NSRange? {
+        let caret = client.selectedRange()
+        let n = text.utf16.count
+        guard caret.location != NSNotFound, caret.length == 0, caret.location >= n else { return nil }
+        let range = NSRange(location: caret.location - n, length: n)
+        return client.attributedSubstring(from: range)?.string == text ? range : nil
     }
 
     private func updateComposition(_ client: IMKTextInput) {

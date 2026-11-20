@@ -151,7 +151,8 @@ Windows、Linux 版用 numpy 執行同一個模型（`windows/autozhuyin/core/lm
 | 選字紀錄 | `~/Library/Application Support/AutoZhuyin/user-history.json` | `%APPDATA%\PIME\autozhuyin\user-history.json` | `~/.config/autozhuyin/user-history.json` |
 | 自訂詞 | `~/Library/Application Support/AutoZhuyin/user-phrases.txt` | `%APPDATA%\PIME\autozhuyin\user-phrases.txt` | `~/.config/autozhuyin/user-phrases.txt` |
 
-自訂詞的格式和 `lexicon.txt` 一樣，每行一個詞：`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`（讀音、詞、分數；分數越大越優先）。
+Mac 版可以在輸入法選單選「編輯自訂詞…」：打好詞會自動填入常用讀音（可以改，注音符號或大千鍵位都行），按加入就生效，不用重新登入；用這個視窗加入的詞分數是 -1，會排在同讀音的內建詞前面。表格裡的詞和注音可以直接點兩下修改。
+自訂詞的格式和 `lexicon.txt` 一樣，每行一個詞：`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`（讀音、詞、分數；分數越大越優先）。Mac 版直接改檔案也會在下次切換輸入法時重新讀取；Windows、Linux 版改完要重新啟動輸入法。
 選字紀錄最多保留 2000 筆，太久沒用的會先淘汰。被選過的字只會排到同讀音第一順位，不會蓋過整個詞組（例如選過「添」之後，ㄊㄧㄢ 單打會出「添」，但「今天」還是「今天」）。
 Mac 版可以在輸入法選單選「清除學習紀錄」（中英判斷和選字紀錄一起清除）；Windows、Linux 刪除上面的檔案即可。
 
@@ -331,7 +332,7 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進三個平台�
 - [x] 已送出的英文單字若判斷錯誤，可以「事後翻轉」（macOS、Linux；Windows 待 PIME 支援）
 - [x] AI 選字：語言模型參考前後文挑同音字（macOS、Windows、Linux）
 - [x] 使用者詞頻學習（選過的候選字優先）
-- [ ] 偏好設定視窗
+- [ ] 偏好設定視窗（macOS 已有自訂詞編輯視窗）
 
 ## 致謝與授權
 

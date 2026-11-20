@@ -17,6 +17,9 @@ public struct LexiconEntry: Equatable {
 /// call `prepareTonelessIndex()` from a background queue to have it ready.
 public final class Lexicon {
     private var exact: [String: [LexiconEntry]] = [:]
+    /// User phrases (`setUserPhrases`), kept apart so they can be replaced while running.
+    /// They override a built-in entry for the same phrase and reading.
+    private var user: [String: [LexiconEntry]] = [:]
     private var tonelessIndex: [String: [LexiconEntry]]?
     private let lock = NSLock()
     public private(set) var maxPhraseLength = 1
@@ -51,6 +54,7 @@ public final class Lexicon {
             exact[key] = entries.sorted { $0.score > $1.score }
         }
         tonelessIndex = nil   // rebuilt on demand
+        readingIndex = nil
     }
 
     /// Splits one line into up to three space/tab separated fields.
@@ -108,6 +112,7 @@ public final class Lexicon {
         let key = addEntry(reading: reading, phrase: phrase, score: score, normalise: reading.contains("˙"))
         exact[key]?.sort { $0.score > $1.score }
         tonelessIndex = nil
+        readingIndex = nil
     }
 
     @discardableResult
@@ -128,6 +133,51 @@ public final class Lexicon {
         return reading
     }
 
+    /// Replaces the user phrases (user-phrases.txt, lexicon format).
+    public func setUserPhrases(_ text: String) {
+        let parsed = Lexicon()
+        parsed.load(text)
+        lock.lock()
+        defer { lock.unlock() }
+        user = parsed.exact
+        maxPhraseLength = max(maxPhraseLength, parsed.maxPhraseLength)
+        tonelessIndex = nil
+        readingIndex = nil
+    }
+
+    /// User entries first-class: they replace a built-in entry with the same phrase.
+    private func merged(_ key: String, _ builtIn: [LexiconEntry]?) -> [LexiconEntry]? {
+        guard let mine = user[key] else { return builtIn }
+        let phrases = Set(mine.map(\.phrase))
+        return (mine + (builtIn ?? []).filter { !phrases.contains($0.phrase) }).sorted { $0.score > $1.score }
+    }
+
+    /// The most likely reading of a phrase: its own entry if the lexicon has one,
+    /// otherwise the most common reading of each character. nil if a character has none.
+    public func reading(of phrase: String) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        if readingIndex == nil {
+            var index: [String: (reading: String, score: Double)] = [:]
+            for source in [exact, user] {
+                for (reading, entries) in source {
+                    for e in entries where index[e.phrase].map({ e.score > $0.score }) ?? true {
+                        index[e.phrase] = (reading, e.score)
+                    }
+                }
+            }
+            readingIndex = index
+        }
+        if let whole = readingIndex?[phrase] { return whole.reading }
+        var out: [String] = []
+        for c in phrase {
+            guard let r = readingIndex?[String(c)], !r.reading.contains("-") else { return nil }
+            out.append(r.reading)
+        }
+        return out.isEmpty ? nil : out.joined(separator: "-")
+    }
+    private var readingIndex: [String: (reading: String, score: Double)]?
+
     /// Builds the index that ignores tones (for untoned syllables). Safe to call from a
     /// background queue; lookups build it themselves if it is not ready yet.
     public func prepareTonelessIndex() {
@@ -139,7 +189,7 @@ public final class Lexicon {
     private func buildTonelessIfNeeded() -> [String: [LexiconEntry]] {
         if let index = tonelessIndex { return index }
         var best: [String: [String: Double]] = [:]
-        for (reading, entries) in exact {
+        for (reading, entries) in [exact, user].joined() {
             let key = Lexicon.stripTones(reading)
             for e in entries {
                 if let s = best[key]?[e.phrase], s >= e.score { continue }
@@ -161,7 +211,8 @@ public final class Lexicon {
         lock.lock()
         defer { lock.unlock() }
         if syllables.allSatisfy({ $0.tone != nil }) {
-            return exact[syllables.map(\.reading).joined(separator: "-")] ?? []
+            let key = syllables.map(\.reading).joined(separator: "-")
+            return merged(key, exact[key]) ?? []
         }
         return buildTonelessIfNeeded()[syllables.map(\.toneless).joined(separator: "-")] ?? []
     }

@@ -866,3 +866,46 @@ final class StartupTimingTests: XCTestCase {
         _ = Features.loadWeights(from: resources.appendingPathComponent("classifier-weights.json")); lap("weights")
     }
 }
+
+final class UserPhrasesTests: XCTestCase {
+    func testRoundTripKeepsComments() {
+        let text = "# 我的詞\nㄗˋ-ㄉㄨㄥˋ 自動 -1\n\n注音 ㄓㄨˋ-ㄧㄣ\n"
+        var u = UserPhrases(text: text)
+        XCTAssertEqual(u.entries.map(\.phrase), ["自動", "注音"])
+        XCTAssertNil(u.entries[1].score)
+        XCTAssertEqual(u.text, "# 我的詞\nㄗˋ-ㄉㄨㄥˋ 自動 -1\n\nㄓㄨˋ-ㄧㄣ 注音\n")
+        u.remove(at: 0)
+        u.append(UserPhrases.Entry(phrase: "妳好", reading: "ㄋㄧˇ-ㄏㄠˇ"))
+        XCTAssertEqual(u.text, "# 我的詞\n\nㄓㄨˋ-ㄧㄣ 注音\nㄋㄧˇ-ㄏㄠˇ 妳好 -1\n")
+        u.replace(at: 0, with: UserPhrases.Entry(phrase: "註音", reading: "ㄓㄨˋ-ㄧㄣ", score: -2.5))
+        XCTAssertEqual(u.entries[0], UserPhrases.Entry(phrase: "註音", reading: "ㄓㄨˋ-ㄧㄣ", score: -2.5))
+        XCTAssertEqual(UserPhrases(text: "").text, "")
+    }
+
+    func testTypedReadings() {
+        XCTAssertEqual(UserPhrases.reading(fromTyped: "y42j/4"), "ㄗˋ-ㄉㄨㄥˋ")
+        XCTAssertEqual(UserPhrases.reading(fromTyped: "ㄗˋㄉㄨㄥˋ"), "ㄗˋ-ㄉㄨㄥˋ")
+        XCTAssertEqual(UserPhrases.reading(fromTyped: "ㄓㄨˋ ㄧㄣ"), "ㄓㄨˋ-ㄧㄣ")
+        XCTAssertEqual(UserPhrases.reading(fromTyped: "ㄐㄧ-ㄚ"), "ㄐㄧ-ㄚ")      // first tone, then ㄚ
+        XCTAssertEqual(UserPhrases.reading(fromTyped: "ㄉㄜ˙"), "ㄉㄜ˙")
+        XCTAssertNil(UserPhrases.reading(fromTyped: "hello!"))
+        XCTAssertNil(UserPhrases.reading(fromTyped: ""))
+        XCTAssertEqual(UserPhrases.problem(phrase: "自動注音", reading: "ㄗˋ-ㄉㄨㄥˋ"), "注音有 2 個音節，詞有 4 個字")
+        XCTAssertNil(UserPhrases.problem(phrase: "自動", reading: "ㄗˋ-ㄉㄨㄥˋ"))
+    }
+
+    func testLexiconUserPhrasesOverrideAndReload() {
+        let lex = Lexicon()
+        lex.load("ㄋㄧˇ 你 -2\nㄋㄧˇ 妳 -3\nㄏㄠˇ 好 -2\nㄋㄧˇ-ㄏㄠˇ 你好 -3\n")
+        let ni = [Syllable(initial: "ㄋ", medial: "ㄧ", tone: .third)]
+        XCTAssertEqual(lex.entries(for: ni).first?.phrase, "你")
+        lex.setUserPhrases("ㄋㄧˇ 妳 -1\n")
+        XCTAssertEqual(lex.entries(for: ni).map(\.phrase), ["妳", "你"])   // replaced, not duplicated
+        XCTAssertEqual(lex.reading(of: "妳好"), "ㄋㄧˇ-ㄏㄠˇ")
+        XCTAssertEqual(lex.reading(of: "你好"), "ㄋㄧˇ-ㄏㄠˇ")
+        XCTAssertNil(lex.reading(of: "貓"))
+        lex.setUserPhrases("")
+        XCTAssertEqual(lex.entries(for: ni).map(\.phrase), ["你", "妳"])
+        XCTAssertEqual(lex.entries(for: [Syllable(initial: "ㄋ", medial: "ㄧ")]).first?.phrase, "你")   // toneless
+    }
+}

@@ -10,6 +10,11 @@ if CommandLine.arguments.contains("--register") {
     exit(status == noErr ? 0 : 1)
 }
 
+// `AutoZhuyin --edit-phrases`: the user phrase editor, a separate process (see PhraseEditor).
+if CommandLine.arguments.contains("--edit-phrases") {
+    PhraseEditor.run()
+}
+
 // Entry point of the input method server. macOS launches this process when the
 // input method is selected; IMKServer then creates one InputController per client.
 guard let connectionName = Bundle.main.infoDictionary?["InputMethodConnectionName"] as? String,
@@ -22,6 +27,7 @@ else {
 Shared.server = server
 Shared.candidates = IMKCandidates(server: server, panelType: kIMKSingleColumnScrollingCandidatePanel)
 _ = Shared.classifier   // load the lexicon now rather than on the first keystroke
+Shared.watchUserPhrases()
 AI.loadModelIfNeeded()   // "AI 選字" language model, in the background
 
 NSApplication.shared.run()

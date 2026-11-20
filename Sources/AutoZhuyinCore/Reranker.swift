@@ -56,6 +56,11 @@ public final class Reranker {
         }
     }
 
+    /// Forgets cached results (the lexicon changed).
+    public func clearCache() {
+        cache.removeAll()
+    }
+
     /// The reranked conversion, or nil to use the plain lexicon result.
     func choose(_ converter: Converter, _ syllables: [Syllable], fixed: [Range<Int>: String],
                 context: String) -> [ConvertedSegment]? {

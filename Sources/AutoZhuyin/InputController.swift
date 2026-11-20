@@ -23,11 +23,7 @@ enum Shared {
            let data = try? Data(contentsOf: url) {
             lexicon.load(data: data)
         }
-        // Optional user phrases: ~/Library/Application Support/AutoZhuyin/user-phrases.txt
-        if let userFile = supportDir?.appendingPathComponent("user-phrases.txt"),
-           let text = try? String(contentsOf: userFile, encoding: .utf8) {
-            lexicon.load(text)
-        }
+        loadUserPhrases(into: lexicon)
         let english = EnglishModel(commonWordsURL: bundle.url(forResource: "english-common", withExtension: "txt"),
                                    dictionaryURL: bundle.url(forResource: "english-dict", withExtension: "txt"),
                                    bigramURL: bundle.url(forResource: "english-bigram", withExtension: "json"))
@@ -47,6 +43,32 @@ enum Shared {
         DispatchQueue.global(qos: .utility).async { lexicon.prepareTonelessIndex() }
         return Classifier(lexicon: lexicon, english: english, learned: learned, weights: trained, history: history)
     }()
+
+    /// Optional user phrases: ~/Library/Application Support/AutoZhuyin/user-phrases.txt
+    /// (edited with "編輯自訂詞…" or by hand).
+    private static var userPhrasesDate: Date?
+
+    private static func loadUserPhrases(into lexicon: Lexicon) {
+        guard let url = PhraseEditor.fileURL else { return }
+        userPhrasesDate = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        lexicon.setUserPhrases((try? String(contentsOf: url, encoding: .utf8)) ?? "")
+        AI.reranker.clearCache()
+    }
+
+    /// Reloads user-phrases.txt if it changed since it was read.
+    static func reloadUserPhrasesIfChanged() {
+        guard let url = PhraseEditor.fileURL else { return }
+        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        if date != userPhrasesDate { loadUserPhrases(into: classifier.lexicon) }
+    }
+
+    /// The phrase editor announces each save; hand edits are noticed on the next activation.
+    static func watchUserPhrases() {
+        DistributedNotificationCenter.default().addObserver(
+            forName: PhraseEditor.changedNotification, object: nil, queue: .main) { _ in
+            loadUserPhrases(into: classifier.lexicon)
+        }
+    }
 }
 
 @objc(AutoZhuyinInputController)
@@ -189,6 +211,11 @@ final class InputController: IMKInputController {
         Shared.candidates.hide()
     }
 
+    override func activateServer(_ sender: Any!) {
+        super.activateServer(sender)
+        Shared.reloadUserPhrasesIfChanged()
+    }
+
     override func deactivateServer(_ sender: Any!) {
         commitComposition(sender)
         super.deactivateServer(sender)
@@ -238,6 +265,7 @@ final class InputController: IMKInputController {
         let status = menu.addItem(withTitle: AI.statusText, action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(.separator())
+        menu.addItem(withTitle: "編輯自訂詞…", action: #selector(editPhrases(_:)), keyEquivalent: "")
         menu.addItem(withTitle: "清除學習紀錄", action: #selector(clearLearned(_:)), keyEquivalent: "")
         return menu
     }
@@ -252,6 +280,8 @@ final class InputController: IMKInputController {
     @objc private func aiStandard(_ sender: Any?) { AI.setMode(.standard) }
     @objc private func aiQuality(_ sender: Any?) { AI.setMode(.quality) }
     @objc private func toggleAutoPause(_ sender: Any?) { AI.autoPause.toggle() }
+
+    @objc private func editPhrases(_ sender: Any?) { PhraseEditor.open() }
 
     @objc private func clearLearned(_ sender: Any?) {
         Shared.classifier.learned.clear()

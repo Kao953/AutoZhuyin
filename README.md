@@ -272,7 +272,9 @@ scripts/release.sh minor --push   # 同時 push commit 和 tag
 
 任何一步失敗都會把版本號改回去。只想改版本號不打包：`scripts/bump-version.sh [patch|minor|major]`。
 
-最後在 GitHub 用這個 tag 建立 Release，附上 `build/` 裡的 `.pkg`、`.zip` 和 `.tar.gz`。
+tag push 到 GitHub 之後，GitHub Actions（`.github/workflows/release.yml`）會在 macOS 機器上重跑測試、建置三個平台的安裝檔，並自動建立 Release 附上 `.pkg`、`.zip`、`.tar.gz` 和 `SHA256SUMS.txt`。tag 必須和 `Info.plist` 的版本一致（例如 `v0.15.0`）。
+
+也可以在 GitHub 的 Actions → Release → Run workflow 手動執行：填入既有的 tag 就會補建那一版的 Release；留空則只試建 `main`，產出的檔案放在該次執行的 Artifacts，不會發布。
 
 ## 專案結構
 

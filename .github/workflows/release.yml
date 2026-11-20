@@ -1,0 +1,105 @@
+# Builds the macOS .pkg, Windows .zip and Linux .tar.gz and publishes them as a
+# GitHub Release.
+#
+# - Push a tag v<version> (scripts/release.sh does the bump, commit and tag):
+#   builds that tag and creates the Release.
+# - Run manually (Actions → Release → Run workflow):
+#   - with a tag, e.g. v0.15.0: builds that tag and creates its Release
+#   - without a tag: test build of main; installers are kept as workflow
+#     artifacts only, nothing is published
+#
+# Everything builds on one macOS runner: the packaging scripts use Xcode, sips,
+# pkgbuild and BSD sed.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and publish (e.g. v0.15.0). Leave empty for a test build of main."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.ref || inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python packages
+        run: python3 -m pip install --quiet numpy
+
+      - name: Use the runner's Xcode
+        run: echo "DEVELOPER_DIR=$(xcode-select -p)" >> "$GITHUB_ENV"
+
+      - name: Check that the tag matches the app version
+        if: env.TAG != ''
+        run: |
+          VERSION="$(plutil -extract CFBundleShortVersionString raw Resources/Info.plist)"
+          if [ "$TAG" != "v$VERSION" ]; then
+            echo "::error::Tag $TAG does not match Info.plist version $VERSION"
+            exit 1
+          fi
+
+      - name: Cache downloaded model and numpy wheels
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/models
+            build/numpy-vendor
+          key: downloads-${{ hashFiles('scripts/fetch-lm.sh', 'windows/tools/fetch_numpy.py') }}
+
+      - name: Swift tests
+        run: xcrun swift test
+
+      - name: Build macOS installer
+        run: scripts/package.sh
+
+      - name: Build Windows package (runs the Python tests)
+        run: scripts/package-windows.sh
+
+      - name: Build Linux package (runs the Python tests)
+        run: scripts/package-linux.sh
+
+      - name: Collect files
+        run: |
+          mkdir -p dist
+          cp build/AutoZhuyin-*.pkg build/AutoZhuyin-Windows-*.zip build/AutoZhuyin-Linux-*.tar.gz dist/
+          (cd dist && shasum -a 256 * > SHA256SUMS.txt)
+          cat dist/SHA256SUMS.txt
+
+      - name: Upload test build
+        if: env.TAG == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoZhuyin-test-build
+          path: dist/*
+
+      - name: Publish GitHub Release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "AutoZhuyin $TAG" --generate-notes --verify-tag
+          fi

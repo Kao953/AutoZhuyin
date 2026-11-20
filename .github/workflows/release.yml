@@ -90,7 +90,12 @@ jobs:
           cache: gradle
           cache-dependency-path: android/**/*.gradle.kts
 
-      - uses: android-actions/setup-android@v3
+      # The macOS runner image ships the Android SDK (ANDROID_HOME); Gradle installs the
+      # platform and build tools it needs from there.
+      - name: Check the Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME"
 
       - name: Build Android APK (runs the Kotlin tests)
         env:

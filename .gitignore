@@ -8,3 +8,9 @@ __pycache__/
 *.pyc
 # Created when the Windows module runs without %APPDATA% (e.g. tests on macOS)
 windows/autozhuyin/PIME/
+# Android (Gradle)
+android/.gradle/
+android/.kotlin/
+android/build/
+android/*/build/
+android/local.properties

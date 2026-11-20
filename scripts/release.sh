@@ -39,6 +39,11 @@ echo "==> Packaging (runs the Python tests too)"
 scripts/package.sh >/dev/null
 scripts/package-windows.sh >/dev/null
 scripts/package-linux.sh >/dev/null
+if [ -n "${ANDROID_HOME:-}" ]; then
+    scripts/package-android.sh >/dev/null
+else
+    echo "    (ANDROID_HOME not set: skipping Android; GitHub Actions builds it)"
+fi
 
 trap - ERR
 git add Resources/Info.plist windows/autozhuyin/ime.json

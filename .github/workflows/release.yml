@@ -1,5 +1,5 @@
-# Builds the macOS .pkg, Windows .zip and Linux .tar.gz and publishes them as a
-# GitHub Release.
+# Builds the macOS .pkg, Windows .zip, Linux .tar.gz and Android .apk and publishes
+# them as a GitHub Release.
 #
 # - Push a tag v<version> (scripts/release.sh does the bump, commit and tag):
 #   builds that tag and creates the Release.
@@ -9,7 +9,11 @@
 #     artifacts only, nothing is published
 #
 # Everything builds on one macOS runner: the packaging scripts use Xcode, sips,
-# pkgbuild and BSD sed.
+# pkgbuild and BSD sed, and the shared data needs macOS's English word list.
+#
+# Android signing: set the repository secrets ANDROID_KEYSTORE_BASE64 (base64 of the
+# .jks file), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD.
+# Without them the APK is debug-signed and only kept in test builds, not released.
 name: Release
 
 on:
@@ -79,10 +83,39 @@ jobs:
       - name: Build Linux package (runs the Python tests)
         run: scripts/package-linux.sh
 
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+          cache-dependency-path: android/**/*.gradle.kts
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build Android APK (runs the Kotlin tests)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+            export ANDROID_KEYSTORE="$RUNNER_TEMP/release.jks"
+          fi
+          scripts/package-android.sh
+
       - name: Collect files
         run: |
           mkdir -p dist
           cp build/AutoZhuyin-*.pkg build/AutoZhuyin-Windows-*.zip build/AutoZhuyin-Linux-*.tar.gz dist/
+          # A debug-signed APK is only for test builds.
+          for apk in build/AutoZhuyin-Android-*.apk; do
+            case "$apk" in
+              *-debug.apk) if [ -z "$TAG" ]; then cp "$apk" dist/; fi ;;
+              *) cp "$apk" dist/ ;;
+            esac
+          done
           (cd dist && shasum -a 256 * > SHA256SUMS.txt)
           cat dist/SHA256SUMS.txt
 

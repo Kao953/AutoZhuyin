@@ -50,6 +50,8 @@ PKG 會裝到 `/Library/Input Methods/`，系統上所有使用者都能用。
 SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安裝：「設定 → 應用程式」裡的「自動注音 AutoZhuyin」（PIME 會留著，不需要的話另外移除）。
 也可以用 zip 版手動安裝：先裝好 PIME，解壓縮 `AutoZhuyin-Windows-<版本>.zip`，以系統管理員身分執行 `install.bat`（移除用 `uninstall.bat`）。
 
+**獨立版（實驗）**：`AutoZhuyin-Windows-Standalone-<版本>-setup.exe` 不需要 PIME，自帶輸入法元件和 Python，需要 64 位元的 Windows 10 / 11。在鍵盤清單裡叫「自動注音（獨立版）」，可以和 PIME 版同時安裝。還沒在實機上測過；目前沒有設定選單（AI 選字固定「標準」）、送出後按 Tab 翻轉不支援，Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能打不出字。學習紀錄和自訂詞在 `%APPDATA%\AutoZhuyin`。
+
 ### Linux（Bazzite、SteamOS 桌面模式、Fedora…）
 
 需求：系統內建 IBus 輸入法框架（Bazzite、Fedora 預設就有）。只在桌面模式可用，Steam 遊戲模式不支援系統輸入法。
@@ -188,6 +190,12 @@ scripts/package-windows.sh                          # 產生 build/AutoZhuyin-Wi
 - `windows/autozhuyin/data/` 是產生出來的，不進版本控制。
 - 版本號在 `windows/autozhuyin/ime.json`。
 
+獨立版（實驗，不用 PIME）是自己寫的 TSF 輸入法元件：
+
+- `windows/tsf/src/`：C++ DLL，載入到每個 App 裡，只負責按鍵、組字底線和候選字視窗。用 mingw-w64 在 macOS 上交叉編譯（`scripts/build-tsf.sh`，x64 和 x86 各一份，32 位元的 App 用 x86 版）。
+- `windows/tsf/server.py`：引擎伺服器，每個使用者一個行程，用內附的 64 位元內嵌版 Python 執行同一份 Python 核心，DLL 透過 named pipe `\\.\pipe\AutoZhuyin-<使用者>` 和它溝通（協定見檔案開頭）。登入時啟動，沒在跑的話 DLL 會自己叫起來；出錯時寫到 `%APPDATA%\AutoZhuyin\server-error.log`。
+- `scripts/package-windows-standalone.sh`：產生 `build/AutoZhuyin-Windows-Standalone-<版本>-setup.exe`（需要 `brew install mingw-w64 makensis`）。協定的測試在 `windows/tests/test_tsf_server.py`。
+
 ### Linux
 
 Linux 版是 IBus 輸入法（`linux/autozhuyin_ibus.py`），直接使用 Windows 版的 Python 核心（`windows/autozhuyin/core/`）和資料。
@@ -304,6 +312,7 @@ windows/
   installer/                  setup.nsi（一鍵安裝程式）、install.bat、uninstall.bat、給使用者的 README.txt
   tests/                      Python 測試
   tools/                      產生資料檔、圖示
+  tsf/                        獨立版（實驗）：TSF 元件原始碼（src/）、引擎伺服器、安裝程式
 linux/
   autozhuyin_ibus.py          IBus 外殼（共用 windows/autozhuyin/core）
   installer/                  install.sh、uninstall.sh、給使用者的 README.txt

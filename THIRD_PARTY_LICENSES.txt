@@ -53,6 +53,11 @@ installed yet; the .zip package does not include PIME. PIME's source code is
 at https://github.com/EasyIME/PIME/tree/v1.3.0-stable. Its license summary
 is in PIME-LICENSE.txt and the GNU LGPL 2.1 text in LGPL-2.1.txt.
 
+The experimental stand-alone Windows version (AutoZhuyin-Windows-Standalone-
+<version>-setup.exe) does not use PIME. It includes the embeddable 64-bit
+Python from python.org (PSF License; full text in python\LICENSE.txt) and
+NumPy (BSD 3-Clause; in its .dist-info folder).
+
 
 4. CKIP GPT2 Tiny Chinese — AI 選字語言模型 (language model)
 -----------------------------------------------------------

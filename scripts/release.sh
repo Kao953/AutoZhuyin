@@ -38,6 +38,7 @@ xcrun swift test -q 2>&1 | tail -3
 echo "==> Packaging (runs the Python tests too)"
 scripts/package.sh >/dev/null
 scripts/package-windows.sh >/dev/null
+scripts/package-windows-standalone.sh >/dev/null
 scripts/package-linux.sh >/dev/null
 
 trap - ERR
@@ -46,7 +47,8 @@ git commit -q -m "Release v$VERSION"
 git tag -a "v$VERSION" -m "AutoZhuyin v$VERSION"
 echo "==> Tagged v$VERSION"
 FILES=("build/AutoZhuyin-$VERSION.pkg" "build/AutoZhuyin-Windows-$VERSION-setup.exe"
-       "build/AutoZhuyin-Windows-$VERSION.zip" "build/AutoZhuyin-Linux-$VERSION.tar.gz")
+       "build/AutoZhuyin-Windows-$VERSION.zip" "build/AutoZhuyin-Windows-Standalone-$VERSION-setup.exe"
+       "build/AutoZhuyin-Linux-$VERSION.tar.gz")
 ls -lh "${FILES[@]}"
 shasum -a 256 "${FILES[@]}"
 

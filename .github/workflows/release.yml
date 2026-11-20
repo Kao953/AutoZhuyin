@@ -47,8 +47,8 @@ jobs:
       - name: Install Python packages
         run: python3 -m pip install --quiet numpy
 
-      - name: Install NSIS (Windows setup.exe)
-        run: brew install makensis
+      - name: Install NSIS and mingw-w64 (Windows installers, stand-alone text service)
+        run: brew install makensis mingw-w64
 
       - name: Use the runner's Xcode
         run: echo "DEVELOPER_DIR=$(xcode-select -p)" >> "$GITHUB_ENV"
@@ -69,7 +69,7 @@ jobs:
             build/models
             build/numpy-vendor
             build/downloads
-          key: downloads-${{ hashFiles('scripts/fetch-lm.sh', 'windows/tools/fetch_numpy.py', 'scripts/fetch-pime.sh') }}
+          key: downloads-${{ hashFiles('scripts/fetch-lm.sh', 'windows/tools/fetch_numpy.py', 'scripts/fetch-pime.sh', 'scripts/fetch-python-embed.sh') }}
 
       - name: Swift tests
         run: xcrun swift test
@@ -79,6 +79,9 @@ jobs:
 
       - name: Build Windows package (runs the Python tests)
         run: scripts/package-windows.sh
+
+      - name: Build stand-alone Windows installer (experimental)
+        run: scripts/package-windows-standalone.sh
 
       - name: Build Linux package (runs the Python tests)
         run: scripts/package-linux.sh

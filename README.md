@@ -24,7 +24,7 @@
 
 ## 下載與安裝
 
-到 Gitea 的 [Releases](../../releases) 頁面下載最新版本。
+到 GitHub 的 [Releases](../../releases) 頁面下載最新版本。
 
 ### macOS
 
@@ -272,7 +272,7 @@ scripts/release.sh minor --push   # 同時 push commit 和 tag
 
 任何一步失敗都會把版本號改回去。只想改版本號不打包：`scripts/bump-version.sh [patch|minor|major]`。
 
-最後在 Gitea 用這個 tag 建立 Release，附上 `build/` 裡的 `.pkg`、`.zip` 和 `.tar.gz`。
+最後在 GitHub 用這個 tag 建立 Release，附上 `build/` 裡的 `.pkg`、`.zip` 和 `.tar.gz`。
 
 ## 專案結構
 
@@ -305,7 +305,8 @@ linux/
   installer/                  install.sh、uninstall.sh、給使用者的 README.txt
   tests/                      用假 IBus 模組的外殼測試
 training/                     合成資料、訓練權重、Swift/Python 一致性測試資料
-THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝檔）
+LICENSE                       本專案授權（GPL-3.0）
+THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進三個平台的安裝檔）
 ```
 
 ## 已知限制
@@ -331,6 +332,8 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進兩個安裝�
 - [ ] 偏好設定視窗
 
 ## 致謝與授權
+
+本專案以 [GNU General Public License v3.0](LICENSE) 授權釋出。
 
 - 詞庫資料：[小麥注音 McBopomofo](https://github.com/openvanilla/McBopomofo)（MIT License）
 - Windows 輸入法框架：[PIME](https://github.com/EasyIME/PIME)（LGPL 2.1，使用者自行安裝，本專案不包含其程式碼）

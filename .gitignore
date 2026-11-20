@@ -6,3 +6,5 @@ build/
 windows/autozhuyin/data/
 __pycache__/
 *.pyc
+# Created when the Windows module runs without %APPDATA% (e.g. tests on macOS)
+windows/autozhuyin/PIME/

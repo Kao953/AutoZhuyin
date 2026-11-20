@@ -9,6 +9,9 @@
 
 安裝
 ----
+也可以改用 AutoZhuyin-Windows-<版本>-setup.exe（實驗功能）：會自動安裝需要的 PIME，不用做下面的步驟。
+這個 zip 是手動安裝版：
+
 1. 先安裝 PIME 輸入法框架（免費、開源）：
    https://github.com/EasyIME/PIME/releases
    下載 PIME-x.x.x-setup.exe 安裝（預設選項即可）。

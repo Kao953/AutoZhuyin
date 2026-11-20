@@ -46,8 +46,12 @@ International Dictionary, 1934), which is in the public domain.
 ----------------------------------------------------
 https://github.com/EasyIME/PIME — GNU LGPL 2.1
 
-The Windows version runs as a module inside PIME, which users install
-separately. No PIME code is included in this software.
+The Windows version runs as a module inside PIME. The Windows setup.exe
+includes the unmodified official PIME installer (PIME-1.3.0-stable-setup.exe
+from https://github.com/EasyIME/PIME/releases) and runs it when PIME is not
+installed yet; the .zip package does not include PIME. PIME's source code is
+at https://github.com/EasyIME/PIME/tree/v1.3.0-stable. Its license summary
+is in PIME-LICENSE.txt and the GNU LGPL 2.1 text in LGPL-2.1.txt.
 
 
 4. CKIP GPT2 Tiny Chinese — AI 選字語言模型 (language model)

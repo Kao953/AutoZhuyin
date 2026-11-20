@@ -42,12 +42,13 @@ PKG 會裝到 `/Library/Input Methods/`，系統上所有使用者都能用。
 
 需求：Windows 10 / 11，x64、x86、ARM64 都可以。
 
-1. 先安裝輸入法框架 [PIME](https://github.com/EasyIME/PIME/releases)（免費、開源）。
-2. 解壓縮 `AutoZhuyin-Windows-<版本>.zip`，在 `install.bat` 上按右鍵 →「以系統管理員身分執行」。
-3. 設定 → 時間與語言 → 語言與地區 → 中文(台灣) → 語言選項 → 新增鍵盤 → **自動注音 AutoZhuyin**。
-4. 用 Win + 空白鍵 切換過去。清單裡沒出現的話，重新開機一次。
+1. 執行 `AutoZhuyin-Windows-<版本>-setup.exe`。電腦上還沒有輸入法框架 [PIME](https://github.com/EasyIME/PIME)（免費、開源）的話，安裝程式會一起裝好（附的是 PIME 1.3.0 正式版）。這個一鍵安裝程式是**實驗功能**，還沒在實機上測過，有問題請改用下面的 zip 手動安裝並回報。
+   ARM 處理器的電腦要先自己安裝 [PIME 2.0 以上](https://github.com/EasyIME/PIME/releases)，安裝程式會提示。
+2. 設定 → 時間與語言 → 語言與地區 → 中文(台灣) → 語言選項 → 新增鍵盤 → **自動注音 AutoZhuyin**。
+3. 用 Win + 空白鍵 切換過去。清單裡沒出現的話，重新開機一次。
 
-SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安裝：以系統管理員身分執行 `uninstall.bat`。
+SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安裝：「設定 → 應用程式」裡的「自動注音 AutoZhuyin」（PIME 會留著，不需要的話另外移除）。
+也可以用 zip 版手動安裝：先裝好 PIME，解壓縮 `AutoZhuyin-Windows-<版本>.zip`，以系統管理員身分執行 `install.bat`（移除用 `uninstall.bat`）。
 
 ### Linux（Bazzite、SteamOS 桌面模式、Fedora…）
 
@@ -180,7 +181,7 @@ Windows 版建立在 [PIME](https://github.com/EasyIME/PIME) 上，核心邏輯�
 ```bash
 python3 windows/tools/build_data.py                 # 產生 windows/autozhuyin/data/
 (cd windows && python3 -m unittest discover tests)  # 核心測試 + 模擬 PIME 的外殼測試
-scripts/package-windows.sh                          # 產生 build/AutoZhuyin-Windows-<版本>.zip（會先跑測試）
+scripts/package-windows.sh                          # 產生 build/AutoZhuyin-Windows-<版本>.zip 和 -setup.exe（會先跑測試）
 ```
 
 - Windows 沒有內建英文字典，所以 `build_data.py` 會把 macOS 的 `/usr/share/dict/words`（韋氏字典，公有領域）轉成 `english-dict.txt` 一起打包，並預先算好 bigram 表。
@@ -268,12 +269,12 @@ scripts/release.sh minor --push   # 同時 push commit 和 tag
 `release.sh` 會自動：
 1. 遞增版本號（`Resources/Info.plist` 的版本與 build 號、`windows/autozhuyin/ime.json`）
 2. 跑 Swift 和 Python 全部測試
-3. 產生 `build/AutoZhuyin-<版本>.pkg`、`build/AutoZhuyin-Windows-<版本>.zip`、`build/AutoZhuyin-Linux-<版本>.tar.gz`
+3. 產生 `build/AutoZhuyin-<版本>.pkg`、`build/AutoZhuyin-Windows-<版本>-setup.exe`、`build/AutoZhuyin-Windows-<版本>.zip`、`build/AutoZhuyin-Linux-<版本>.tar.gz`（Windows 安裝程式用 NSIS 打包：`brew install makensis`）
 4. commit「Release v<版本>」並打上 `v<版本>` tag
 
 任何一步失敗都會把版本號改回去。只想改版本號不打包：`scripts/bump-version.sh [patch|minor|major]`。
 
-tag push 到 GitHub 之後，GitHub Actions（`.github/workflows/release.yml`）會在 macOS 機器上重跑測試、建置三個平台的安裝檔，並自動建立 Release 附上 `.pkg`、`.zip`、`.tar.gz` 和 `SHA256SUMS.txt`。tag 必須和 `Info.plist` 的版本一致（例如 `v0.15.0`）。
+tag push 到 GitHub 之後，GitHub Actions（`.github/workflows/release.yml`）會在 macOS 機器上重跑測試、建置三個平台的安裝檔，並自動建立 Release 附上 `.pkg`、`-setup.exe`、`.zip`、`.tar.gz` 和 `SHA256SUMS.txt`。tag 必須和 `Info.plist` 的版本一致（例如 `v0.15.0`）。
 
 也可以在 GitHub 的 Actions → Release → Run workflow 手動執行：填入既有的 tag 就會補建那一版的 Release；留空則只試建 `main`，產出的檔案放在該次執行的 Artifacts，不會發布。
 
@@ -300,7 +301,7 @@ windows/
     core/                     核心邏輯（Python 版）
     autozhuyin_ime.py         PIME 外殼
     ime.json                  PIME 輸入法設定
-  installer/                  install.bat、uninstall.bat、給使用者的 README.txt
+  installer/                  setup.nsi（一鍵安裝程式）、install.bat、uninstall.bat、給使用者的 README.txt
   tests/                      Python 測試
   tools/                      產生資料檔、圖示
 linux/
@@ -339,7 +340,7 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進三個平台�
 本專案以 [GNU General Public License v3.0](LICENSE) 授權釋出。
 
 - 詞庫資料：[小麥注音 McBopomofo](https://github.com/openvanilla/McBopomofo)（MIT License）
-- Windows 輸入法框架：[PIME](https://github.com/EasyIME/PIME)（LGPL 2.1，使用者自行安裝，本專案不包含其程式碼）
+- Windows 輸入法框架：[PIME](https://github.com/EasyIME/PIME)（LGPL 2.1；setup.exe 內附未修改的官方 PIME 1.3.0 安裝程式，授權在 `licenses/PIME-LICENSE.txt`、`licenses/LGPL-2.1.txt`）
 - 英文字典：Webster's Second International Dictionary（公有領域，macOS 的 `/usr/share/dict/words`）
 - AI 選字語言模型：[CKIP GPT2 Tiny Chinese](https://github.com/ckiplab/ckip-transformers)（中研院詞庫小組，GPL-3.0，全文在 `licenses/GPL-3.0.txt`，並一起打包進三個平台的安裝檔）
 - 數值運算：[NumPy](https://numpy.org)（BSD 3-Clause，Windows 版附上、Linux 版安裝時下載）

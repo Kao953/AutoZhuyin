@@ -1,6 +1,8 @@
 #!/bin/bash
 # Builds build/AutoZhuyin-Windows-<version>.zip: the PIME input method folder plus
-# install/uninstall scripts and a README for testers.
+# install/uninstall scripts and a README for testers; and
+# build/AutoZhuyin-Windows-<version>-setup.exe: one-step installer that also installs
+# PIME when needed (windows/installer/setup.nsi; needs makensis: brew install makensis).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -35,6 +37,7 @@ done
 sed 's/$/\r/' THIRD_PARTY_LICENSES.txt > "$OUT/THIRD_PARTY_LICENSES.txt"
 cp "$OUT/THIRD_PARTY_LICENSES.txt" "$OUT/autozhuyin/"
 sed 's/$/\r/' licenses/GPL-3.0.txt > "$OUT/autozhuyin/GPL-3.0.txt"
+for f in PIME-LICENSE.txt LGPL-2.1.txt; do sed 's/$/\r/' "licenses/$f" > "$OUT/$f"; done
 
 # numpy for "AI 選字", for both Pythons PIME ships (1.3: 3.8, 2.x: 3.15; both 32-bit).
 for tag in cp38 cp315; do
@@ -45,3 +48,10 @@ cp -R build/numpy-vendor/cp38 build/numpy-vendor/cp315 "$OUT/autozhuyin/vendor/"
 
 (cd build && zip -qr -X "$NAME.zip" "$NAME")
 echo "Built build/$NAME.zip"
+
+PIME_SETUP="$(scripts/fetch-pime.sh)"
+# The license page reads plain text as UTF-8 only with a byte order mark.
+printf '\xEF\xBB\xBF' | cat - "$OUT/THIRD_PARTY_LICENSES.txt" > build/setup-license.txt
+makensis -V2 -INPUTCHARSET UTF8 -DVERSION="$VERSION" -DSRC="$PWD/$OUT" -DPIME_SETUP="$PWD/$PIME_SETUP" \
+    -DLICENSE="$PWD/build/setup-license.txt" -DOUTFILE="$PWD/build/$NAME-setup.exe" windows/installer/setup.nsi
+echo "Built build/$NAME-setup.exe"

@@ -1,4 +1,4 @@
-# Builds the macOS .pkg, Windows .zip and Linux .tar.gz and publishes them as a
+# Builds the macOS .pkg, Windows setup.exe and .zip, and Linux .tar.gz and publishes them as a
 # GitHub Release.
 #
 # - Push a tag v<version> (scripts/release.sh does the bump, commit and tag):
@@ -47,6 +47,9 @@ jobs:
       - name: Install Python packages
         run: python3 -m pip install --quiet numpy
 
+      - name: Install NSIS (Windows setup.exe)
+        run: brew install makensis
+
       - name: Use the runner's Xcode
         run: echo "DEVELOPER_DIR=$(xcode-select -p)" >> "$GITHUB_ENV"
 
@@ -65,7 +68,8 @@ jobs:
           path: |
             build/models
             build/numpy-vendor
-          key: downloads-${{ hashFiles('scripts/fetch-lm.sh', 'windows/tools/fetch_numpy.py') }}
+            build/downloads
+          key: downloads-${{ hashFiles('scripts/fetch-lm.sh', 'windows/tools/fetch_numpy.py', 'scripts/fetch-pime.sh') }}
 
       - name: Swift tests
         run: xcrun swift test
@@ -82,7 +86,8 @@ jobs:
       - name: Collect files
         run: |
           mkdir -p dist
-          cp build/AutoZhuyin-*.pkg build/AutoZhuyin-Windows-*.zip build/AutoZhuyin-Linux-*.tar.gz dist/
+          cp build/AutoZhuyin-*.pkg build/AutoZhuyin-Windows-*.zip build/AutoZhuyin-Windows-*-setup.exe \
+             build/AutoZhuyin-Linux-*.tar.gz dist/
           (cd dist && shasum -a 256 * > SHA256SUMS.txt)
           cat dist/SHA256SUMS.txt
 

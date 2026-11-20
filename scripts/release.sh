@@ -45,7 +45,8 @@ git add Resources/Info.plist windows/autozhuyin/ime.json
 git commit -q -m "Release v$VERSION"
 git tag -a "v$VERSION" -m "AutoZhuyin v$VERSION"
 echo "==> Tagged v$VERSION"
-FILES=("build/AutoZhuyin-$VERSION.pkg" "build/AutoZhuyin-Windows-$VERSION.zip" "build/AutoZhuyin-Linux-$VERSION.tar.gz")
+FILES=("build/AutoZhuyin-$VERSION.pkg" "build/AutoZhuyin-Windows-$VERSION-setup.exe"
+       "build/AutoZhuyin-Windows-$VERSION.zip" "build/AutoZhuyin-Linux-$VERSION.tar.gz")
 ls -lh "${FILES[@]}"
 shasum -a 256 "${FILES[@]}"
 

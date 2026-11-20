@@ -415,6 +415,41 @@ def make_component(exec_path):
     return component
 
 
+def component_xml(exec_path):
+    """The engine as an IBus component file. install.sh adds its folder to
+    IBUS_COMPONENT_PATH, so IBus knows the engine from startup (no "configured input method
+    doesn't exist" warning) and starts it itself (--ibus) when it is selected, in the desktop
+    and in Steam's game mode alike."""
+    from xml.sax.saxutils import escape as e
+    icon = os.path.join(HERE, "icon.png")
+    return f"""<?xml version="1.0" encoding="utf-8"?>
+<component>
+  <name>{BUS_NAME}</name>
+  <description>自動注音 AutoZhuyin</description>
+  <exec>{e(sys.executable)} {e(exec_path)} --ibus</exec>
+  <version>{e(VERSION)}</version>
+  <author>AutoZhuyin</author>
+  <license>GPL-3.0</license>
+  <homepage>https://github.com/Kao953/AutoZhuyin</homepage>
+  <textdomain></textdomain>
+  <engines>
+    <engine>
+      <name>{ENGINE_NAME}</name>
+      <language>zh_TW</language>
+      <license>GPL-3.0</license>
+      <author>AutoZhuyin</author>
+      <icon>{e(icon) if os.path.exists(icon) else ""}</icon>
+      <layout>us</layout>
+      <longname>自動注音</longname>
+      <description>大千注音＋英文，自動判斷中英</description>
+      <rank>0</rank>
+      <symbol>自</symbol>
+    </engine>
+  </engines>
+</component>
+"""
+
+
 def _activated(bus, result):
     try:
         bus.set_global_engine_async_finish(result)
@@ -423,6 +458,12 @@ def _activated(bus, result):
 
 
 def main(argv):
+    if "--write-component" in argv:
+        path = argv[argv.index("--write-component") + 1]
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(component_xml(os.path.abspath(__file__)))
+        return 0
     IBus.init()
     bus = IBus.Bus()
     loop = GLib.MainLoop()
@@ -432,14 +473,23 @@ def main(argv):
 
     def on_connected(*_):
         nonlocal factory
+        if not started_by_ibus and any(e.get_name() == ENGINE_NAME for e in bus.list_engines()):
+            # Installed as a component (component_xml): IBus runs the engine itself, so this
+            # process only selects it (--activate) and exits.
+            if activate:
+                bus.set_global_engine_async(ENGINE_NAME, -1, None,
+                                            lambda b, r: (_activated(b, r), loop.quit()))
+            else:
+                loop.quit()
+            return
+        shared_classifier()   # load data before the first key
         factory = IBus.Factory.new(bus.get_connection())
         factory.add_engine(ENGINE_NAME, GObject.type_from_name("AutoZhuyinEngine"))
         if started_by_ibus:
             bus.request_name(BUS_NAME, 0)
         else:
-            known = any(e.get_name() == ENGINE_NAME for e in bus.list_engines())
-            if not known:
-                bus.register_component(make_component(os.path.abspath(__file__)))
+            # No component file (older install): register at run time instead.
+            bus.register_component(make_component(os.path.abspath(__file__)))
             if activate:
                 # Asynchronously: IBus answers by asking this process's factory for the
                 # engine, which a blocking call here would deadlock (it times out after 25 s).
@@ -452,7 +502,6 @@ def main(argv):
 
     bus.connect("connected", on_connected)
     bus.connect("disconnected", on_disconnected)
-    shared_classifier()   # load data before the first key
     if bus.is_connected():
         on_connected()
     elif started_by_ibus:

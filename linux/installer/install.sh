@@ -48,13 +48,25 @@ else
     fi
 fi
 
-# 3. Start with the desktop session: registers the engine with IBus and selects it.
+# 3. Tell IBus about the engine with a component file, so it knows it from startup (no
+#    "configured input method doesn't exist" warning) and runs it itself when it is
+#    selected, in the desktop and in game mode. IBus only reads the system folder (read-only
+#    here) or IBUS_COMPONENT_PATH, so add ours to that for the user session, and drop IBus's
+#    component cache so it is rebuilt. Takes effect at the next sign-in.
+"$PY" "$DEST/autozhuyin_ibus.py" --write-component "$DEST/component/autozhuyin.xml"
+ENVD="${XDG_CONFIG_HOME:-$HOME/.config}/environment.d"
+mkdir -p "$ENVD"
+echo "IBUS_COMPONENT_PATH=/usr/share/ibus/component:$DEST/component" > "$ENVD/autozhuyin.conf"
+systemctl --user set-environment "IBUS_COMPONENT_PATH=/usr/share/ibus/component:$DEST/component" 2>/dev/null
+rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/ibus/bus/registry"
+
+# 4. Select it at sign-in.
 mkdir -p "$AUTOSTART"
 cat > "$AUTOSTART/autozhuyin.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=自動注音 AutoZhuyin
-Comment=Registers the AutoZhuyin input method with IBus
+Comment=Selects the AutoZhuyin input method at sign-in
 Exec=$PY $DEST/autozhuyin_ibus.py --activate
 Icon=$DEST/icon.png
 X-GNOME-Autostart-enabled=true
@@ -62,7 +74,9 @@ X-KDE-autostart-phase=2
 NoDisplay=true
 DESKTOP
 
-# 4. Start it now as well.
+# 5. Now as well. IBus reads component files only when it starts, and restarting it is not
+#    safe (on KDE Wayland the IBus panel crashes and KWin doesn't start it again), so for
+#    this session the engine registers itself at run time.
 if pgrep -x ibus-daemon >/dev/null 2>&1; then
     nohup "$PY" "$DEST/autozhuyin_ibus.py" --activate >/dev/null 2>&1 &
     sleep 1

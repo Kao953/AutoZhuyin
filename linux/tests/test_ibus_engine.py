@@ -179,6 +179,14 @@ class IBusEngineTests(unittest.TestCase):
         self.assertTrue(cmd[1].endswith("phrase_editor.py"))
         self.assertEqual(cmd[2], autozhuyin_ibus._USER_PHRASES)
 
+    def test_component_file(self):
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(autozhuyin_ibus.component_xml("/opt/az/autozhuyin_ibus.py").encode("utf-8"))
+        self.assertEqual(root.findtext("name"), autozhuyin_ibus.BUS_NAME)
+        self.assertTrue(root.findtext("exec").endswith("/opt/az/autozhuyin_ibus.py --ibus"))
+        self.assertEqual(root.findtext("engines/engine/name"), "autozhuyin")
+        self.assertEqual(root.findtext("engines/engine/language"), "zh_TW")
+
     def test_space_passes_through_when_idle(self):
         self.assertEqual(press(self.e, " "), [False])
 

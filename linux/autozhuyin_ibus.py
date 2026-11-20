@@ -369,11 +369,11 @@ class AutoZhuyinEngine(IBus.Engine):
         if text:
             ibus_text = IBus.Text.new_from_string(text)
             attrs = IBus.AttrList()
-            attrs.append(IBus.attr_underline_new(IBus.AttrUnderline.SINGLE, 0, len(text)))
+            attrs.append(IBus.Attribute.new(IBus.AttrType.UNDERLINE, IBus.AttrUnderline.SINGLE, 0, len(text)))
             pos = 0
             for piece, mode in pieces:
                 if mode == LITERAL and piece:
-                    attrs.append(IBus.attr_foreground_new(_LITERAL_COLOR, pos, pos + len(piece)))
+                    attrs.append(IBus.Attribute.new(IBus.AttrType.FOREGROUND, _LITERAL_COLOR, pos, pos + len(piece)))
                 pos += len(piece)
             ibus_text.set_attributes(attrs)
             self.update_preedit_text_with_mode(ibus_text, self.engine.cursor_offset, True,
@@ -415,6 +415,13 @@ def make_component(exec_path):
     return component
 
 
+def _activated(bus, result):
+    try:
+        bus.set_global_engine_async_finish(result)
+    except GLib.Error as e:
+        print("autozhuyin: cannot switch to the engine: %s" % e.message, file=sys.stderr)
+
+
 def main(argv):
     IBus.init()
     bus = IBus.Bus()
@@ -434,7 +441,9 @@ def main(argv):
             if not known:
                 bus.register_component(make_component(os.path.abspath(__file__)))
             if activate:
-                bus.set_global_engine(ENGINE_NAME)
+                # Asynchronously: IBus answers by asking this process's factory for the
+                # engine, which a blocking call here would deadlock (it times out after 25 s).
+                bus.set_global_engine_async(ENGINE_NAME, -1, None, _activated)
 
     def on_disconnected(*_):
         if started_by_ibus:

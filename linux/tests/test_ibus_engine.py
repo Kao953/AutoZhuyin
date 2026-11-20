@@ -85,8 +85,9 @@ class Engine:
 
 IBus.Text, IBus.AttrList, IBus.LookupTable, IBus.Property, IBus.Engine = Text, AttrList, LookupTable, Property, Engine
 IBus.PropList = lambda: types.SimpleNamespace(append=lambda p: None)
-IBus.attr_underline_new = lambda kind, a, b: ("underline", a, b)
-IBus.attr_foreground_new = lambda color, a, b: ("color", a, b)
+IBus.AttrType = types.SimpleNamespace(UNDERLINE=1, FOREGROUND=2)
+IBus.Attribute = types.SimpleNamespace(
+    new=lambda kind, value, a, b: ("underline" if kind == IBus.AttrType.UNDERLINE else "color", a, b))
 IBus.AttrUnderline = types.SimpleNamespace(SINGLE=1)
 IBus.Orientation = types.SimpleNamespace(VERTICAL=1)
 IBus.PropType = types.SimpleNamespace(NORMAL=0, TOGGLE=1, RADIO=2, MENU=3)

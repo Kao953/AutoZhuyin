@@ -32,9 +32,8 @@ from autozhuyin.core.ai import AI  # noqa: E402
 from autozhuyin.core.classifier import Classifier, LearnedPreferences  # noqa: E402
 from autozhuyin.core.engine import (BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP,  # noqa: E402
                                     TAB, UP, CompositionEngine)
-from autozhuyin.core.english import EnglishModel  # noqa: E402
+from autozhuyin.core import loading  # noqa: E402
 from autozhuyin.core.history import UserHistory  # noqa: E402
-from autozhuyin.core.lexicon import Lexicon  # noqa: E402
 from autozhuyin.core.user_phrases import UserPhrasesFile  # noqa: E402
 
 DATA = os.path.join(HERE, "autozhuyin", "data")
@@ -63,10 +62,12 @@ def _saver(name):
 
 
 def load_classifier():
-    lexicon = Lexicon.from_file(os.path.join(DATA, "lexicon.txt"))
-    english = EnglishModel.from_files(os.path.join(DATA, "english-common.txt"),
-                                      os.path.join(DATA, "english-dict.txt"),
-                                      os.path.join(DATA, "english-bigram.json"))
+    # Parsed data is cached in USER_DIR\cache (see core/loading.py): much faster at sign-in.
+    timings = {}
+    cache = os.path.join(USER_DIR, "cache")
+    lexicon = loading.load_lexicon(DATA, cache, timings)
+    english = loading.load_english(DATA, cache, timings)
+    loading.log_timings(os.path.join(USER_DIR, "startup.log"), timings)
     learned = LearnedPreferences(_load_json(os.path.join(USER_DIR, "learned.json")), _saver("learned.json"))
     history = UserHistory(_load_json(os.path.join(USER_DIR, "user-history.json")), _saver("user-history.json"))
     weights = Classifier.load_weights(os.path.join(DATA, "classifier-weights.json"))
@@ -139,6 +140,7 @@ def serve():
     except OSError:
         return   # another server already owns the pipe
     classifier = load_classifier()
+    loading.freeze_gc()
     ai = AI(DATA, USER_DIR)
     # Hand edits to user-phrases.txt apply from the next key (a stat per key is cheap).
     phrases = UserPhrasesFile(os.path.join(USER_DIR, "user-phrases.txt"), classifier.lexicon)

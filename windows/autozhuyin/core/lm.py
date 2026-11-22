@@ -4,28 +4,44 @@ Reads the "AZLM" file made by training/lm/export_lm.py (CKIP gpt2-tiny-chinese, 
 float16 weights, expanded to float32 in memory). numpy is optional: when it cannot be
 imported, `available()` is False and the input method works without AI.
 """
+import importlib.util
 import json
 import math
 import struct
 
-try:
-    import numpy as np
-except Exception:   # ImportError, or a numpy build for another Python / architecture
-    np = None
+# numpy is imported only when the model is loaded (in a background thread): importing it
+# costs a second or more on a cold Windows start (dozens of .pyd files, each scanned by
+# the antivirus), and it used to run while the app waited for the input method.
+np = None
 
 CLS, UNK = 101, 100
 
 
 def available():
-    return np is not None
+    if np is not None:
+        return True
+    try:
+        return importlib.util.find_spec("numpy") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _import_numpy():
+    global np
+    if np is None:
+        try:
+            import numpy
+        except Exception as e:   # ImportError, or a numpy build for another Python / architecture
+            raise RuntimeError("numpy is not available (%s)" % e)
+        np = numpy
+    return np
 
 
 class GPT2LanguageModel:
     max_tokens = 64
 
     def __init__(self, model_path, vocab_path):
-        if np is None:
-            raise RuntimeError("numpy is not available")
+        _import_numpy()
         with open(model_path, "rb") as f:
             raw = f.read()
         if raw[:4] != b"AZLM":

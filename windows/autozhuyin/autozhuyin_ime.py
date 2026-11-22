@@ -7,7 +7,11 @@ tests); this file only translates PIME key events and replies.
 import json
 import os
 import sys
+import threading
 import time
+import traceback
+
+_IMPORT_START = time.perf_counter()
 
 # numpy for "AI 選字" is bundled per Python version (PIME 1.3 has 3.8, PIME 2 has 3.15).
 _VENDOR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor",
@@ -23,8 +27,7 @@ from .core.history import UserHistory
 from .core.reranker import MODES
 from .core.classifier import Classifier, LearnedPreferences
 from .core.engine import BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, UP, CompositionEngine
-from .core.english import EnglishModel
-from .core.lexicon import Lexicon
+from .core import loading
 from .core.shift_tap import ShiftTapDetector
 from .core.user_phrases import UserPhrasesFile
 
@@ -34,10 +37,15 @@ _USER_DIR = os.path.join(os.environ.get("APPDATA", _HERE), "PIME", "autozhuyin")
 _LEARNED_FILE = os.path.join(_USER_DIR, "learned.json")
 _USER_PHRASES = os.path.join(_USER_DIR, "user-phrases.txt")
 _HISTORY_FILE = os.path.join(_USER_DIR, "user-history.json")
+_CACHE_DIR = os.path.join(_USER_DIR, "cache")
+_STARTUP_LOG = os.path.join(_USER_DIR, "startup.log")
 
 _classifier = None
 _ai = None
+_ai_lock = threading.Lock()
 _phrases = None   # UserPhrasesFile
+_loaded = threading.Event()   # set when the background load (below) has finished
+_load_error = None
 
 ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR, ID_EDIT_PHRASES = 1, 2, 3, 4, 5
 ID_AI_MODE = {mode: 10 + i for i, mode in enumerate(MODES)}   # 10..13
@@ -70,22 +78,49 @@ def _save_history(data):
     _save_json(_HISTORY_FILE, data)
 
 
-def _shared_classifier():
-    """Loads the lexicon and English model once per PIME server process."""
-    global _classifier, _phrases
-    if _classifier is None:
-        lexicon = Lexicon.from_file(os.path.join(_DATA, "lexicon.txt"))
-        _phrases = UserPhrasesFile(_USER_PHRASES, lexicon)
-        _phrases.reload_if_changed()
-        english = EnglishModel.from_files(
-            os.path.join(_DATA, "english-common.txt"),
-            os.path.join(_DATA, "english-dict.txt"),
-            os.path.join(_DATA, "english-bigram.json"),
-        )
+def _load():
+    """Loads the lexicon and English model once per PIME server process, in a background
+    thread started when PIME imports this module. Activating the input method no longer
+    waits for it; the first key does, if it comes before the load has finished."""
+    global _classifier, _phrases, _load_error
+    timings = {"import": time.perf_counter() - _IMPORT_START}
+    start = time.perf_counter()
+    try:
+        lexicon = loading.load_lexicon(_DATA, _CACHE_DIR, timings)
+        phrases = UserPhrasesFile(_USER_PHRASES, lexicon)
+        phrases.reload_if_changed()
+        english = loading.load_english(_DATA, _CACHE_DIR, timings)
         trained = Classifier.load_weights(os.path.join(_DATA, "classifier-weights.json"))
+        _phrases = phrases
         _classifier = Classifier(lexicon, english, LearnedPreferences(_load_json(_LEARNED_FILE), _save_learned),
                                  trained, UserHistory(_load_json(_HISTORY_FILE), _save_history))
+        loading.freeze_gc()
+    except Exception as e:   # noqa: BLE001 — reported by _shared_classifier
+        _load_error = e
+        timings["error"] = 0.0
+        try:
+            os.makedirs(_USER_DIR, exist_ok=True)
+            with open(os.path.join(_USER_DIR, "load-error.log"), "a", encoding="utf-8") as f:
+                traceback.print_exc(file=f)
+        except OSError:
+            pass
+    finally:
+        timings["total"] = time.perf_counter() - start
+        loading.log_timings(_STARTUP_LOG, timings)
+        _loaded.set()
+    if _classifier is not None:
+        _shared_ai()   # "AI 選字" model: after the lexicon, so the two don't compete
+
+
+def _shared_classifier():
+    """The shared classifier; waits for the background load if it is still running."""
+    _loaded.wait()
+    if _classifier is None:
+        raise RuntimeError("AutoZhuyin data failed to load: %r" % (_load_error,))
     return _classifier
+
+
+threading.Thread(target=_load, name="autozhuyin-load", daemon=True).start()
 
 
 def _reload_user_phrases():
@@ -100,8 +135,9 @@ def _reload_user_phrases():
 def _shared_ai():
     """"AI 選字": settings and the language model, loaded in the background once."""
     global _ai
-    if _ai is None:
-        _ai = AI(_DATA, _USER_DIR)
+    with _ai_lock:
+        if _ai is None:
+            _ai = AI(_DATA, _USER_DIR)
     return _ai
 
 
@@ -117,9 +153,22 @@ _CONTROL_KEYS = {0xBA: ";", 0xDE: "'", 0xBC: ",", 0xBE: ".", 0xBF: "/"}
 class AutoZhuyinTextService(TextService):
     def __init__(self, client):
         TextService.__init__(self, client)
-        self.engine = CompositionEngine(_shared_classifier())
         self.shift_tap = ShiftTapDetector()
-        self.engine.reranker = _shared_ai().reranker
+        self._engine = None
+        self._check_phrases = False
+
+    @property
+    def engine(self):
+        """Made on first use (normally the first key), so that creating and activating the
+        text service never waits for the lexicon to load."""
+        if self._engine is None:
+            engine = CompositionEngine(_shared_classifier())
+            engine.reranker = _shared_ai().reranker
+            self._engine = engine
+        return self._engine
+
+    def _english_mode(self):
+        return self._engine is not None and self._engine.english_mode
 
     # --- lifecycle ---
 
@@ -128,16 +177,24 @@ class AutoZhuyinTextService(TextService):
         self.setSelKeys("123456789")
         self.customizeUI(candFontSize=16, candPerRow=1, candUseCursor=True)
         # Taskbar IME icon (Windows 8+) and language bar button; both open the settings menu.
-        self._icon_english = self.engine.english_mode
+        self._icon_english = self._english_mode()
         self.addButton("windows-mode-icon", icon=self._mode_icon(), tooltip=self._mode_tooltip(),
                        commandId=ID_MODE_ICON)
         self.addButton("autozhuyin-settings", icon=_ICON, tooltip="自動注音設定", type="menu")
+        if _loaded.is_set():
+            self._show_phrase_problems()
+        else:
+            self._check_phrases = True   # still loading: check on the first key instead
+
+    def _show_phrase_problems(self):
+        self._check_phrases = False
         bad = _reload_user_phrases()
         if bad:
             self.showMessage("自訂詞第 %s 行看不懂，請檢查格式" % "、".join(str(n) for n in bad[:5]), 5)
 
     def onDeactivate(self):
-        self.engine.reset()
+        if self._engine is not None:
+            self._engine.reset()
         self.removeButton("windows-mode-icon")
         self.removeButton("autozhuyin-settings")
         TextService.onDeactivate(self)
@@ -145,15 +202,15 @@ class AutoZhuyinTextService(TextService):
     # --- taskbar icon: "注" for 中英自動, "A" for English mode ---
 
     def _mode_icon(self):
-        return _ICON_EN if self.engine.english_mode and os.path.exists(_ICON_EN) else _ICON
+        return _ICON_EN if self._english_mode() and os.path.exists(_ICON_EN) else _ICON
 
     def _mode_tooltip(self):
-        return ("英文模式" if self.engine.english_mode else "中英自動") + "（左鍵切換，右鍵設定）"
+        return ("英文模式" if self._english_mode() else "中英自動") + "（左鍵切換，右鍵設定）"
 
     def _update_mode_icon(self):
-        if getattr(self, "_icon_english", None) == self.engine.english_mode:
+        if getattr(self, "_icon_english", None) == self._english_mode():
             return
-        self._icon_english = self.engine.english_mode
+        self._icon_english = self._english_mode()
         self.changeButton("windows-mode-icon", icon=self._mode_icon(), tooltip=self._mode_tooltip())
 
     # --- menu (AI 選字 settings) ---
@@ -198,7 +255,8 @@ class AutoZhuyinTextService(TextService):
 
     def onCompositionTerminated(self, forced):
         # The app ended the composition (focus change, mouse click): the shown text stays.
-        self.engine.reset()
+        if self._engine is not None:
+            self._engine.reset()
         if self.showCandidates:
             self.setShowCandidates(False)
         TextService.onCompositionTerminated(self, forced)
@@ -219,7 +277,8 @@ class AutoZhuyinTextService(TextService):
         return c
 
     def _busy(self):
-        return bool(self.engine.keys or self.engine.candidates)
+        e = self._engine
+        return bool(e is not None and (e.keys or e.candidates))
 
     def filterKeyDown(self, ev):
         if ev.keyCode == VK_SHIFT:  # noqa: F405
@@ -246,6 +305,8 @@ class AutoZhuyinTextService(TextService):
         return None
 
     def onKeyDown(self, ev):
+        if self._check_phrases:
+            self._show_phrase_problems()
         control = self._control_key(ev)
         if control:
             handled, commit = self.engine.handle_control(control)

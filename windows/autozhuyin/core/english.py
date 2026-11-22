@@ -36,6 +36,20 @@ class EnglishModel:
                 bigram = json.load(f)
         return cls(_read_words(common_path), _read_words(dict_path), bigram)
 
+    def state(self):
+        """Plain data for core.loading's cache."""
+        return {"common": self.common, "dictionary": self.dictionary,
+                "sorted_common": self.sorted_common, "sorted_words": self.sorted_words,
+                "bigram": self.bigram, "unseen": self.unseen}
+
+    @classmethod
+    def from_state(cls, state):
+        m = cls.__new__(cls)
+        m.common, m.dictionary = state["common"], state["dictionary"]
+        m.sorted_common, m.sorted_words = state["sorted_common"], state["sorted_words"]
+        m.bigram, m.unseen = state["bigram"], state["unseen"]
+        return m
+
     def is_common(self, w):
         return w.lower() in self.common
 

@@ -164,6 +164,30 @@ class WrapperTests(unittest.TestCase):
             del ime.os.startfile
         self.assertEqual(type_text(self.svc, "su3 "), "你")
 
+    def test_activation_does_not_wait_for_loading(self):
+        """Switching to the input method must not block on the lexicon: only the first key may."""
+        import threading
+        from autozhuyin import autozhuyin_ime as ime
+        real = ime._loaded
+        pending = threading.Event()
+        ime._loaded = pending
+        try:
+            svc = AutoZhuyinTextService(client=None)
+            done = threading.Event()
+
+            def activate():
+                svc.onActivate()
+                done.set()
+            threading.Thread(target=activate, daemon=True).start()
+            self.assertTrue(done.wait(2), "onActivate waited for the load")
+            self.assertIsNone(svc._engine)
+            self.assertIn("windows-mode-icon", svc.reply["addButton"])
+            self.assertFalse(svc.filterKeyDown(FakeKeyEvent("⇧", shift=True)))   # Shift needs no engine
+            pending.set()
+            self.assertEqual(type_text(svc, "su3cl3 "), "你好")
+        finally:
+            ime._loaded = real
+
     def test_mode_icon_click_toggles_english(self):
         self.svc.reply = {}
         self.svc.onCommand(1, 0)

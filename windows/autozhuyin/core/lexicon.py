@@ -30,6 +30,17 @@ class Lexicon:
             lex.load(f)
         return lex
 
+    def state(self):
+        """The built-in entries as plain data (for core.loading's cache)."""
+        return {"exact": self.exact, "max_phrase_length": self.max_phrase_length}
+
+    @classmethod
+    def from_state(cls, state):
+        lex = cls()
+        lex.exact = state["exact"]
+        lex.max_phrase_length = state["max_phrase_length"]
+        return lex
+
     def load(self, lines):
         for line in lines:
             line = line.strip()

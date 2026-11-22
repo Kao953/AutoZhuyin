@@ -50,14 +50,28 @@ PKG 會裝到 `/Library/Input Methods/`，系統上所有使用者都能用。
 SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安裝：「設定 → 應用程式」裡的「自動注音 AutoZhuyin」（PIME 會留著，不需要的話另外移除）。
 也可以用 zip 版手動安裝：先裝好 PIME，解壓縮 `AutoZhuyin-Windows-<版本>.zip`，以系統管理員身分執行 `install.bat`（移除用 `uninstall.bat`）。
 
-**被防毒軟體擋下時**：安裝程式沒有付費的程式碼簽章，又會註冊輸入法、內含 Python，所以 Microsoft Defender 或其他防毒軟體可能誤判成病毒，把檔案刪掉或阻止執行。請依序試：
+**安裝時被防毒軟體擋下？** 自動注音是個人開發的免費軟體，沒有花錢買微軟認證的「數位簽章」，所以 Windows 內建的防毒（Microsoft Defender）有時會誤以為它是病毒，把安裝檔刪掉或不讓它執行。確定檔案是從本專案的 [GitHub 下載頁](https://github.com/Kao953/AutoZhuyin/releases)下載的，就可以照下面的步驟暫時關閉防護，裝完再打開：
 
-1. **先確認檔案沒被動過**：從 [GitHub Releases](https://github.com/Kao953/AutoZhuyin/releases) 下載，在 PowerShell 執行 `Get-FileHash .\AutoZhuyin-Windows-<版本>-setup.exe`，和同一頁 `SHA256SUMS.txt` 裡的值比對，一致才繼續。
-2. **只放行這個檔案（建議）**：Windows 安全性 → 病毒與威脅防護 → 保護歷程記錄 → 點被封鎖的項目 → 動作 →「允許在裝置上」，然後重新執行安裝程式。
-3. **仍然被擋**：Windows 安全性 → 病毒與威脅防護 → 病毒與威脅防護設定 → 管理設定 → 排除項目 → 新增排除項目 → 資料夾，加入下載資料夾，以及安裝位置 `C:\Program Files (x86)\PIME`（獨立版是 `C:\Program Files\AutoZhuyin`）。
-4. **最後手段：暫時關閉即時防護**：同一個「管理設定」頁面把「即時保護」關掉 → 安裝 → **裝完立刻打開**（Windows 也會在一段時間後自動重新開啟）。安裝完成後輸入法本身通常不會再被擋；如果之後打字時又被攔，用第 3 步把安裝位置加入排除。
+1. 點螢幕左下角的「開始」，輸入 **Windows 安全性**，打開它。
+2. 點「**病毒與威脅防護**」（盾牌圖示）。
+3. 往下找「病毒與威脅防護設定」，點下面藍色的「**管理設定**」。
+4. 把「**即時保護**」的開關切到「關閉」。跳出「是否允許此應用程式變更您的裝置？」時按「是」。
+5. 如果安裝檔已經不見了，重新下載一次。執行安裝檔，照畫面裝完。
+6. **裝完後回到同一個畫面，把「即時保護」打開。** 忘記也沒關係，Windows 過一陣子會自動幫你打開。
 
-其他防毒軟體（Avast、卡巴斯基、趨勢科技等）請在它們的「隔離區／信任清單／排除項目」裡做同樣的事。遇到誤判也歡迎[開 issue](https://github.com/Kao953/AutoZhuyin/issues) 告訴我們是哪一套防毒軟體和偵測名稱，我們可以向廠商回報誤判。
+裝好之後輸入法就能正常使用，不用一直關著防護。
+
+<details>
+<summary>進階：不關防護，只放行自動注音</summary>
+
+- **確認檔案沒被改過**：在 PowerShell 執行 `Get-FileHash .\AutoZhuyin-Windows-<版本>-setup.exe`，和 Release 頁面上 `SHA256SUMS.txt` 的值比對。
+- **只放行被擋的檔案**：Windows 安全性 → 病毒與威脅防護 → 保護歷程記錄 → 點被封鎖的項目 → 動作 →「允許在裝置上」，再重新執行安裝程式。
+- **加入排除項目**：病毒與威脅防護設定 → 管理設定 → 排除項目 → 新增排除項目 → 資料夾，加入下載資料夾和安裝位置 `C:\Program Files (x86)\PIME`（獨立版是 `C:\Program Files\AutoZhuyin`）。之後打字時如果還會被攔，也是用這個方法解決。
+- **其他防毒軟體**（Avast、卡巴斯基、趨勢科技等）：在它們的「隔離區」「信任清單」或「排除項目」裡做同樣的事，或在它們的主畫面暫停防護。
+
+</details>
+
+遇到誤判也歡迎[開 issue](https://github.com/Kao953/AutoZhuyin/issues)，告訴我們是哪一套防毒軟體、顯示的病毒名稱是什麼，我們會向廠商回報誤判。
 
 **獨立版（實驗）**：`AutoZhuyin-Windows-Standalone-<版本>-setup.exe` 不需要 PIME，自帶輸入法元件和 Python，需要 64 位元的 Windows 10 / 11。在鍵盤清單裡叫「自動注音（獨立版）」，可以和 PIME 版同時安裝。還沒在實機上測過；目前沒有設定選單（AI 選字固定「標準」，自訂詞直接改 `%APPDATA%\AutoZhuyin\user-phrases.txt`，存檔後馬上生效），Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能打不出字。學習紀錄和自訂詞在 `%APPDATA%\AutoZhuyin`。
 

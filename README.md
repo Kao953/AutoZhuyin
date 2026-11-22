@@ -244,11 +244,14 @@ python3 training/make_parity.py         # 權重或特徵改了之後都要重�
 
 `Resources/lexicon.txt` 由小麥注音的原始資料轉換而來，後面再接上手寫的入門詞庫 `Resources/lexicon-seed.txt`。轉換程式 `scripts/convert-mcbopomofo.py` 只讀取資料檔，不執行小麥注音的程式碼：分數依語料詞頻計算，一字多音的字依讀音常見程度分配權重。
 
-更新到小麥注音最新資料：
+更新到小麥注音最新資料（要在 Mac 上執行）：
 
 ```bash
-scripts/import-mcbopomofo.sh
+scripts/update-lexicon.sh                          # 抓資料、列出差異、重產 parity fixtures、跑測試，確認後 commit
+scripts/update-lexicon.sh && scripts/release.sh --push   # 更新詞庫後直接發修正版
 ```
+
+`update-lexicon.sh` 會列出新增、刪除和分數變動的詞，問你 y/N 才 commit（`-y` 跳過確認）。詞庫沒有變動就直接結束。只想轉換不測試：`scripts/import-mcbopomofo.sh`。
 
 ### AI 選字模型
 

@@ -66,6 +66,12 @@ public final class CompositionEngine {
     /// "`" was typed: if the next key is in `symbols` it gives that full-width symbol
     /// whatever the context; anything else makes it a plain backtick (so ``` still works).
     public private(set) var pendingBacktick = false
+    /// A Shift-punctuation typed with nothing composed, not sent yet: full-width or not is
+    /// only a guess from the context, so Tab (or a Shift tap) switches "<" ↔ "，" first.
+    /// Any other key sends it.
+    public private(set) var pendingPunctuation: Character?
+    private var punctuationFullwidth = false
+    private var punctuationFlipped = false
     static let holdMinScore = -3.5
 
     /// "AI 選字" (language-model reranking); nil = lexicon only.
@@ -181,6 +187,9 @@ public final class CompositionEngine {
             pieces = out.filter { !$0.text.isEmpty }
         }
         if pendingBacktick { pieces.append(MarkedPiece(text: "`", mode: .literal)) }
+        if let p = pendingPunctuationText {
+            pieces.append(MarkedPiece(text: p, mode: punctuationFullwidth ? .zhuyin : .literal))
+        }
         return pieces
     }
 
@@ -288,7 +297,7 @@ public final class CompositionEngine {
     }
 
     /// Cursor position in `markedText`, in Characters.
-    public var cursorOffset: Int { baseCursorOffset + insertingText.count }
+    public var cursorOffset: Int { baseCursorOffset + insertingText.count + (pendingPunctuationText?.count ?? 0) }
 
     private var insertingText: String {
         inserting.isEmpty ? "" : ZhuyinParser.parse(inserting).syllables.map(\.syllable.reading).joined()
@@ -378,6 +387,7 @@ public final class CompositionEngine {
         lastCommit = nil
         if isShowingCandidates { return handleCandidateKey(key) }
         if pendingBacktick { return afterBacktick(key) }
+        if pendingPunctuation != nil { return afterPunctuation(key) }
         if !inserting.isEmpty && (key == .backspace || key == .escape) {
             if key == .backspace { inserting.removeLast() } else { inserting = [] }
             return .consumed
@@ -499,6 +509,13 @@ public final class CompositionEngine {
 
         // Any other character (Shift-punctuation, symbols): commit, then emit it.
         let chineseContext = keys.isEmpty ? (context == .zhuyin) : (mode == .zhuyin)
+        if keys.isEmpty, CompositionEngine.fullwidth[c] != nil {
+            // Nothing typed before it to tell: hold it so Tab can switch it.
+            pendingPunctuation = c
+            punctuationFullwidth = chineseContext
+            punctuationFlipped = false
+            return .consumed
+        }
         let committed = keys.isEmpty ? "" : commitCurrent()
         let punct = chineseContext ? (CompositionEngine.fullwidth[c] ?? String(c)) : String(c)
         if committed.isEmpty && punct == String(c) { return .passThrough }
@@ -527,6 +544,44 @@ public final class CompositionEngine {
         var r = handle(key)
         if !r.handled, case .character(let c) = key { r = KeyResult(handled: true, commit: String(c)) }
         return KeyResult(handled: r.handled, commit: committed + "`" + (r.commit ?? ""))
+    }
+
+    private var pendingPunctuationText: String? {
+        guard let c = pendingPunctuation else { return nil }
+        return punctuationFullwidth ? CompositionEngine.fullwidth[c] ?? String(c) : String(c)
+    }
+
+    private func afterPunctuation(_ key: KeyInput) -> KeyResult {
+        switch key {
+        case .tab, .shiftTap:
+            punctuationFullwidth.toggle()
+            punctuationFlipped.toggle()
+            return .consumed
+        case .escape, .backspace:
+            pendingPunctuation = nil
+            return .consumed
+        default:
+            break
+        }
+        let fullwidth = punctuationFullwidth
+        let text = commitPunctuation()
+        // Space sends it like a word: half-width gets the space too.
+        if key == .character(" ") { return KeyResult(handled: true, commit: text + (fullwidth ? "" : " ")) }
+        var r = handle(key)
+        if !r.handled, case .character(let c) = key { r = KeyResult(handled: true, commit: String(c)) }
+        return KeyResult(handled: r.handled, commit: text + (r.commit ?? ""))
+    }
+
+    /// Sends the held punctuation. A switch with Tab says which language is being typed, so
+    /// the next punctuation is guessed the same way.
+    private func commitPunctuation() -> String {
+        guard let text = pendingPunctuationText else { return "" }
+        if punctuationFlipped {
+            previousMode = punctuationFullwidth ? .zhuyin : .literal
+            previousCommitTime = now()
+        }
+        pendingPunctuation = nil
+        return text
     }
 
     /// "`" + key → full-width symbol.
@@ -565,7 +620,7 @@ public final class CompositionEngine {
         candidates = []
         pendingBacktick = false
         if !inserting.isEmpty { splice(inserting); inserting = [] }
-        let committed = keys.isEmpty ? "" : commitCurrent()
+        let committed = commitPunctuation() + (keys.isEmpty ? "" : commitCurrent())
         return KeyResult(handled: true, commit: committed + symbol)
     }
 
@@ -699,7 +754,7 @@ public final class CompositionEngine {
     /// Commits whatever is composed (e.g. the app lost focus). Returns "" when empty.
     public func commitAll() -> String {
         lastCommit = nil
-        return keys.isEmpty ? "" : commitCurrent()
+        return commitPunctuation() + (keys.isEmpty ? "" : commitCurrent())
     }
 
     public func reset() {
@@ -707,6 +762,7 @@ public final class CompositionEngine {
         inserting = []
         held = nil
         pendingBacktick = false
+        pendingPunctuation = nil
         cursor = nil
         forcedMode = nil
         fixed = [:]

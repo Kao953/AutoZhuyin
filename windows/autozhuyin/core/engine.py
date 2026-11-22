@@ -69,6 +69,12 @@ class CompositionEngine:
         # to the app (no composition, no underline) until Shift is tapped again.
         self.english_mode = False
         self.backtick = False    # "`" typed; the next key may be a forced symbol
+        # A Shift-punctuation typed with nothing composed, not sent yet: full-width or not is
+        # only a guess from the context, so Tab (or a Shift tap) switches "<" ↔ "，" first.
+        # Any other key sends it.
+        self.punct = None
+        self._punct_fullwidth = False
+        self._punct_flipped = False
         self.fixed = {}          # zhuyin segment start -> {(syl_start, syl_end): text}
         self.candidates = []
         self.symbol_table = False   # candidates are the "`" + space symbol table
@@ -265,7 +271,7 @@ class CompositionEngine:
     @property
     def cursor_offset(self):
         """Cursor position in marked_text (characters)."""
-        return self._base_cursor_offset() + len(self._inserting_text())
+        return self._base_cursor_offset() + len(self._inserting_text()) + len(self._punct_text())
 
     def _move_cursor(self, delta):
         self.inserting = []
@@ -372,6 +378,8 @@ class CompositionEngine:
             pieces = [(t, m) for t, m in out if t]
         if self.backtick:
             pieces.append((BACKTICK, LITERAL))
+        if self.punct:
+            pieces.append((self._punct_text(), ZHUYIN if self._punct_fullwidth else LITERAL))
         return pieces
 
     def _segment_pieces(self):
@@ -391,7 +399,7 @@ class CompositionEngine:
 
     def wants(self, key):
         """Whether handle(key) would consume the key, without changing state."""
-        if self.candidates or key == SHIFT_TAP or self.backtick or self.inserting:
+        if self.candidates or key == SHIFT_TAP or self.backtick or self.punct or self.inserting:
             return True
         if self.english_mode and not self.keys:
             return False   # English mode: everything goes to the app as typed
@@ -405,7 +413,7 @@ class CompositionEngine:
             return False
         if bopomofo.is_zhuyin_key(key) or (key.isascii() and key.isalpha()):
             return True
-        return self.context == ZHUYIN and key in FULLWIDTH
+        return key in FULLWIDTH
 
     def handle(self, key):
         self._last_commit = None
@@ -413,6 +421,8 @@ class CompositionEngine:
             return self._handle_candidate_key(key)
         if self.backtick:
             return self._after_backtick(key)
+        if self.punct:
+            return self._after_punct(key)
         if self.inserting and key in (BACKSPACE, ESCAPE):
             if key == BACKSPACE:
                 self.inserting.pop()
@@ -493,6 +503,39 @@ class CompositionEngine:
             handled, more = True, key
         return handled, committed + BACKTICK + (more or "")
 
+    def _punct_text(self):
+        if not self.punct:
+            return ""
+        return FULLWIDTH.get(self.punct, self.punct) if self._punct_fullwidth else self.punct
+
+    def _after_punct(self, key):
+        if key in (TAB, SHIFT_TAP):
+            self._punct_fullwidth = not self._punct_fullwidth
+            self._punct_flipped = not self._punct_flipped
+            return CONSUMED
+        if key in (ESCAPE, BACKSPACE):
+            self.punct = None
+            return CONSUMED
+        fullwidth = self._punct_fullwidth
+        text = self._commit_punct()
+        # Space sends it like a word: half-width gets the space too.
+        if key == " ":
+            return True, text + ("" if fullwidth else " ")
+        handled, more = self.handle(key)
+        if not handled and len(key) == 1:
+            handled, more = True, key
+        return handled, text + (more or "")
+
+    def _commit_punct(self):
+        """Sends the held punctuation. A switch with Tab says which language is being typed,
+        so the next punctuation is guessed the same way."""
+        text = self._punct_text()
+        if text and self._punct_flipped:
+            self._previous_mode = ZHUYIN if self._punct_fullwidth else LITERAL
+            self._previous_time = self.now()
+        self.punct = None
+        return text
+
     def _last_parse(self, segs):
         if not segs or segs[-1][2] != ZHUYIN:
             return None
@@ -539,6 +582,10 @@ class CompositionEngine:
             return CONSUMED
 
         chinese = (self.context == ZHUYIN) if not self.keys else (self.mode == ZHUYIN)
+        if not self.keys and c in FULLWIDTH:
+            # Nothing typed before it to tell: hold it so Tab can switch it.
+            self.punct, self._punct_fullwidth, self._punct_flipped = c, chinese, False
+            return CONSUMED
         committed = self._commit() if self.keys else ""
         punct = FULLWIDTH.get(c, c) if chinese else c
         if not committed and punct == c:
@@ -578,7 +625,7 @@ class CompositionEngine:
         if self.inserting:
             self._splice(self.inserting)
             self.inserting = []
-        committed = self._commit() if self.keys else ""
+        committed = self._commit_punct() + (self._commit() if self.keys else "")
         return True, committed + symbol
 
     def page(self):
@@ -684,13 +731,14 @@ class CompositionEngine:
 
     def commit_all(self):
         self._last_commit = None
-        return self._commit() if self.keys else ""
+        return self._commit_punct() + (self._commit() if self.keys else "")
 
     def reset(self):
         self.keys = []
         self.inserting = []
         self.held = None
         self.backtick = False
+        self.punct = None
         self.cursor = None
         self.forced_mode = None
         self.fixed = {}

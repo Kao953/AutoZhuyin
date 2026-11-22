@@ -331,7 +331,7 @@ class AutoZhuyinTextService(TextService):
         self.engine.handle(SHIFT_TAP)
         self._update(None)
         self._update_mode_icon()
-        if not self.engine.keys:
+        if not self.engine.keys and not self.engine.punct:
             self.showMessage("英文" if self.engine.english_mode else "中英自動", 1)
         return True
 

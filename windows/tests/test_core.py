@@ -432,6 +432,55 @@ class BacktickSymbolTests(unittest.TestCase):
         self.assertEqual(e.marked_text, "你")
 
 
+class HeldPunctuationTests(unittest.TestCase):
+    """A Shift-punctuation typed with nothing composed waits for the next key; Tab switches it."""
+    def test_tab_switches(self):
+        e = make_engine()
+        self.assertEqual(type_keys("<", e), "")
+        self.assertEqual(e.marked_text, "<")
+        self.assertEqual(e.cursor_offset, 1)
+        type_keys("\t", e)
+        self.assertEqual(e.marked_text, "，")
+        type_keys("⇧", e)
+        self.assertEqual(e.marked_text, "<")
+        self.assertFalse(e.english_mode)
+        self.assertEqual(type_keys("\tsu3", e), "，")
+        self.assertEqual(e.marked_text, "你")
+
+    def test_guess_from_context(self):
+        self.assertEqual(type_keys("ji3 <\n", make_engine()), "我，")
+        self.assertEqual(type_keys("ji3 !\t\n", make_engine()), "我!")
+        self.assertEqual(type_keys("ji3<", make_engine()), "我，")   # after a composition: sent at once
+        self.assertEqual(type_keys("hello\\", make_engine()), "hello\\")
+
+    def test_space_sends_it(self):
+        self.assertEqual(type_keys("! ", make_engine()), "! ")
+        self.assertEqual(type_keys("ji3 ! ", make_engine()), "我！")
+
+    def test_switch_is_remembered(self):
+        """The switch says which language is being typed: the next punctuation follows it."""
+        self.assertEqual(type_keys("<\t>\n", make_engine()), "，。")
+
+    def test_backspace_cancels(self):
+        e = make_engine()
+        self.assertEqual(type_keys("(\b", e), "")
+        self.assertEqual(e.marked_text, "")
+
+    def test_wants(self):
+        e = make_engine()
+        self.assertTrue(e.wants("<"))
+        type_keys("<", e)
+        self.assertTrue(e.wants(ENTER))
+        self.assertTrue(e.wants(TAB))
+
+    def test_commit_all(self):
+        e = make_engine()
+        type_keys("ji3 ?", e)
+        self.assertEqual(e.commit_all(), "？")
+        type_keys("?", e)
+        self.assertEqual(e.handle_control(","), (True, "？，"))
+
+
 class FirstWordHoldTests(unittest.TestCase):
     """The first word is not committed as English on space if it also reads as Zhuyin."""
     def test_next_word_decides(self):

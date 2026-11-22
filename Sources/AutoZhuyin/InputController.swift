@@ -108,7 +108,7 @@ final class InputController: IMKInputController {
                 otherModifiers: !flags.intersection([.command, .control, .option, .function]).isEmpty,
                 time: event.timestamp)
             if tapped {
-                let idle = engine.keys.isEmpty
+                let idle = engine.keys.isEmpty && engine.pendingPunctuation == nil
                 _ = engine.handle(.shiftTap)
                 updateComposition(client)
                 // English mode on/off: show 中 / A by the cursor.

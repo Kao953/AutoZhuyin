@@ -639,6 +639,68 @@ final class BacktickSymbolTests: XCTestCase {
     }
 }
 
+/// A Shift-punctuation typed with nothing composed waits for the next key; Tab switches it.
+final class HeldPunctuationTests: XCTestCase {
+    func makeEngine() -> CompositionEngine {
+        CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+    }
+
+    func type(_ s: String, into e: CompositionEngine) -> String {
+        var out = ""
+        for c in s {
+            let key: KeyInput = ["\n": .enter, "\t": .tab, "⇧": .shiftTap, "\u{8}": .backspace][c] ?? .character(c)
+            let r = e.handle(key)
+            if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+        }
+        return out
+    }
+
+    func testTabSwitches() {
+        let e = makeEngine()
+        XCTAssertEqual(type("<", into: e), "")
+        XCTAssertEqual(e.markedText, "<")
+        XCTAssertEqual(e.cursorOffset, 1)
+        _ = type("\t", into: e)
+        XCTAssertEqual(e.markedText, "，")
+        _ = type("⇧", into: e)
+        XCTAssertEqual(e.markedText, "<")
+        XCTAssertFalse(e.isEnglishMode)
+        XCTAssertEqual(type("\tsu3", into: e), "，")
+        XCTAssertEqual(e.markedText, "你")
+    }
+
+    func testGuessFromContext() {
+        XCTAssertEqual(type("ji3 <\n", into: makeEngine()), "我，")
+        XCTAssertEqual(type("ji3 !\t\n", into: makeEngine()), "我!")
+        XCTAssertEqual(type("ji3<", into: makeEngine()), "我，")   // after a composition: sent at once
+        XCTAssertEqual(type("hello\\", into: makeEngine()), "hello\\")
+    }
+
+    func testSpaceSendsIt() {
+        XCTAssertEqual(type("! ", into: makeEngine()), "! ")
+        XCTAssertEqual(type("ji3 ! ", into: makeEngine()), "我！")
+    }
+
+    /// The switch says which language is being typed: the next punctuation follows it.
+    func testSwitchIsRemembered() {
+        XCTAssertEqual(type("<\t>\n", into: makeEngine()), "，。")
+    }
+
+    func testBackspaceCancels() {
+        let e = makeEngine()
+        XCTAssertEqual(type("(\u{8}", into: e), "")
+        XCTAssertEqual(e.markedText, "")
+    }
+
+    func testCommitAll() {
+        let e = makeEngine()
+        _ = type("ji3 ?", into: e)
+        XCTAssertEqual(e.commitAll(), "？")
+        _ = type("?", into: e)
+        XCTAssertEqual(e.handleControl(","), KeyResult(handled: true, commit: "？，"))
+    }
+}
+
 final class FirstWordHoldTests: XCTestCase {
     func makeEngine() -> CompositionEngine {
         CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))

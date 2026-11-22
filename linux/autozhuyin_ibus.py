@@ -229,7 +229,7 @@ class AutoZhuyinEngine(IBus.Engine):
 
         # Shortcuts (Ctrl/Alt/Super) go to the app; commit any composition first.
         if state & _SHORTCUT_MASK:
-            if self.engine.keys:
+            if self.engine.keys or self.engine.punct:
                 self._update(self.engine.commit_all())
             return False
 

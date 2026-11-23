@@ -140,8 +140,8 @@ object Models {
         }
     }
 
-    /** 要打聲調才出字: untoned syllables stay as Bopomofo. */
-    fun requireTones(context: Context): Boolean = prefs(context).getBoolean(REQUIRE_TONES, false)
+    /** 要打聲調才出字 (on unless turned off): untoned syllables stay as Bopomofo. */
+    fun requireTones(context: Context): Boolean = prefs(context).getBoolean(REQUIRE_TONES, true)
 
     fun setRequireTones(context: Context, on: Boolean) = prefs(context).edit().putBoolean(REQUIRE_TONES, on).apply()
 

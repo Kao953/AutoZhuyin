@@ -22,8 +22,8 @@ class AI:
         settings = self._load_settings()
         mode = settings.get("ai_mode", STANDARD)
         self.auto_pause = bool(settings.get("ai_auto_pause", True))
-        # 要打聲調才出字 (not an AI setting, but kept in the same settings.json).
-        self.require_tones = bool(settings.get("require_tones", False))
+        # 要打聲調才出字, on unless turned off (not an AI setting, but kept in the same settings.json).
+        self.require_tones = bool(settings.get("require_tones", True))
         self.reranker = Reranker(mode if mode in MODES else STANDARD)
         self.reranker.system_state = lambda: self.monitor.state() if self.auto_pause else NORMAL
         self.error = None      # why the model cannot be used, if it cannot

@@ -44,9 +44,10 @@ enum Shared {
         return Classifier(lexicon: lexicon, english: english, learned: learned, weights: trained, history: history)
     }()
 
-    /// 要打聲調才出字: untoned syllables stay as Bopomofo, and symbols typed over one correct it.
+    /// 要打聲調才出字 (on unless turned off): untoned syllables stay as Bopomofo, and symbols
+    /// typed over one correct it.
     static var requireTones: Bool {
-        get { UserDefaults.standard.bool(forKey: "RequireTones") }
+        get { UserDefaults.standard.object(forKey: "RequireTones") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "RequireTones") }
     }
 

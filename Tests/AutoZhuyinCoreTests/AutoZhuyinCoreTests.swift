@@ -44,6 +44,19 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(ZhuyinParser.parse(Array("me")).syllables.count, 2)
     }
 
+    /// An initial typed again before the tone replaces the one before: ㄌㄨㄥ ㄏ ˊ = ㄏㄨㄥˊ.
+    func testTypedOver() {
+        func readings(_ keys: String) -> [String] { ZhuyinParser.parse(Array(keys)).syllables.map(\.syllable.reading) }
+        XCTAssertEqual(readings("xj/c "), ["ㄏㄨㄥ"])
+        XCTAssertEqual(readings("su3xj/c6"), ["ㄋㄧˇ", "ㄏㄨㄥˊ"])
+        XCTAssertTrue(ZhuyinParser.parse(Array("xj/c ")).syllables[0].reordered)
+        // Only when the symbol alone is no syllable: these stay as they were.
+        XCTAssertEqual(readings("xj/cj3"), ["ㄌㄨㄥ", "ㄏㄨˇ"])
+        XCTAssertEqual(readings("5kg4"), ["ㄓㄜ", "ㄕˋ"])     // 這是, first tone omitted
+        XCTAssertEqual(readings("xj/ c "), ["ㄌㄨㄥ", "ㄏ"])   // the first one had its tone
+        XCTAssertEqual(readings("xj/v "), ["ㄌㄨㄥ", "ㄒ"])     // ㄒㄨㄥ is no syllable either
+    }
+
     func testSyllableTable() {
         XCTAssertTrue(SyllableTable.valid.contains("ㄋㄧ"))
         XCTAssertTrue(SyllableTable.valid.contains("ㄓ"))
@@ -154,6 +167,7 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(type("uvl3\n", into: e), "小")
         // A phrase typed with one syllable out of order converts like the in-order version.
         XCTAssertEqual(type("ulv3cl3\n", into: makeEngine()), type("vul3cl3\n", into: makeEngine()))
+        XCTAssertEqual(type("xj/c \n", into: makeEngine()), "轟")   // ㄌㄨㄥ fixed by typing ㄏ over it
     }
 
     func testMarkedTextWhileTyping() {

@@ -72,6 +72,22 @@ class ParserTests(unittest.TestCase):
         self.assertFalse(bopomofo.parse(list("vul3")).syllables[0].reordered)
         self.assertEqual(len(bopomofo.parse(list("me")).syllables), 2)
 
+    def test_typed_over(self):
+        """An initial typed again before the tone replaces the one before: ㄌㄨㄥ ㄏ ˊ = ㄏㄨㄥˊ."""
+        def readings(keys):
+            return [s.syllable.reading for s in bopomofo.parse(list(keys)).syllables]
+        self.assertEqual(readings("xj/c "), ["ㄏㄨㄥ"])
+        self.assertEqual(readings("su3xj/c6"), ["ㄋㄧˇ", "ㄏㄨㄥˊ"])
+        self.assertTrue(bopomofo.parse(list("xj/c ")).syllables[0].reordered)
+        # Only when the symbol alone is no syllable: these stay as they were.
+        self.assertEqual(readings("xj/cj3"), ["ㄌㄨㄥ", "ㄏㄨˇ"])
+        self.assertEqual(readings("5kg4"), ["ㄓㄜ", "ㄕˋ"])     # 這是, first tone omitted
+        self.assertEqual(readings("xj/ c "), ["ㄌㄨㄥ", "ㄏ"])   # the first one had its tone
+        self.assertEqual(readings("xj/v "), ["ㄌㄨㄥ", "ㄒ"])     # ㄒㄨㄥ is no syllable either
+
+    def test_typed_over_converts(self):
+        self.assertEqual(type_keys("xj/c \n", make_engine()), "轟")
+
 
 class ConverterTests(unittest.TestCase):
     def test_phrase(self):

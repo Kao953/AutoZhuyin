@@ -54,6 +54,21 @@ public enum ZhuyinParser {
                     result.strayTones += 1
                     start = i + 1
                 } else {
+                    if let prev = result.syllables.last, prev.keyRange.upperBound == start, !prev.toned,
+                       !SyllableTable.isValid(current) {
+                        // Typed over the untoned syllable before it to fix a typo: ㄌㄨㄥ then ㄏ
+                        // and a tone is ㄏㄨㄥ, not ㄌㄨㄥ + ㄏ (which is no syllable).
+                        var merged = prev.syllable
+                        if let s = current.initial { merged.initial = s }
+                        if let s = current.medial { merged.medial = s }
+                        if let s = current.final { merged.final = s }
+                        if SyllableTable.isValid(merged) {
+                            result.syllables.removeLast()
+                            current = merged
+                            start = prev.keyRange.lowerBound
+                            reordered = true
+                        }
+                    }
                     current.tone = tone
                     close(at: i + 1)
                 }

@@ -103,6 +103,20 @@ class ParserTests {
     }
 }
 
+/** An initial typed again before the tone replaces the one before: ㄌㄨㄥ ㄏ ˊ = ㄏㄨㄥˊ. */
+class TypedOverTests {
+    @Test fun typedOver() {
+        assertEquals(listOf("ㄏㄨㄥ"), readings("xj/c "))
+        assertEquals(listOf("ㄋㄧˇ", "ㄏㄨㄥˊ"), readings("su3xj/c6"))
+        assertTrue(Bopomofo.parse(keysOf("xj/c ")).syllables[0].reordered)
+        // Only when the symbol alone is no syllable: these stay as they were.
+        assertEquals(listOf("ㄌㄨㄥ", "ㄏㄨˇ"), readings("xj/cj3"))
+        assertEquals(listOf("ㄓㄜ", "ㄕˋ"), readings("5kg4"))     // 這是, first tone omitted
+        assertEquals(listOf("ㄌㄨㄥ", "ㄏ"), readings("xj/ c "))   // the first one had its tone
+        assertEquals(listOf("ㄌㄨㄥ", "ㄒ"), readings("xj/v "))     // ㄒㄨㄥ is no syllable either
+    }
+}
+
 class ConverterTests {
     @Test fun phrase() = assertEquals("你好", convert("su3cl3"))
 
@@ -261,6 +275,8 @@ class EngineTests {
     @Test fun toneThenSpaceStaysChinese() = assertEquals(1, typeKeys("u4 ", makeEngine()).length)
 
     @Test fun outOfOrderConverts() = assertEquals("小", typeKeys("uvl3\n", makeEngine()))
+
+    @Test fun typedOverConverts() = assertEquals("轟", typeKeys("xj/c \n", makeEngine()))   // ㄌㄨㄥ fixed by typing ㄏ over it
 }
 
 class MixedSegmentTests {

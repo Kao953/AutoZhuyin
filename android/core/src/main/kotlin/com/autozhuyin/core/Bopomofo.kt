@@ -117,6 +117,19 @@ object Bopomofo {
                     result.strayTones += 1
                     start = i + 1
                 } else {
+                    val prev = result.syllables.lastOrNull()
+                    if (prev != null && prev.end == start && !prev.toned && !isValid(current)) {
+                        // Typed over the untoned syllable before it to fix a typo: ㄌㄨㄥ then ㄏ
+                        // and a tone is ㄏㄨㄥ, not ㄌㄨㄥ + ㄏ (which is no syllable).
+                        val merged = prev.syllable.copy()
+                        for (s in 0 until 3) current.slots[s]?.let { merged.slots[s] = it }
+                        if (isValid(merged)) {
+                            result.syllables.removeAt(result.syllables.size - 1)
+                            current = merged
+                            start = prev.start
+                            reordered = true
+                        }
+                    }
                     current.tone = tone
                     close(i + 1)
                 }

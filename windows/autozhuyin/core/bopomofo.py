@@ -182,6 +182,17 @@ def parse(keys):
                 result.stray_tones += 1
                 start = i + 1
             else:
+                prev = result.syllables[-1] if result.syllables else None
+                if prev is not None and prev.end == start and not prev.toned and not is_valid(current):
+                    # Typed over the untoned syllable before it to fix a typo: ㄌㄨㄥ then ㄏ
+                    # and a tone is ㄏㄨㄥ, not ㄌㄨㄥ + ㄏ (which is no syllable).
+                    merged = prev.syllable.copy()
+                    for s, symbol in enumerate(current.slots):
+                        if symbol:
+                            merged.slots[s] = symbol
+                    if is_valid(merged):
+                        result.syllables.pop()
+                        current, start, reordered = merged, prev.start, True
                 current.tone = TONES[key]
                 close(i + 1)
         elif key in SYMBOLS:

@@ -36,6 +36,15 @@ class CompositionEngine(
         private set
     /** "`" typed; the next key may be a forced symbol. */
     private var backtick = false
+    /**
+     * A Shift-punctuation typed with nothing composed, not sent yet: full-width or not is only
+     * a guess from the context, so Tab (or a Shift tap) switches "<" ↔ "，" first. Any other
+     * key sends it.
+     */
+    var punct: String? = null
+        private set
+    private var punctFullwidth = false
+    private var punctFlipped = false
     /** Zhuyin segment start -> {syllable range: picked text}. */
     private var fixed = mutableMapOf<Int, MutableMap<Span, String>>()
     var candidates: List<Piece> = emptyList()
@@ -55,6 +64,14 @@ class CompositionEngine(
     /** Last characters committed: context for "AI 選字" (not ported yet). */
     var recentText = ""
         private set
+
+    /**
+     * The last commit by space, until the next key: Tab right after it retypes the same keys
+     * in the other mode (an after-the-fact correction, learned like a Tab flip). Not after
+     * Enter: that confirms the text, and Tab next is completion or indenting.
+     */
+    private class LastCommit(val keys: List<String>, val text: String, val mode: Mode, val recentText: String)
+    private var lastCommit: LastCommit? = null
     private var previousMode: Mode? = null
     private var previousTime = Double.NEGATIVE_INFINITY
     private var cacheKey: Any? = null
@@ -125,7 +142,8 @@ class CompositionEngine(
 
     val mode: Mode get() = segments.lastOrNull()?.mode ?: Mode.ZHUYIN
 
-    val isComposing: Boolean get() = keys.isNotEmpty() || candidates.isNotEmpty() || backtick || inserting.isNotEmpty()
+    val isComposing: Boolean get() = keys.isNotEmpty() || candidates.isNotEmpty() || backtick || punct != null ||
+        inserting.isNotEmpty()
 
     val showingCandidates: Boolean get() = candidates.isNotEmpty()
 
@@ -223,7 +241,7 @@ class CompositionEngine(
     }
 
     /** Cursor position in markedText (UTF-16 units). */
-    val cursorOffset: Int get() = baseCursorOffset() + insertingText().length
+    val cursorOffset: Int get() = baseCursorOffset() + insertingText().length + punctText().length
 
     private fun moveCursor(delta: Int) {
         inserting.clear()
@@ -333,6 +351,7 @@ class CompositionEngine(
                 pieces = out.filter { it.text.isNotEmpty() }
             }
             if (backtick) pieces = pieces + MarkedPiece(BACKTICK, Mode.LITERAL)
+            if (punct != null) pieces = pieces + MarkedPiece(punctText(), if (punctFullwidth) Mode.ZHUYIN else Mode.LITERAL)
             return pieces
         }
 
@@ -353,19 +372,21 @@ class CompositionEngine(
 
     /** Whether handle(key) would consume the key, without changing state. */
     fun wants(key: String): Boolean {
-        if (candidates.isNotEmpty() || key == SHIFT_TAP || backtick || inserting.isNotEmpty()) return true
+        if (candidates.isNotEmpty() || key == SHIFT_TAP || backtick || punct != null || inserting.isNotEmpty()) return true
         if (englishMode && keys.isEmpty()) return false   // English mode: everything goes to the app as typed
         if (key in SPECIAL_KEYS) return keys.isNotEmpty()
         if (key == BACKTICK) return true
         if (keys.isNotEmpty()) return true
         if (key == " ") return false
         if (Bopomofo.isZhuyinKey(key) || isAsciiLetter(key)) return true
-        return context == Mode.ZHUYIN && key in FULLWIDTH
+        return key in FULLWIDTH
     }
 
     fun handle(key: String): KeyResult {
+        lastCommit = null
         if (candidates.isNotEmpty()) return handleCandidateKey(key)
         if (backtick) return afterBacktick(key)
+        if (punct != null) return afterPunct(key)
         if (inserting.isNotEmpty() && (key == BACKSPACE || key == ESCAPE)) {
             if (key == BACKSPACE) inserting.removeAt(inserting.size - 1) else inserting.clear()
             return KeyResult.CONSUMED
@@ -447,6 +468,44 @@ class CompositionEngine(
         return KeyResult(r.handled, committed + BACKTICK + (r.commit ?: ""))
     }
 
+    private fun punctText(): String {
+        val p = punct ?: return ""
+        return if (punctFullwidth) FULLWIDTH[p] ?: p else p
+    }
+
+    private fun afterPunct(key: String): KeyResult {
+        if (key == TAB || key == SHIFT_TAP) {
+            punctFullwidth = !punctFullwidth
+            punctFlipped = !punctFlipped
+            return KeyResult.CONSUMED
+        }
+        if (key == ESCAPE || key == BACKSPACE) {
+            punct = null
+            return KeyResult.CONSUMED
+        }
+        val fullwidth = punctFullwidth
+        val text = commitPunct()
+        // Space sends it like a word: half-width gets the space too.
+        if (key == " ") return KeyResult(true, text + if (fullwidth) "" else " ")
+        var r = handle(key)
+        if (!r.handled && key.length == 1) r = KeyResult(true, key)
+        return KeyResult(r.handled, text + (r.commit ?: ""))
+    }
+
+    /**
+     * Sends the held punctuation. A switch with Tab says which language is being typed, so the
+     * next punctuation is guessed the same way.
+     */
+    private fun commitPunct(): String {
+        val text = punctText()
+        if (text.isNotEmpty() && punctFlipped) {
+            previousMode = if (punctFullwidth) Mode.ZHUYIN else Mode.LITERAL
+            previousTime = now()
+        }
+        punct = null
+        return text
+    }
+
     private fun lastParse(segs: List<Segment>): ZhuyinParse? {
         val last = segs.lastOrNull() ?: return null
         if (last.mode != Mode.ZHUYIN) return null
@@ -474,14 +533,14 @@ class CompositionEngine(
                     keys.add(" ")
                     return KeyResult.CONSUMED
                 }
-                return KeyResult(true, commit(segs) + " ")
+                return KeyResult(true, commitFlippable(segs))
             }
             val p = lastParse(segs)
             if (p?.pending != null) {
                 keys.add(" ")
                 return KeyResult.CONSUMED
             }
-            return KeyResult(true, commit(segs))
+            return KeyResult(true, commitFlippable(segs))
         }
 
         val composable = Bopomofo.isZhuyinKey(c) || isAsciiLetter(c) || (c == "'" && keys.isNotEmpty())
@@ -498,6 +557,13 @@ class CompositionEngine(
         }
 
         val chinese = if (keys.isEmpty()) context == Mode.ZHUYIN else mode == Mode.ZHUYIN
+        if (keys.isEmpty() && c in FULLWIDTH) {
+            // Nothing typed before it to tell: hold it so Tab can switch it.
+            punct = c
+            punctFullwidth = chinese
+            punctFlipped = false
+            return KeyResult.CONSUMED
+        }
         val committed = if (keys.isNotEmpty()) commit() else ""
         val punct = if (chinese) FULLWIDTH[c] ?: c else c
         if (committed.isEmpty() && punct == c) return KeyResult.PASS
@@ -527,13 +593,14 @@ class CompositionEngine(
     /** Ctrl + ; ' , . / → ；、，。？ (commits any composition first). null: a shortcut for the app. */
     fun handleControl(key: String): KeyResult? {
         val symbol = CONTROL_SYMBOLS[key] ?: return null
+        lastCommit = null
         candidates = emptyList()
         backtick = false
         if (inserting.isNotEmpty()) {
             splice(inserting.toList())
             inserting.clear()
         }
-        val committed = if (keys.isNotEmpty()) commit() else ""
+        val committed = commitPunct() + if (keys.isNotEmpty()) commit() else ""
         return KeyResult(true, committed + symbol)
     }
 
@@ -546,6 +613,7 @@ class CompositionEngine(
     /** Picks a candidate. Returns the text to commit when it comes from the symbol table. */
     fun selectCandidate(index: Int): String? {
         if (index !in candidates.indices) return null
+        lastCommit = null
         val c = candidates[index]
         if (symbolTable) {
             candidates = emptyList()
@@ -591,6 +659,48 @@ class CompositionEngine(
         return text
     }
 
+    /** Commits on space and remembers it for an after-the-fact Tab flip. English gets the space too. */
+    private fun commitFlippable(segs: List<Segment> = segments): String {
+        val typed = keys.toList()
+        val context = recentText
+        val mode = segs.lastOrNull()?.mode ?: Mode.ZHUYIN
+        val text = commit(segs) + if (mode == Mode.LITERAL) " " else ""
+        // Only Dachen keys can be reread as Zhuyin ("Hello" or "C++" cannot).
+        val canFlip = mode == Mode.ZHUYIN || typed.all { it == " " || Bopomofo.isZhuyinKey(it) }
+        lastCommit = if (canFlip) LastCommit(typed, text, mode, context) else null
+        return text
+    }
+
+    /**
+     * The text Tab would replace: the last commit, if nothing has been typed since. The shell
+     * checks that the app's text before the caret still ends with it, then calls
+     * flipLastCommit(); otherwise Tab goes through handle() as usual.
+     */
+    val flippableText: String? get() = lastCommit?.text
+
+    /**
+     * Retypes the last commit in the other mode and learns the correction. Returns the text to
+     * put in place of flippableText. Tab again flips it back.
+     */
+    fun flipLastCommit(): String? {
+        val last = lastCommit ?: return null
+        if (last.keys.isEmpty()) return null
+        reset()
+        keys.addAll(last.keys)
+        recentText = last.recentText
+        if (last.mode == Mode.ZHUYIN) {
+            while (keys.isNotEmpty() && keys.last() == " ") keys.removeAt(keys.size - 1)   // first-tone spaces aren't English
+        }
+        forcedMode = last.mode.other
+        forcedCount = keys.size
+        return commitFlippable()
+    }
+
+    /** A key the engine didn't see (the shell passed it on): no flip after it. */
+    fun forgetLastCommit() {
+        lastCommit = null
+    }
+
     /** Candidates the user picked are remembered and come first next time. */
     private fun rememberPicks(segs: List<Segment>) {
         for (seg in segs) {
@@ -603,13 +713,17 @@ class CompositionEngine(
         }
     }
 
-    fun commitAll(): String = if (keys.isNotEmpty()) commit() else ""
+    fun commitAll(): String {
+        lastCommit = null
+        return commitPunct() + if (keys.isNotEmpty()) commit() else ""
+    }
 
     fun reset() {
         keys.clear()
         inserting.clear()
         held = null
         backtick = false
+        punct = null
         cursor = null
         forcedMode = null
         fixed = mutableMapOf()

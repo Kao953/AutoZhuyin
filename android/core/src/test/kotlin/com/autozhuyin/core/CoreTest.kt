@@ -182,6 +182,41 @@ class EngineTests {
 
     @Test fun enterCommitsEnglish() = assertEquals("github", typeKeys("github\n", makeEngine()))
 
+    /** Tab right after a commit retypes it in the other mode and learns the correction. */
+    @Test fun flipLastCommit() {
+        val e = makeEngine()
+        assertEquals("so ", typeKeys("so ", e))
+        assertEquals("so ", e.flippableText)
+        val zh = e.flipLastCommit()!!
+        assertFalse("s" in zh)
+        assertEquals(1, e.classifier.learned.weights["so"])
+        assertEquals(zh, e.flippableText)        // Tab again flips it back
+        assertEquals("so ", e.flipLastCommit())
+        assertEquals("你好", typeKeys("su3cl3 ", e))
+        assertEquals("su3cl3 ", e.flipLastCommit())
+        assertEquals(1, typeKeys("ji  ", e).length)
+        assertEquals("ji ", e.flipLastCommit())
+        // Not after Enter: Tab next is completion ("cd shell" ⏎ Tab in a terminal).
+        assertEquals("shell", typeKeys("shell\n", e))
+        assertNull(e.flippableText)
+    }
+
+    @Test fun flipLastCommitLimits() {
+        val e = makeEngine()
+        typeKeys("hello a", e)
+        assertNull(e.flippableText)
+        e.commitAll()
+        typeKeys("Hello ", e)
+        assertNull(e.flippableText)              // capitals aren't Dachen keys
+        typeKeys("so ", e)
+        e.handle(LEFT)
+        assertNull(e.flippableText)
+        assertEquals(KeyResult.PASS, e.handle(TAB))
+        typeKeys("so ", e)
+        e.handleControl(".")
+        assertNull(e.flippableText)
+    }
+
     @Test fun tabLearns() {
         val e = makeEngine()
         typeKeys("so", e)
@@ -548,5 +583,105 @@ class UserHistoryTests {
         val syl = listOf(Bopomofo.parse(keysOf("wu0 ")).syllables[0].syllable)
         for (p in listOf("天", "添", "田")) h.record(syl, p)
         assertEquals(setOf("添", "田"), h.data["ㄊㄧㄢ"]!!.keys)
+    }
+}
+
+/** A Shift-punctuation typed with nothing composed waits for the next key; Tab switches it. */
+class HeldPunctuationTests {
+    @Test fun tabSwitches() {
+        val e = makeEngine()
+        assertEquals("", typeKeys("<", e))
+        assertEquals("<", e.markedText)
+        assertEquals(1, e.cursorOffset)
+        typeKeys("\t", e)
+        assertEquals("，", e.markedText)
+        typeKeys("⇧", e)
+        assertEquals("<", e.markedText)
+        assertFalse(e.englishMode)
+        assertEquals("，", typeKeys("\tsu3", e))
+        assertEquals("你", e.markedText)
+    }
+
+    @Test fun guessFromContext() {
+        assertEquals("我，", typeKeys("ji3 <\n", makeEngine()))
+        assertEquals("我!", typeKeys("ji3 !\t\n", makeEngine()))
+        assertEquals("我，", typeKeys("ji3<", makeEngine()))   // after a composition: sent at once
+        assertEquals("hello\\", typeKeys("hello\\", makeEngine()))
+    }
+
+    @Test fun spaceSendsIt() {
+        assertEquals("! ", typeKeys("! ", makeEngine()))
+        assertEquals("我！", typeKeys("ji3 ! ", makeEngine()))
+    }
+
+    /** The switch says which language is being typed: the next punctuation follows it. */
+    @Test fun switchIsRemembered() = assertEquals("，。", typeKeys("<\t>\n", makeEngine()))
+
+    @Test fun backspaceCancels() {
+        val e = makeEngine()
+        assertEquals("", typeKeys("(\b", e))
+        assertEquals("", e.markedText)
+    }
+
+    @Test fun wants() {
+        val e = makeEngine()
+        assertTrue(e.wants("<"))
+        typeKeys("<", e)
+        assertTrue(e.wants(ENTER))
+        assertTrue(e.wants(TAB))
+        assertTrue(e.isComposing)
+    }
+
+    @Test fun commitAll() {
+        val e = makeEngine()
+        typeKeys("ji3 ?", e)
+        assertEquals("？", e.commitAll())
+        typeKeys("?", e)
+        assertEquals(KeyResult(true, "？，"), e.handleControl(","))
+    }
+}
+
+/** User phrases: the file model, typed readings and the lexicon overlay (mirror of test_user_phrases.py). */
+class UserPhrasesTests {
+    @Test fun roundTripKeepsComments() {
+        val u = UserPhrases("# 我的詞\nㄗˋ-ㄉㄨㄥˋ 自動 -1\n\n注音 ㄓㄨˋ-ㄧㄣ\n")
+        assertEquals(listOf("自動", "注音"), u.entries.map { it.phrase })
+        assertNull(u.entries[1].score)
+        assertEquals("# 我的詞\nㄗˋ-ㄉㄨㄥˋ 自動 -1\n\nㄓㄨˋ-ㄧㄣ 注音\n", u.text)
+        u.remove(0)
+        u.append(UserPhrases.Item("妳好", "ㄋㄧˇ-ㄏㄠˇ"))
+        assertEquals("# 我的詞\n\nㄓㄨˋ-ㄧㄣ 注音\nㄋㄧˇ-ㄏㄠˇ 妳好 -1\n", u.text)
+        u.replace(0, UserPhrases.Item("註音", "ㄓㄨˋ-ㄧㄣ", -2.5))
+        assertEquals(UserPhrases.Item("註音", "ㄓㄨˋ-ㄧㄣ", -2.5), u.entries[0])
+        assertEquals("", UserPhrases("").text)
+    }
+
+    @Test fun typedReadings() {
+        assertEquals("ㄗˋ-ㄉㄨㄥˋ", UserPhrases.readingFromTyped("y42j/4"))
+        assertEquals("ㄗˋ-ㄉㄨㄥˋ", UserPhrases.readingFromTyped("ㄗˋㄉㄨㄥˋ"))
+        assertEquals("ㄓㄨˋ-ㄧㄣ", UserPhrases.readingFromTyped("ㄓㄨˋ ㄧㄣ"))
+        assertEquals("ㄐㄧ-ㄚ", UserPhrases.readingFromTyped("ㄐㄧ-ㄚ"))
+        assertEquals("ㄉㄜ˙", UserPhrases.readingFromTyped("ㄉㄜ˙"))
+        assertNull(UserPhrases.readingFromTyped("hello!"))
+        assertNull(UserPhrases.readingFromTyped(""))
+        assertEquals("注音有 2 個音節，詞有 4 個字", UserPhrases.problem("自動注音", "ㄗˋ-ㄉㄨㄥˋ"))
+        assertNull(UserPhrases.problem("自動", "ㄗˋ-ㄉㄨㄥˋ"))
+        assertEquals(listOf(3, 4), UserPhrases.badLines("# ok\nㄗˋ-ㄉㄨㄥˋ 自動\n亂寫\nㄗˋ 自動\n"))
+    }
+
+    @Test fun lexiconUserPhrasesOverrideAndReload() {
+        val lex = Lexicon()
+        lex.load(sequenceOf("ㄋㄧˇ 你 -2", "ㄋㄧˇ 妳 -3", "ㄏㄠˇ 好 -2", "ㄋㄧˇ-ㄏㄠˇ 你好 -3"))
+        val ni = Bopomofo.parse(keysOf("su3")).syllables.map { it.syllable }
+        assertEquals("你", lex.entries(ni)[0].phrase)
+        lex.setUserPhrases("ㄋㄧˇ 妳 -1\n")
+        assertEquals(listOf("妳", "你"), lex.entries(ni).map { it.phrase })
+        assertEquals("ㄋㄧˇ-ㄏㄠˇ", lex.readingOf("妳好"))
+        assertEquals("ㄋㄧˇ-ㄏㄠˇ", lex.readingOf("你好"))
+        assertNull(lex.readingOf("貓"))
+        lex.setUserPhrases("")
+        assertEquals(listOf("你", "妳"), lex.entries(ni).map { it.phrase })
+        val untoned = Bopomofo.parse(keysOf("su")).syllables.map { it.syllable }
+        assertEquals("你", lex.entries(untoned)[0].phrase)
     }
 }

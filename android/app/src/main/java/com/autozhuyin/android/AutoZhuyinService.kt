@@ -150,8 +150,10 @@ class AutoZhuyinService : InputMethodService(), InputManager.InputDeviceListener
                 variation == InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD)
         if (!restarting) {
             engine?.reset()
+            engine?.forgetLastCommit()
             composingStart = -1
         }
+        Models.reloadUserPhrases()
     }
 
     override fun onFinishInput() {
@@ -168,6 +170,7 @@ class AutoZhuyinService : InputMethodService(), InputManager.InputDeviceListener
             currentInputConnection?.let { ic -> if (text.isNotEmpty()) ic.commitText(text, 1) else ic.finishComposingText() }
         }
         e.reset()
+        e.forgetLastCommit()
         consumed.clear()
         updateCandidates()
     }
@@ -234,14 +237,37 @@ class AutoZhuyinService : InputMethodService(), InputManager.InputDeviceListener
         // Other shortcuts (Ctrl+C, Alt+Tab…) go to the app; commit any composition first.
         if (shortcut) {
             if (e.isComposing) update(e.commitAll())
+            e.forgetLastCommit()
             return false
         }
 
-        val key = keyFor(keyCode, event) ?: return e.isComposing   // swallow Delete, Home… while composing
-        if (!e.wants(key)) return false
+        val key = keyFor(keyCode, event)
+        if (key == null) {
+            e.forgetLastCommit()
+            return e.isComposing   // swallow Delete, Home… while composing
+        }
+        // Tab right after a commit: retype it in the other mode, if it is still before the caret.
+        if (key == CompositionEngine.TAB && flipLastCommit(e)) return true
+        if (!e.wants(key)) {
+            e.forgetLastCommit()
+            return false
+        }
         val result = e.handle(key)
         update(result.commit)
         return result.handled
+    }
+
+    private fun flipLastCommit(e: CompositionEngine): Boolean {
+        val old = e.flippableText ?: return false
+        val ic = currentInputConnection ?: return false
+        if (!ic.getSelectedText(0).isNullOrEmpty()) return false
+        if (ic.getTextBeforeCursor(old.length, 0)?.toString() != old) return false
+        val new = e.flipLastCommit() ?: return false
+        ic.beginBatchEdit()
+        ic.deleteSurroundingText(old.length, 0)
+        update(new)
+        ic.endBatchEdit()
+        return true
     }
 
     private fun keyFor(keyCode: Int, event: KeyEvent): String? {

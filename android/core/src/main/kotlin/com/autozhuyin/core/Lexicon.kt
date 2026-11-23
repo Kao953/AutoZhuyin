@@ -15,7 +15,7 @@ private val TONE_MARK_CHARS = setOf('ˊ', 'ˇ', 'ˋ', '˙')
 
 private fun stripTones(reading: String) = reading.filterNot { it in TONE_MARK_CHARS }
 
-private fun isBopomofo(s: String) = s.isNotEmpty() && (s[0].code in 0x3105..0x312F || s[0] == '˙')
+internal fun isBopomofo(s: String) = s.isNotEmpty() && (s[0].code in 0x3105..0x312F || s[0] == '˙')
 
 /**
  * Maps readings ("ㄋㄧˇ-ㄏㄠˇ") to entries, best first.
@@ -23,7 +23,15 @@ private fun isBopomofo(s: String) = s.isNotEmpty() && (s[0].code in 0x3105..0x31
  */
 class Lexicon {
     val exact = LinkedHashMap<String, MutableList<Entry>>()
+    /**
+     * User phrases (setUserPhrases), kept apart so they can be replaced while running. They
+     * override a built-in entry for the same phrase and reading.
+     */
+    @Volatile var user: Map<String, List<Entry>> = emptyMap()
+        private set
     @Volatile private var tonelessIndex: Map<String, List<Entry>>? = null
+    /** Phrase -> (reading, score), for readingOf. */
+    @Volatile private var readings: Map<String, Pair<String, Double>>? = null
     var maxPhraseLength = 1
         private set
 
@@ -44,6 +52,53 @@ class Lexicon {
         }
         for (v in exact.values) if (v.size > 1) v.sortByDescending { it.score }
         tonelessIndex = null
+        readings = null
+    }
+
+    /** Replaces the user phrases (user-phrases.txt, lexicon format). */
+    fun setUserPhrases(text: String) {
+        val parsed = Lexicon()
+        parsed.load(text.lineSequence())
+        user = parsed.exact
+        maxPhraseLength = maxOf(maxPhraseLength, parsed.maxPhraseLength)
+        tonelessIndex = null
+        readings = null
+    }
+
+    private fun merged(key: String, builtIn: List<Entry>): List<Entry> {
+        val mine = user[key]
+        if (mine.isNullOrEmpty()) return builtIn
+        val phrases = mine.mapTo(HashSet()) { it.phrase }
+        return (mine + builtIn.filter { it.phrase !in phrases }).sortedByDescending { it.score }
+    }
+
+    /**
+     * The most likely reading of a phrase: its own entry if the lexicon has one, otherwise the
+     * most common reading of each character. null if a character has none.
+     */
+    fun readingOf(phrase: String): String? {
+        val index = readings ?: HashMap<String, Pair<String, Double>>().also { index ->
+            for (source in listOf(exact, user)) {
+                for ((reading, entries) in source) {
+                    for (e in entries) {
+                        val old = index[e.phrase]
+                        if (old == null || e.score > old.second) index[e.phrase] = reading to e.score
+                    }
+                }
+            }
+            readings = index
+        }
+        index[phrase]?.let { return it.first }
+        val out = ArrayList<String>()
+        var i = 0
+        while (i < phrase.length) {
+            val n = Character.charCount(phrase.codePointAt(i))
+            val r = index[phrase.substring(i, i + n)]
+            if (r == null || "-" in r.first) return null
+            out.add(r.first)
+            i += n
+        }
+        return out.joinToString("-").ifEmpty { null }
     }
 
     fun add(reading: String, phrase: String, score: Double) {
@@ -53,6 +108,7 @@ class Lexicon {
         val entries = exact.getOrPut(key) { mutableListOf() }
         if (entries.none { it.phrase == phrase }) entries.add(Entry(phrase, score))
         tonelessIndex = null
+        readings = null
     }
 
     /** Index ignoring tones: toneless reading -> entries (best score per phrase), best first. */
@@ -63,7 +119,7 @@ class Lexicon {
 
     private fun buildToneless(): Map<String, List<Entry>> {
         val best = HashMap<String, LinkedHashMap<String, Double>>()
-        for ((reading, entries) in exact) {
+        for ((reading, entries) in exact.entries + user.entries) {
             val bucket = best.getOrPut(stripTones(reading)) { LinkedHashMap() }
             for (e in entries) {
                 if (e.score > (bucket[e.phrase] ?: Double.NEGATIVE_INFINITY)) bucket[e.phrase] = e.score
@@ -76,7 +132,8 @@ class Lexicon {
 
     fun entries(syllables: List<Syllable>): List<Entry> =
         if (syllables.all { it.tone != null }) {
-            exact[syllables.joinToString("-") { it.reading }] ?: emptyList()
+            val key = syllables.joinToString("-") { it.reading }
+            merged(key, exact[key] ?: emptyList())
         } else {
             toneless[syllables.joinToString("-") { it.toneless }] ?: emptyList()
         }

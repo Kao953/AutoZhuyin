@@ -18,6 +18,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".PhraseEditorActivity"
+            android:exported="false"
+            android:label="自訂詞" />
+
         <service
             android:name=".AutoZhuyinService"
             android:exported="true"

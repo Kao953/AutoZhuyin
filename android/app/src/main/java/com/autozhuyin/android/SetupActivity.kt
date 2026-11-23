@@ -79,14 +79,16 @@ class SetupActivity : Activity() {
         body(
             "空白：一聲；音節完成時送出\n" +
                 "Enter：送出目前組字\n" +
-                "Tab：判斷錯了，中英翻轉（會記住）\n" +
+                "Tab：判斷錯了，中英翻轉（會記住）；剛按空白送出的字也可以緊接著按 Tab 改掉\n" +
                 "單按 Shift：切換英文模式\n" +
                 "← →：移動游標；↓：選字（數字鍵選、Esc 關閉）\n" +
+                "沒在打字時按的標點會先留著，按 Tab 切換全形／半形（< ↔ ，）\n" +
                 "Ctrl + ; ' , . /：；、，。？\n" +
                 "` 再按標點：全形標點；` 再按空白：符號表"
         )
 
         heading("其他")
+        button("編輯自訂詞") { startActivity(Intent(this, PhraseEditorActivity::class.java)) }
         button("清除學習紀錄") {
             AlertDialog.Builder(this)
                 .setMessage("清除中英判斷的修正和選字紀錄？")

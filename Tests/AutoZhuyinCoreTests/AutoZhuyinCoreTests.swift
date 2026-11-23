@@ -555,6 +555,16 @@ final class CursorTests: XCTestCase {
         XCTAssertEqual(e.cursorOffset, 1)
     }
 
+    func testBackspaceAtEndDeletesWholeCharacter() {
+        let e = engine()
+        _ = type("rup wu0 \u{8}", into: e)
+        XCTAssertEqual(e.markedText, "今")             // 天 goes at once, not just its tone
+        _ = type("wu\u{8}", into: e)
+        XCTAssertEqual(e.markedText, "今ㄊ")            // Bopomofo still being typed: one key
+        _ = type("\u{8}\u{8}", into: e)
+        XCTAssertEqual(e.markedText, "")
+    }
+
     func testBackspaceInsideInsertedSyllable() {
         let e = engine()
         _ = type("rup fu4←wu\u{8}", into: e)
@@ -1014,6 +1024,47 @@ final class RerankerTests: XCTestCase {
         r.systemState = { .reduced }
         _ = type("wu0 \n", into: engine(r))
         XCTAssertLessThanOrEqual(calls, 3)
+    }
+
+    func marked(_ e: CompositionEngine) -> String { e.markedPieces.map(\.text).joined() }
+
+    func testLargeModelIsUsedWhenCommitting() {
+        let r = Reranker(mode: .quality, model: FakeLanguageModel(liked: "天"))
+        r.largeModel = FakeLanguageModel(liked: "添")
+        XCTAssertEqual(type("wu0 \n", into: engine(r)), "添")
+    }
+
+    func testLargeModelRunsInTheBackground() {
+        let r = Reranker(mode: .quality, model: FakeLanguageModel(liked: "天"))
+        let large = FakeLanguageModel(liked: "添")
+        let gate = DispatchSemaphore(value: 0)
+        large.onCall = { gate.wait() }
+        r.largeModel = large
+        let updated = expectation(description: "onUpdate")
+        r.onUpdate = { updated.fulfill() }
+        let e = engine(r)
+        _ = type("wu0 ", into: e)
+        XCTAssertEqual(marked(e), "天")              // the small model's result meanwhile
+        for _ in 0..<Reranker.largeK { gate.signal() }
+        wait(for: [updated], timeout: 5)
+        XCTAssertEqual(marked(e), "添")
+    }
+
+    func testCommitDoesNotWaitLongForTheLargeModel() {
+        let r = Reranker(mode: .quality, model: FakeLanguageModel(liked: "天"))
+        let large = FakeLanguageModel(liked: "添")
+        let gate = DispatchSemaphore(value: 0)
+        large.onCall = { gate.wait() }
+        r.largeModel = large
+        let start = Date()
+        XCTAssertEqual(type("wu0 \n", into: engine(r)), "天")
+        XCTAssertLessThan(Date().timeIntervalSince(start), CompositionEngine.commitWait + 0.5)
+        for _ in 0..<Reranker.largeK { gate.signal() }
+    }
+
+    func testQualityWithoutTheLargeModelIsStandard() {
+        let r = Reranker(mode: .quality, model: FakeLanguageModel(liked: "添"))
+        XCTAssertEqual(type("wu0 \n", into: engine(r)), "添")
     }
 
     func testSlowModelIsDroppedThenPaused() {

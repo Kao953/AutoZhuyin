@@ -60,6 +60,7 @@ except OSError:
 _classifier = None
 _ai = None
 _phrases = None   # UserPhrasesFile
+_focused = None   # the engine with focus, redrawn when a background rerank finishes
 
 
 def reload_user_phrases():
@@ -74,7 +75,18 @@ def shared_ai():
     global _ai
     if _ai is None:
         _ai = AI(_DATA, _USER_DIR)
+        # From the worker thread: redraw on the main loop.
+        _ai.reranker.on_update = lambda: GLib.idle_add(_redraw_focused)
     return _ai
+
+
+def _redraw_focused():
+    """The 高品質 model finished in the background: show its result (not while choosing a
+    candidate, which would move the list)."""
+    e = _focused
+    if e is not None and e.engine.keys and not e.engine.candidates:
+        e._update(None)
+    return False
 
 
 def _save_json(path, data):
@@ -191,7 +203,13 @@ class AutoZhuyinEngine(IBus.Engine):
             label=IBus.Text.new_from_string("清除學習紀錄"),
             tooltip=IBus.Text.new_from_string(""), sensitive=True, visible=True,
             state=IBus.PropState.UNCHECKED)
-        for prop in (self.pause_prop, self.status_prop, self.tones_prop, self.phrases_prop, self.clear_prop):
+        self.large_prop = IBus.Property(
+            key="ai.large", prop_type=IBus.PropType.NORMAL,
+            label=IBus.Text.new_from_string(ai.large_menu_text()),
+            tooltip=IBus.Text.new_from_string("高品質模式用的大型模型，選字更準，佔用較多記憶體"),
+            sensitive=True, visible=True, state=IBus.PropState.UNCHECKED)
+        for prop in (self.large_prop, self.pause_prop, self.status_prop, self.tones_prop, self.phrases_prop,
+                     self.clear_prop):
             sub.append(prop)
         self.ai_menu = IBus.Property(
             key="ai", prop_type=IBus.PropType.MENU,
@@ -315,6 +333,10 @@ class AutoZhuyinEngine(IBus.Engine):
         if prop_name.startswith("ai.") and prop_name[3:] in MODES:
             if state == IBus.PropState.CHECKED:
                 ai.set_mode(prop_name[3:])
+        elif prop_name == "ai.large":
+            ai.large_menu_clicked(on_done=lambda: GLib.idle_add(self._refresh_ai_props))
+            if ai.download_progress is not None:
+                GLib.timeout_add_seconds(2, self._refresh_download)
         elif prop_name == "ai.autopause":
             ai.set_auto_pause(state == IBus.PropState.CHECKED)
         elif prop_name == "tones":
@@ -339,6 +361,14 @@ class AutoZhuyinEngine(IBus.Engine):
         self.update_property(self.tones_prop)
         self.status_prop.set_label(IBus.Text.new_from_string(ai.status_text()))
         self.update_property(self.status_prop)
+        self.large_prop.set_label(IBus.Text.new_from_string(ai.large_menu_text()))
+        self.update_property(self.large_prop)
+        return False
+
+    def _refresh_download(self):
+        """Shows the download progress in the menu every two seconds until it ends."""
+        self._refresh_ai_props()
+        return shared_ai().download_progress is not None
 
     # --- lifecycle ---
 
@@ -346,6 +376,8 @@ class AutoZhuyinEngine(IBus.Engine):
         self._caps = caps
 
     def do_focus_in(self):
+        global _focused
+        _focused = self
         self._setup()
         reload_user_phrases()
         self.get_surrounding_text()   # IBus only sends the app's text once an engine asks

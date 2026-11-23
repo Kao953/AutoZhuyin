@@ -73,7 +73,7 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 
 遇到誤判也歡迎[開 issue](https://github.com/Kao953/AutoZhuyin/issues)，告訴我們是哪一套防毒軟體、顯示的病毒名稱是什麼，我們會向廠商回報誤判。
 
-**獨立版（實驗）**：`AutoZhuyin-Windows-Standalone-<版本>-setup.exe` 不需要 PIME，自帶輸入法元件和 Python，需要 64 位元的 Windows 10 / 11。在鍵盤清單裡叫「自動注音（獨立版）」，可以和 PIME 版同時安裝。還沒在實機上測過；目前沒有設定選單（AI 選字固定「標準」，自訂詞直接改 `%APPDATA%\AutoZhuyin\user-phrases.txt`，存檔後馬上生效），Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能打不出字。學習紀錄和自訂詞在 `%APPDATA%\AutoZhuyin`。
+**獨立版（實驗）**：`AutoZhuyin-Windows-Standalone-<版本>-setup.exe` 不需要 PIME，自帶輸入法元件和 Python，需要 64 位元的 Windows 10 / 11。在鍵盤清單裡叫「自動注音（獨立版）」，可以和 PIME 版同時安裝。還沒在實機上測過；目前沒有設定選單（AI 選字是「標準」，安裝時勾選「AI 高品質模型」則是「高品質」；也可以改 `%APPDATA%\AutoZhuyin\settings.json` 的 `"ai_mode"`，自訂詞直接改 `%APPDATA%\AutoZhuyin\user-phrases.txt`，存檔後馬上生效），Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能打不出字。學習紀錄和自訂詞在 `%APPDATA%\AutoZhuyin`。
 
 ### Linux（Bazzite、SteamOS 桌面模式、Fedora…）
 
@@ -103,6 +103,7 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 | 空白 | 注音：一聲；音節已完成時送出中文。英文：送出單字加空白 |
 | Enter | 送出目前組字 |
 | **Tab** | 判斷錯了？按 Tab 把組字區**最後一個字**翻轉成另一種語言，前面的不動：中文翻最後一個字（「我要」按 Tab → `我ul4`），英文翻最後一個英文字（`ji3so` 按 Tab → 我ㄋㄟ），還沒打聲調的一串按鍵整串翻（被誤認成注音的 `test`），輸入法會**記住**這次修正。**已經按空白送出了**也可以：緊接著按 Tab，剛送出的字會被換成另一種語言（`so ` → 內，`su3cl3` 被打成你好 → `su3cl3 `），再按一次換回來。只限按空白送出後的下一個鍵；按 Enter 送出的不算（之後的 Tab 通常是要補完或縮排），中間打了別的字、移動游標或點了別處也是一般的 Tab。Mac、Linux、Android 和 Windows 獨立版可用（程式要支援讀取游標前文字）；Windows 的 PIME 版做不到（PIME 不能讀取或刪除已送出的字） |
+| Backspace | 刪掉前一個完整的字（打了聲調的整個字一次刪掉）；還在打的注音一次退一個符號 |
 | ← → | 在組字區移動游標（最左停在第一個中文字後面）。游標在中間時：直接打注音會**插入**新字，Backspace 刪掉游標前的字，↓ 選游標前的字 |
 | ↓ | 開啟游標前那個字或詞的候選字（游標預設在最後），數字鍵 1–9 選字，Esc 關閉。候選字最後面是注音符號本身（例如 `ㄤ`、`ㄤˊ`），要打注音符號時選它。剛打的標點還留在組字區時，↓ 改成列出同類符號（`「` → `『（【〔《〈“‘`…，`，` → `、；：`…），選了之後打下一個字才送出 |
 | Esc | 取消組字 |
@@ -153,7 +154,13 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 | 關閉 | — | 不載入模型、不佔記憶體 |
 | 省電 | 3 | 15 毫秒 |
 | 標準（預設） | 10 | 40 毫秒 |
-| 高品質 | 30 | 120 毫秒 |
+| 高品質 | 10，用大型模型（另外下載） | 在背景算，不限 |
+
+**高品質模型**：[CKIP GPT2-base](https://huggingface.co/ckiplab/gpt2-base-chinese)（約 1 億參數，下載約 200 MB，執行時多佔約 400 MB 記憶體），錯字比標準少約四成。它比較慢（Mac 每次約 80 毫秒），所以在背景運算：結果出來前先顯示小模型的結果，出來後組字區自動更新；送出時最多等 0.4 秒讓它算完。沒下載時「高品質」和「標準」一樣。
+- 安裝時勾選「AI 高品質模型」就會下載，並把 AI 選字設為「高品質」（Mac 在安裝類型頁、Windows 在選擇元件頁、Linux 的 `install.sh` 會詢問，也可以加 `--large-model`／`--no-large-model`）。
+- 之後隨時可以在輸入法選單選「下載高品質模型」或「移除高品質模型」。
+- 檔案放在 `~/Library/Application Support/AutoZhuyin/lm-large.bin`、`%APPDATA%\PIME\autozhuyin\lm-large.bin`（獨立版 `%APPDATA%\AutoZhuyin`）、`~/.config/autozhuyin/lm-large.bin`，從 GitHub Release `lm-large-v1` 下載並檢查 SHA-256。
+- 耗電：AI 只在打完一個音節時算一次，沒打字時不運算。以每秒一個字估算，標準約佔一顆核心的 1%，高品質模型約 8%，只在打字的時候。
 
 不會拖慢打字的機制：
 - 每次運算超過上限就直接放棄，改用詞庫結果；連續 3 次超時就暫停一分鐘。
@@ -175,7 +182,22 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 
 錯字大約少了 25–30%。
 
-Windows、Linux 版用 numpy 執行同一個模型（`windows/autozhuyin/core/lm.py`），所以時間上限放寬為省電 40、標準 80、高品質 200 毫秒，超時的那次結果照用但不快取，連續 3 次超時暫停一分鐘。
+`windows/tools/eval_ai.py` 比較各種設定（需要 numpy）：用 `windows/tools/eval-sentences/tune.txt`（281 句）調參數，再用 `test.txt`（193 句，調的時候不看）確認。目前的結果（`test.txt`）：
+
+| | 字正確率 | 整句全對 |
+|---|---|---|
+| 只用詞庫 | 97.7% | 150/193 |
+| 標準（小模型，K=10，λ=0.6） | 98.7% | 169/193 |
+| 高品質（大模型，K=10，λ=2） | 99.2% | 177/193 |
+
+小模型比較 30 個組合和 10 個一樣，λ 調高在 tune 上較好但 test 上沒有，所以維持 0.6。
+
+```bash
+python windows/tools/eval_ai.py --set test -v                      # 標準，列出每句的差別
+python windows/tools/eval_ai.py --model ~/Library/Application\ Support/AutoZhuyin/lm-large.bin --lam 2   # 高品質模型
+```
+
+Windows、Linux 版用 numpy 執行同一個模型（`windows/autozhuyin/core/lm.py`），所以時間上限放寬為省電 40、標準 80 毫秒（高品質模型在背景算，不限），超時的那次結果照用但不快取，連續 3 次超時暫停一分鐘。
 - Windows：安裝包附上 PIME 兩種 Python（1.3 版的 3.8、2.x 版的 3.15，都是 32 位元）用的 numpy，安裝檔約 40 MB。
 - Linux：系統沒有 numpy 時，`install.sh` 會從 PyPI 下載符合的版本到 `~/.local/share/autozhuyin/vendor/`。
 - 設定存在 `%APPDATA%\PIME\autozhuyin\settings.json`、`~/.config/autozhuyin/settings.json`。
@@ -416,7 +438,7 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進三個平台�
 - 詞庫資料：[小麥注音 McBopomofo](https://github.com/openvanilla/McBopomofo)（MIT License）
 - Windows 輸入法框架：[PIME](https://github.com/EasyIME/PIME)（LGPL 2.1；setup.exe 內附未修改的官方 PIME 1.3.0 安裝程式，授權在 `licenses/PIME-LICENSE.txt`、`licenses/LGPL-2.1.txt`）
 - 英文字典：Webster's Second International Dictionary（公有領域，macOS 的 `/usr/share/dict/words`）
-- AI 選字語言模型：[CKIP GPT2 Tiny Chinese](https://github.com/ckiplab/ckip-transformers)（中研院詞庫小組，GPL-3.0，全文在 `licenses/GPL-3.0.txt`，並一起打包進三個平台的安裝檔）
+- AI 選字語言模型：[CKIP GPT2 Tiny Chinese](https://github.com/ckiplab/ckip-transformers)（中研院詞庫小組，GPL-3.0，全文在 `licenses/GPL-3.0.txt`，並一起打包進三個平台的安裝檔）；高品質模型是同一組的 GPT2 Base Chinese（GPL-3.0），選擇性下載
 - 數值運算：[NumPy](https://numpy.org)（BSD 3-Clause，Windows 版附上、Linux 版安裝時下載）
 
 完整的第三方授權聲明（含小麥注音 MIT 授權全文）見 [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)，Mac 版放在 `AutoZhuyin.app/Contents/Resources/`，Windows 版放在 zip 根目錄和安裝後的 `autozhuyin` 資料夾。

@@ -48,6 +48,54 @@ else
     fi
 fi
 
+# 2c. Optional: the "AI 選字" 高品質 model (~200 MB), also downloadable from the menu later.
+#     install.sh --large-model / --no-large-model answers without asking.
+LARGE_URL="https://github.com/Kao953/AutoZhuyin/releases/download/lm-large-v1/lm-large.bin"
+LARGE_SHA256="0e376619d2d382b573406ce58beda871162c60541cbe7bdf306142228d230809"
+USER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/autozhuyin"
+LARGE="$USER_DIR/lm-large.bin"
+WANT_LARGE=""
+for arg in "$@"; do
+    case "$arg" in
+        --large-model) WANT_LARGE=y ;;
+        --no-large-model) WANT_LARGE=n ;;
+    esac
+done
+if [ -f "$LARGE" ]; then
+    echo "AI 高品質模型：已安裝（可在輸入法的設定選單移除）。"
+elif [ -z "$WANT_LARGE" ] && [ -t 0 ]; then
+    echo "要下載 AI 高品質模型嗎？選字更準（錯字約少四成），但多佔約 400 MB 記憶體，下載約 200 MB。"
+    read -r -p "之後也可以在輸入法的設定選單下載或移除。[y/N] " WANT_LARGE || WANT_LARGE=n
+fi
+case "$WANT_LARGE" in
+    y|Y|yes|YES)
+        echo "下載 AI 高品質模型…"
+        mkdir -p "$USER_DIR"
+        if { command -v curl >/dev/null 2>&1 && curl -fL --retry 2 -o "$LARGE.part" "$LARGE_URL"; } \
+            || { command -v wget >/dev/null 2>&1 && wget -O "$LARGE.part" "$LARGE_URL"; }; then
+            if [ "$(sha256sum "$LARGE.part" | cut -d' ' -f1)" = "$LARGE_SHA256" ]; then
+                mv -f "$LARGE.part" "$LARGE"
+                "$PY" -I - "$USER_DIR/settings.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+try:
+    data = json.load(open(path, encoding="utf-8"))
+except (OSError, ValueError):
+    data = {}
+data["ai_mode"] = "quality"
+json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+PY
+                echo "AI 高品質模型已安裝，AI 選字設為「高品質」。"
+            else
+                echo "下載的檔案不完整，略過。之後可以在輸入法的設定選單再下載。"
+            fi
+        else
+            echo "下載失敗，略過。之後可以在輸入法的設定選單再下載。"
+        fi
+        rm -f "$LARGE.part"
+        ;;
+esac
+
 # 3. Tell IBus about the engine with a component file, so it knows it from startup (no
 #    "configured input method doesn't exist" warning) and runs it itself when it is
 #    selected, in the desktop and in game mode. IBus only reads the system folder (read-only

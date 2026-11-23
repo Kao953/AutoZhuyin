@@ -29,9 +29,10 @@ VIAddVersionKey /LANG=1028 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=1028 "LegalCopyright" "GPL-3.0"
 
 !define MUI_WELCOMEPAGE_TITLE "安裝自動注音（獨立版）"
-!define MUI_WELCOMEPAGE_TEXT "這是不需要 PIME 的實驗版本，還沒在實機上完整測試過。$\r$\n$\r$\n它和 PIME 版的自動注音可以同時安裝，在鍵盤清單裡的名稱是「自動注音（獨立版）」。$\r$\n$\r$\n目前沒有設定選單（AI 選字用預設的「標準」），在 Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能無法使用。"
+!define MUI_WELCOMEPAGE_TEXT "這是不需要 PIME 的實驗版本，還沒在實機上完整測試過。$\r$\n$\r$\n它和 PIME 版的自動注音可以同時安裝，在鍵盤清單裡的名稱是「自動注音（獨立版）」。$\r$\n$\r$\n目前沒有設定選單（AI 選字用預設的「標準」，勾選「AI 高品質模型」則用「高品質」），在 Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能無法使用。"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${LICENSE}"
+!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TITLE "安裝完成"
 !define MUI_FINISHPAGE_TEXT "到「設定 > 時間與語言 > 語言與地區 > 中文(台灣) > 語言選項 > 新增鍵盤」加入「自動注音（獨立版）」，再用 Win + 空白鍵 切換過去。$\r$\n$\r$\n清單裡沒有的話，重新開機一次。"
@@ -105,6 +106,25 @@ Section "自動注音（獨立版）" SecMain
     WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
     WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
 SectionEnd
+
+; Optional: the 高品質 model, downloaded now (also from the input method's menu later).
+Section /o "AI 高品質模型（下載約 200 MB）" SecLarge
+    DetailPrint "下載 AI 高品質模型（約 200 MB），請稍候…"
+    InitPluginsDir
+    File "/oname=$PLUGINSDIR\get-lm-large.ps1" "../installer/get-lm-large.ps1"   ; relative to this script
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\get-lm-large.ps1" -Dir "$APPDATA\AutoZhuyin"'
+    Pop $0
+    ${If} $0 != 0
+        MessageBox MB_ICONEXCLAMATION|MB_OK "AI 高品質模型下載失敗。$\r$\n之後可以在輸入法的設定選單裡選「下載高品質模型」再試一次。" /SD IDOK
+    ${Else}
+        !insertmacro StopServer   ; started again on next use, with the model
+    ${EndIf}
+SectionEnd
+
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} "輸入法本身（必要）。"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecLarge} "AI 選字更準（錯字約少四成），但多佔約 400 MB 記憶體。勾選後會下載，並把 AI 選字設為「高品質」。之後也可以在輸入法選單下載或移除。"
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 Section "Uninstall"
     !insertmacro RegsvrBoth "/u /s"

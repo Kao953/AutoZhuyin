@@ -47,7 +47,7 @@ _phrases = None   # UserPhrasesFile
 _loaded = threading.Event()   # set when the background load (below) has finished
 _load_error = None
 
-ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR, ID_EDIT_PHRASES, ID_REQUIRE_TONES = 1, 2, 3, 4, 5, 6
+ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR, ID_EDIT_PHRASES, ID_REQUIRE_TONES, ID_LARGE_MODEL = 1, 2, 3, 4, 5, 6, 7
 ID_AI_MODE = {mode: 10 + i for i, mode in enumerate(MODES)}   # 10..13
 _ICON = os.path.join(_HERE, "icon.ico")
 _ICON_EN = os.path.join(_HERE, "icon-en.ico")     # shown while English mode is on
@@ -225,6 +225,7 @@ class AutoZhuyinTextService(TextService):
         items = [{"text": "AI 選字：" + MODE_NAMES[m], "id": ID_AI_MODE[m], "checked": ai.reranker.mode == m}
                  for m in MODES]
         items += [
+            {"text": ai.large_menu_text(), "id": ID_LARGE_MODEL},
             {},
             {"text": "系統忙碌時自動暫停 AI", "id": ID_AUTO_PAUSE, "checked": ai.auto_pause},
             {"text": ai.status_text(), "id": ID_STATUS, "enabled": False},
@@ -250,6 +251,11 @@ class AutoZhuyinTextService(TextService):
         if commandId == ID_EDIT_PHRASES:
             # Opens in the default editor (Notepad); saved changes load on the next activation.
             os.startfile(_phrases.ensure_exists())
+        elif commandId == ID_LARGE_MODEL:
+            downloading = ai.download_progress is not None
+            ai.large_menu_clicked()
+            if not downloading and ai.download_progress is not None:
+                self.showMessage("開始下載高品質模型，完成後自動使用（選單可看進度）", 3)
         elif commandId == ID_AUTO_PAUSE:
             ai.set_auto_pause(not ai.auto_pause)
         elif commandId == ID_REQUIRE_TONES:

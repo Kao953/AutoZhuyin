@@ -405,6 +405,15 @@ class InsertInMiddleTests(unittest.TestCase):
         self.assertEqual(e.marked_text, "今天氣")
         self.assertEqual(e.cursor_offset, 1)
 
+    def test_backspace_at_end_deletes_whole_character(self):
+        e = make_engine()
+        type_keys("rup wu0 \b", e)
+        self.assertEqual(e.marked_text, "今")          # 天 goes at once, not just its tone
+        type_keys("wu\b", e)
+        self.assertEqual(e.marked_text, "今ㄊ")        # Bopomofo still being typed: one key
+        type_keys("\b\b", e)
+        self.assertEqual(e.marked_text, "")
+
     def test_backspace_inside_inserted_syllable(self):
         e = make_engine()
         type_keys("rup fu4←wu\b", e)
@@ -731,6 +740,49 @@ class RerankerTests(unittest.TestCase):
         clock[0] += 61
         self.assertEqual(type_keys("wu0 \n", self.engine(r)), "添")   # back after a minute
 
+    def marked(self, e):
+        return "".join(t for t, _ in e.marked_pieces)
+
+    def test_large_model_is_used_when_committing(self):
+        from autozhuyin.core.reranker import Reranker
+        r = Reranker("quality", FakeLM("天"))
+        r.large_model = FakeLM("添")
+        self.assertEqual(type_keys("wu0 \n", self.engine(r)), "添")
+
+    def test_large_model_runs_in_the_background(self):
+        import threading
+        from autozhuyin.core.reranker import Reranker
+        r = Reranker("quality", FakeLM("天"))
+        large, gate, updated = FakeLM("添"), threading.Event(), threading.Event()
+        large.on_call = gate.wait
+        r.large_model = large
+        r.on_update = updated.set
+        e = self.engine(r)
+        type_keys("wu0 ", e)
+        self.assertEqual(self.marked(e), "天")    # the small model's result meanwhile
+        gate.set()
+        self.assertTrue(updated.wait(5))
+        self.assertEqual(self.marked(e), "添")
+
+    def test_commit_does_not_wait_long_for_the_large_model(self):
+        import threading
+        import time
+        from autozhuyin.core.engine import CompositionEngine
+        from autozhuyin.core.reranker import Reranker
+        r = Reranker("quality", FakeLM("天"))
+        large, gate = FakeLM("添"), threading.Event()
+        large.on_call = gate.wait
+        r.large_model = large
+        start = time.monotonic()
+        self.assertEqual(type_keys("wu0 \n", self.engine(r)), "天")
+        self.assertLess(time.monotonic() - start, CompositionEngine.COMMIT_WAIT + 0.5)
+        gate.set()
+
+    def test_quality_without_the_large_model_is_standard(self):
+        from autozhuyin.core.reranker import Reranker
+        r = Reranker("quality", FakeLM("添"))
+        self.assertEqual(type_keys("wu0 \n", self.engine(r)), "添")
+
     def test_kbest_first_is_viterbi(self):
         syl = [s.syllable for s in bopomofo.parse(list("rup wu0 wu0 fu4")).syllables]
         conv = Converter(LEX)
@@ -770,6 +822,43 @@ class AISettingsTests(unittest.TestCase):
         again = AI(tempfile.mkdtemp(), user, background=False)
         self.assertEqual(again.reranker.mode, "saver")
         self.assertFalse(again.auto_pause)
+
+    def download(self, ai, content):
+        """Runs the 高品質 model download from a local file instead of GitHub."""
+        import hashlib
+        import pathlib
+        import tempfile
+        import threading
+        from unittest import mock
+        from autozhuyin.core import ai as ai_module
+        src = pathlib.Path(tempfile.mkdtemp()) / "lm-large.bin"
+        src.write_bytes(content)
+        done = threading.Event()
+        with mock.patch.object(ai_module, "LARGE_URL", src.as_uri()), \
+                mock.patch.object(ai_module, "LARGE_SHA256", hashlib.sha256(b"model").hexdigest()):
+            ai.large_menu_clicked(on_done=done.set)
+            self.assertTrue(done.wait(5))
+
+    def test_large_model_download_and_remove(self):
+        import tempfile
+        from autozhuyin.core.ai import AI
+        ai = AI(tempfile.mkdtemp(), tempfile.mkdtemp(), background=False)
+        self.assertIn("下載高品質模型", ai.large_menu_text())
+        self.download(ai, b"model")
+        self.assertTrue(ai.large_installed)
+        self.assertIn("移除高品質模型", ai.large_menu_text())
+        ai.large_menu_clicked()
+        self.assertFalse(ai.large_installed)
+
+    def test_large_model_download_is_checked(self):
+        import os
+        import tempfile
+        from autozhuyin.core.ai import AI
+        ai = AI(tempfile.mkdtemp(), tempfile.mkdtemp(), background=False)
+        self.download(ai, b"broken")
+        self.assertFalse(ai.large_installed)
+        self.assertFalse(os.path.exists(ai.large_path + ".part"))
+        self.assertIn("不完整", ai.large_menu_text())
 
 
 if __name__ == "__main__":

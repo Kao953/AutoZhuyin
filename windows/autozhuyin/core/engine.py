@@ -222,11 +222,15 @@ class CompositionEngine:
             return [s.syllable for s in p.syllables], ""
         return [s.syllable for s in p.completed], (p.pending.syllable.reading if p.pending else "")
 
-    def _conversion(self, seg, final):
+    # How long a commit waits for the 高品質 model's result (it runs in the background).
+    COMMIT_WAIT = 0.4
+
+    def _conversion(self, seg, final, committing=False):
         syl, pending = self._convertible(seg, final)
         fx = {k: v for k, v in self.fixed.get(seg[0], {}).items() if k[1] <= len(syl)}
         if self.reranker is not None:
-            chosen = self.reranker.choose(self.converter, syl, fx, self._rerank_context())
+            chosen = self.reranker.choose(self.converter, syl, fx, self._rerank_context(),
+                                          wait=self.COMMIT_WAIT if committing else 0)
             if chosen is not None:
                 return chosen, pending
         return self.converter.convert(syl, fx), pending
@@ -234,11 +238,11 @@ class CompositionEngine:
     def _rerank_context(self):
         return self._recent_text if self.now() - self._previous_time < self.context_window else ""
 
-    def _render(self, seg, final):
+    def _render(self, seg, final, committing=False):
         start, end, mode = seg
         if mode == LITERAL:
             return "".join(self.keys[start:end])
-        converted, pending = self._conversion(seg, final)
+        converted, pending = self._conversion(seg, final, committing)
         return "".join(t for _, t in converted) + pending
 
     # --- cursor ---
@@ -355,6 +359,17 @@ class CompositionEngine:
         self.cursor = pos + len(new_keys)
         if self.cursor >= len(self.keys):
             self.cursor = None
+
+    def _whole_character_start(self):
+        """Backspace at the end: where the last syllable starts when it is a whole character
+        (closed by its tone), so it goes at once; otherwise just the last key."""
+        segs = self.segments
+        if segs and segs[-1][2] == ZHUYIN and segs[-1][1] == len(self.keys):
+            start = segs[-1][0]
+            p = self._parse(self.keys[start:])
+            if p.syllables and p.syllables[-1].toned and start + p.syllables[-1].end == len(self.keys):
+                return start + p.syllables[-1].start
+        return len(self.keys) - 1
 
     def _delete_before_cursor(self):
         """Backspace in the middle: removes the syllable (or literal key) before the cursor."""
@@ -503,7 +518,7 @@ class CompositionEngine:
                 if self.cursor > 0:
                     self._delete_before_cursor()
                 return CONSUMED
-            self.keys.pop()
+            del self.keys[self._whole_character_start():]
             if self.held is not None and len(self.keys) <= self.held:
                 self.held = None
             self.fixed = {k: v for k, v in self.fixed.items() if k < len(self.keys)}
@@ -766,7 +781,7 @@ class CompositionEngine:
 
     def _commit(self, segs=None):
         segs = segs if segs is not None else self.segments
-        text = "".join(self._render(s, True) for s in segs)
+        text = "".join(self._render(s, True, committing=True) for s in segs)
         self._remember_picks(segs)
         self._recent_text = (self._rerank_context() + text)[-20:]
         if self.forced_mode:

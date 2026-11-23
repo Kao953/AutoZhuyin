@@ -492,6 +492,16 @@ class InsertInMiddleTests {
         assertEquals(1, e.cursorOffset)
     }
 
+    @Test fun backspaceAtEndDeletesWholeCharacter() {
+        val e = makeEngine()
+        typeKeys("rup wu0 \b", e)
+        assertEquals("今", e.markedText)             // 天 goes at once, not just its tone
+        typeKeys("wu\b", e)
+        assertEquals("今ㄊ", e.markedText)           // Bopomofo still being typed: one key
+        typeKeys("\b\b", e)
+        assertEquals("", e.markedText)
+    }
+
     @Test fun backspaceInsideInsertedSyllable() {
         val e = makeEngine()
         typeKeys("rup fu4←wu\b", e)

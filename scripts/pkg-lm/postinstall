@@ -1,0 +1,27 @@
+#!/bin/bash
+# "AI 高品質模型" installer option (runs as root after the app is installed): downloads the
+# 高品質 model to the user's Application Support folder, as that user, and turns AI 選字 to
+# 高品質. A failed download doesn't fail the install: the input method's menu can retry.
+URL="https://github.com/Kao953/AutoZhuyin/releases/download/lm-large-v1/lm-large.bin"
+SHA256="0e376619d2d382b573406ce58beda871162c60541cbe7bdf306142228d230809"
+
+USER_NAME="$(stat -f%Su /dev/console)"
+[ -n "$USER_NAME" ] && [ "$USER_NAME" != "root" ] || exit 0
+USER_HOME="$(dscl . -read "/Users/$USER_NAME" NFSHomeDirectory | awk '{print $2}')"
+DIR="$USER_HOME/Library/Application Support/AutoZhuyin"
+DEST="$DIR/lm-large.bin"
+
+as_user() { sudo -u "$USER_NAME" "$@"; }
+
+if [ "$(shasum -a 256 "$DEST" 2>/dev/null | awk '{print $1}')" != "$SHA256" ]; then
+    as_user mkdir -p "$DIR"
+    if as_user curl -fsSL --retry 2 -o "$DEST.part" "$URL" \
+        && [ "$(shasum -a 256 "$DEST.part" | awk '{print $1}')" = "$SHA256" ]; then
+        as_user mv -f "$DEST.part" "$DEST"
+    else
+        rm -f "$DEST.part"
+        exit 0
+    fi
+fi
+as_user defaults write com.autozhuyin.inputmethod.AutoZhuyin AIMode quality
+exit 0

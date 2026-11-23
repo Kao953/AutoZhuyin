@@ -298,6 +298,19 @@ class CompositionEngine(
     }
 
     /** Backspace in the middle: removes the syllable (or literal key) before the cursor. */
+    /**
+     * Backspace at the end: where the last syllable starts when it is a whole character
+     * (closed by its tone), so it goes at once; otherwise just the last key.
+     */
+    private fun wholeCharacterStart(): Int {
+        val seg = segments.lastOrNull()
+        if (seg != null && seg.mode == Mode.ZHUYIN && seg.end == keys.size) {
+            val last = parse(keys.subList(seg.start, seg.end)).syllables.lastOrNull()
+            if (last != null && last.toned && seg.start + last.end == keys.size) return seg.start + last.start
+        }
+        return keys.size - 1
+    }
+
     private fun deleteBeforeCursor() {
         val pos = cursor ?: return
         var start = pos - 1
@@ -448,7 +461,7 @@ class CompositionEngine(
                     if (it > 0) deleteBeforeCursor()
                     return KeyResult.CONSUMED
                 }
-                keys.removeAt(keys.size - 1)
+                keys.subList(wholeCharacterStart(), keys.size).clear()
                 held?.let { if (keys.size <= it) held = null }
                 fixed = fixed.filterKeys { it < keys.size }.toMutableMap()
                 if (keys.size <= forcedStart) {

@@ -32,6 +32,7 @@ VIAddVersionKey /LANG=1028 "LegalCopyright" "GPL-3.0"
 !define MUI_WELCOMEPAGE_TEXT "用大千注音鍵盤直接打字，不用切換中英文。$\r$\n$\r$\n自動注音需要 PIME 輸入法框架（免費、開源）。電腦上還沒有 PIME 的話，這個安裝程式會一起安裝。$\r$\n$\r$\n按「下一步」繼續。"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${LICENSE}"
+!insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TITLE "安裝完成"
 !define MUI_FINISHPAGE_TEXT "到「設定 > 時間與語言 > 語言與地區 > 中文(台灣) > 語言選項 > 新增鍵盤」加入「自動注音 AutoZhuyin」，再用 Win + 空白鍵 切換過去。$\r$\n$\r$\n清單裡沒有的話，重新開機一次。"
@@ -131,6 +132,27 @@ Section "自動注音" SecMain
     WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
     WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
 SectionEnd
+
+; Optional: the 高品質 model, downloaded now (also from the input method's menu later).
+Section /o "AI 高品質模型（下載約 200 MB）" SecLarge
+    DetailPrint "下載 AI 高品質模型（約 200 MB），請稍候…"
+    InitPluginsDir
+    File "/oname=$PLUGINSDIR\get-lm-large.ps1" "get-lm-large.ps1"   ; relative to this script
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\get-lm-large.ps1" -Dir "$APPDATA\PIME\autozhuyin"'
+    Pop $0
+    ${If} $0 != 0
+        MessageBox MB_ICONEXCLAMATION|MB_OK "AI 高品質模型下載失敗。$\r$\n之後可以在輸入法的設定選單裡選「下載高品質模型」再試一次。" /SD IDOK
+    ${Else}
+        nsExec::Exec 'taskkill /f /im PIMELauncher.exe'
+        Pop $0
+        !insertmacro StartPimeLauncher   ; restarted, so it loads the model
+    ${EndIf}
+SectionEnd
+
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecMain} "輸入法本身（必要）。"
+    !insertmacro MUI_DESCRIPTION_TEXT ${SecLarge} "AI 選字更準（錯字約少四成），但多佔約 400 MB 記憶體。勾選後會下載，並把 AI 選字設為「高品質」。之後也可以在輸入法選單下載或移除。"
+!insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 Section "Uninstall"
     nsExec::Exec 'taskkill /f /im PIMELauncher.exe'

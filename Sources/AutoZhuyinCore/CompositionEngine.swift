@@ -218,9 +218,9 @@ public final class CompositionEngine {
     }
 
     /// Text for one segment. A non-final Zhuyin segment shows its unfinished syllable as Bopomofo.
-    private func render(_ seg: Segment, final: Bool) -> String {
+    private func render(_ seg: Segment, final: Bool, committing: Bool = false) -> String {
         guard seg.mode == .zhuyin else { return String(keys[seg.range]) }
-        let (converted, pending) = conversion(of: seg, final: final)
+        let (converted, pending) = conversion(of: seg, final: final, committing: committing)
         return converted.map(\.text).joined() + pending
     }
 
@@ -232,10 +232,14 @@ public final class CompositionEngine {
         return (p.completed.map(\.syllable), p.pending?.syllable.reading ?? "")
     }
 
-    private func conversion(of seg: Segment, final: Bool) -> (segments: [ConvertedSegment], pending: String) {
+    /// How long a commit waits for the 高品質 model's result (it runs in the background).
+    static let commitWait: TimeInterval = 0.4
+
+    private func conversion(of seg: Segment, final: Bool, committing: Bool = false) -> (segments: [ConvertedSegment], pending: String) {
         let (syl, pending) = convertibleSyllables(seg, final: final)
         let fixedHere = (fixed[seg.range.lowerBound] ?? [:]).filter { $0.key.upperBound <= syl.count }
-        if let reranker, let chosen = reranker.choose(converter, syl, fixed: fixedHere, context: rerankContext) {
+        if let reranker, let chosen = reranker.choose(converter, syl, fixed: fixedHere, context: rerankContext,
+                                                      wait: committing ? Self.commitWait : 0) {
             return (chosen, pending)
         }
         return (converter.convert(syl, fixed: fixedHere), pending)
@@ -357,6 +361,15 @@ public final class CompositionEngine {
         cursor = next >= keys.count ? nil : next
     }
 
+    /// Backspace at the end: where the last syllable starts when it is a whole character
+    /// (closed by its tone), so it goes at once; nil for Bopomofo still being typed.
+    private func wholeCharacterStart() -> Int? {
+        guard let seg = segments.last, seg.mode == .zhuyin, seg.range.upperBound == keys.count,
+              let last = parse(Array(keys[seg.range])).syllables.last, last.toned,
+              seg.range.lowerBound + last.keyRange.upperBound == keys.count else { return nil }
+        return seg.range.lowerBound + last.keyRange.lowerBound
+    }
+
     /// Backspace in the middle: removes the syllable (or literal key) before the cursor.
     private func deleteBeforeCursor(_ pos: Int) {
         var start = pos - 1
@@ -421,7 +434,7 @@ public final class CompositionEngine {
                 if c > 0 { deleteBeforeCursor(c) }
                 return .consumed
             }
-            keys.removeLast()
+            keys.removeSubrange((wholeCharacterStart() ?? keys.count - 1)...)
             if let h = held, keys.count <= h { held = nil }
             fixed = fixed.filter { $0.key < keys.count }
             if keys.count <= forcedStart { forcedMode = nil; forcedPrefix = [] }   // the flipped word is gone
@@ -787,7 +800,7 @@ public final class CompositionEngine {
     @discardableResult
     private func commitCurrent(_ given: [Segment]? = nil) -> String {
         let segs = given ?? segments
-        let text = segs.map { render($0, final: true) }.joined()
+        let text = segs.map { render($0, final: true, committing: true) }.joined()
         rememberPicks(segs)
         recentText = String((rerankContext + text).suffix(20))
         if let forced = forcedMode {

@@ -86,6 +86,8 @@ final class InputController: IMKInputController {
         return e
     }()
     private var shiftTap = ShiftTapDetector()
+    /// The controller of the focused text field, redrawn when a background rerank finishes.
+    private static weak var active: InputController?
     /// The first activation picks the starting mode for this app (see `englishFirstApps`);
     /// after that the mode is whatever the user last chose here.
     private var startingModeChosen = false
@@ -224,6 +226,14 @@ final class InputController: IMKInputController {
         }
     }
 
+    /// The 高品質 model finished in the background: show its result (not while choosing a
+    /// candidate, which would move the list).
+    static func refreshActive() {
+        guard let controller = active, !controller.engine.keys.isEmpty, !controller.engine.isShowingCandidates,
+              let client = controller.client() else { return }
+        controller.updateComposition(client)
+    }
+
     override func commitComposition(_ sender: Any!) {
         guard let client = sender as? IMKTextInput else { return }
         commit(engine.commitAll(), to: client)
@@ -232,6 +242,7 @@ final class InputController: IMKInputController {
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
+        InputController.active = self
         Shared.reloadUserPhrasesIfChanged()
         if !startingModeChosen, let client = sender as? IMKTextInput {
             startingModeChosen = true
@@ -286,6 +297,13 @@ final class InputController: IMKInputController {
             let item = menu.addItem(withTitle: title, action: action, keyEquivalent: "")
             item.state = AI.reranker.mode == mode ? .on : .off
         }
+        let (largeTitle, largeAction): (String, Selector?) = switch LargeModel.state {
+        case .notInstalled: ("下載高品質模型（\(LargeModel.sizeText)）", #selector(downloadLargeModel(_:)))
+        case .downloading(let f): ("高品質模型下載中 \(Int(f * 100))%（點一下取消）", #selector(cancelLargeModel(_:)))
+        case .installed: ("移除高品質模型（\(LargeModel.sizeText)）", #selector(removeLargeModel(_:)))
+        case .failed(let why): ("\(why)（點一下重試）", #selector(downloadLargeModel(_:)))
+        }
+        menu.addItem(withTitle: largeTitle, action: largeAction, keyEquivalent: "")
         let pause = menu.addItem(withTitle: "系統忙碌時自動暫停 AI", action: #selector(toggleAutoPause(_:)), keyEquivalent: "")
         pause.state = AI.autoPause ? .on : .off
         let status = menu.addItem(withTitle: AI.statusText, action: nil, keyEquivalent: "")
@@ -308,6 +326,9 @@ final class InputController: IMKInputController {
     @objc private func aiStandard(_ sender: Any?) { AI.setMode(.standard) }
     @objc private func aiQuality(_ sender: Any?) { AI.setMode(.quality) }
     @objc private func toggleAutoPause(_ sender: Any?) { AI.autoPause.toggle() }
+    @objc private func downloadLargeModel(_ sender: Any?) { LargeModel.download() }
+    @objc private func cancelLargeModel(_ sender: Any?) { LargeModel.cancel() }
+    @objc private func removeLargeModel(_ sender: Any?) { LargeModel.remove() }
 
     @objc private func toggleRequireTones(_ sender: Any?) { Shared.requireTones.toggle() }
 

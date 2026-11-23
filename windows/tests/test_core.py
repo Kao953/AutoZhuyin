@@ -85,6 +85,20 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(readings("xj/ c "), ["ㄌㄨㄥ", "ㄏ"])   # the first one had its tone
         self.assertEqual(readings("xj/v "), ["ㄌㄨㄥ", "ㄒ"])     # ㄒㄨㄥ is no syllable either
 
+    def test_bopomofo_candidates(self):
+        """The Bopomofo itself comes last among the candidates."""
+        e = make_engine()
+        type_keys(";6", e)
+        e.handle(DOWN)
+        texts = [t for _, t in e.candidates]
+        self.assertEqual(texts[-2:], ["ㄤ", "ㄤˊ"])
+        e.select_candidate(len(texts) - 1)
+        self.assertEqual(type_keys("\n", e), "ㄤˊ")
+        e = make_engine()
+        type_keys("ji3/ ", e)
+        e.handle(DOWN)
+        self.assertEqual([t for _, t in e.candidates].count("ㄥ"), 1)   # first tone: no mark, once
+
     def test_typed_over_converts(self):
         self.assertEqual(type_keys("xj/c \n", make_engine()), "轟")
 

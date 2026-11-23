@@ -115,6 +115,19 @@ class TypedOverTests {
         assertEquals(listOf("ㄌㄨㄥ", "ㄏ"), readings("xj/ c "))   // the first one had its tone
         assertEquals(listOf("ㄌㄨㄥ", "ㄒ"), readings("xj/v "))     // ㄒㄨㄥ is no syllable either
     }
+
+    /** The Bopomofo itself comes last among the candidates. */
+    @Test fun bopomofoCandidates() {
+        val e = makeEngine()
+        typeKeys(";6↓", e)
+        val texts = e.candidateTexts()
+        assertEquals(listOf("ㄤ", "ㄤˊ"), texts.takeLast(2))
+        e.selectCandidate(texts.size - 1)
+        assertEquals("ㄤˊ", typeKeys("\n", e))
+        val first = makeEngine()
+        typeKeys("ji3/ ↓", first)
+        assertEquals(1, first.candidateTexts().count { it == "ㄥ" })   // first tone: no mark, once
+    }
 }
 
 class ConverterTests {
@@ -130,7 +143,7 @@ class ConverterTests {
         assertEquals("ㄨㄛ們", conv("jiap7"))
         assertEquals("我們", conv("ji3ap7"))
         val untoned = Bopomofo.parse(keysOf("ji")).syllables.map { it.syllable }
-        assertTrue(c.candidates(untoned, 1).isEmpty())
+        assertEquals(listOf("ㄨㄛ"), c.candidates(untoned, 1).map { it.text })   // only the Bopomofo
     }
 
     @Test fun loadTime() {

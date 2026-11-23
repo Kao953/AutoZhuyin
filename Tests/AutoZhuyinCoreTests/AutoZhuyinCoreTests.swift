@@ -57,6 +57,15 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(readings("xj/v "), ["ㄌㄨㄥ", "ㄒ"])     // ㄒㄨㄥ is no syllable either
     }
 
+    /// The Bopomofo itself comes last among the candidates.
+    func testBopomofoCandidates() {
+        let syl = ZhuyinParser.parse(Array(";6")).syllables.map(\.syllable)
+        let texts = Converter(lexicon: sharedLexicon).candidates(syl, endingAt: 1).map(\.text)
+        XCTAssertEqual(Array(texts.suffix(2)), ["ㄤ", "ㄤˊ"])
+        let first = ZhuyinParser.parse(Array("/ ")).syllables.map(\.syllable)
+        XCTAssertEqual(Converter(lexicon: sharedLexicon).candidates(first, endingAt: 1).filter { $0.text == "ㄥ" }.count, 1)
+    }
+
     func testSyllableTable() {
         XCTAssertTrue(SyllableTable.valid.contains("ㄋㄧ"))
         XCTAssertTrue(SyllableTable.valid.contains("ㄓ"))

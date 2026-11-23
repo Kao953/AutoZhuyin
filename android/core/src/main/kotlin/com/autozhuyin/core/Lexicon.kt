@@ -211,6 +211,11 @@ class Converter(val lexicon: Lexicon, val history: UserHistory? = null) {
                 if (seen.add(e.phrase)) out.add(Piece(i, end, e.phrase))
             }
         }
+        // Last, the Bopomofo itself, for writing about it ("ㄤ", "ㄤˊ").
+        val syl = syllables[end - 1]
+        for (text in listOf(syl.toneless, syl.reading)) {
+            if (text.isNotEmpty() && seen.add(text)) out.add(Piece(end - 1, end, text))
+        }
         return out
     }
 

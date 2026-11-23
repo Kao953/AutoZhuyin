@@ -218,4 +218,10 @@ class Converter:
                 if phrase not in seen:
                     seen.add(phrase)
                     out.append(((i, end), phrase))
+        # Last, the Bopomofo itself, for writing about it ("ㄤ", "ㄤˊ").
+        syl = syllables[end - 1]
+        for text in dict.fromkeys((syl.toneless, syl.reading)):
+            if text and text not in seen:
+                seen.add(text)
+                out.append(((end - 1, end), text))
         return out

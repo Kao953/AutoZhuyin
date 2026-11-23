@@ -115,6 +115,12 @@ public struct Converter {
                 out.append(Candidate(range: range, text: entry.phrase))
             }
         }
+        // Last, the Bopomofo itself, for writing about it ("ㄤ", "ㄤˊ").
+        let syl = syllables[end - 1]
+        for text in [syl.toneless, syl.reading] where !text.isEmpty && !seen.contains(text) {
+            seen.insert(text)
+            out.append(Candidate(range: (end - 1)..<end, text: text))
+        }
         return out
     }
 }

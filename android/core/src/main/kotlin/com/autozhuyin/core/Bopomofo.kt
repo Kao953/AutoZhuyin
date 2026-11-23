@@ -95,8 +95,12 @@ object Bopomofo {
 
     // --- parser ---
 
-    /** Splits keystrokes into syllables (Dachen rules, out-of-order symbols merged). */
-    fun parse(keys: List<String>): ZhuyinParse {
+    /**
+     * Splits keystrokes into syllables (Dachen rules, out-of-order symbols merged). `strict`:
+     * every syllable gets its tone (要打聲調才出字), so symbols typed over an untoned syllable
+     * are a correction even when they read alone (ㄒㄧㄥ then ㄩˊ is ㄒㄩㄥˊ, not ㄒㄧㄥ + ㄩˊ).
+     */
+    fun parse(keys: List<String>, strict: Boolean = false): ZhuyinParse {
         val result = ZhuyinParse()
         var current = Syllable()
         var start = 0
@@ -118,7 +122,7 @@ object Bopomofo {
                     start = i + 1
                 } else {
                     val prev = result.syllables.lastOrNull()
-                    if (prev != null && prev.end == start && !prev.toned && !isValid(current)) {
+                    if (prev != null && prev.end == start && !prev.toned && (strict || !isValid(current))) {
                         // Typed over the untoned syllable before it to fix a typo: ㄌㄨㄥ then ㄏ
                         // and a tone is ㄏㄨㄥ, not ㄌㄨㄥ + ㄏ (which is no syllable).
                         val merged = prev.syllable.copy()

@@ -83,7 +83,8 @@ class SetupActivity : Activity() {
             isChecked = Models.requireTones(this@SetupActivity)
             setOnCheckedChangeListener { _, on -> Models.setRequireTones(this@SetupActivity, on) }
         }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        body("開啟後，沒打聲調的音節會維持注音符號（jiap7 → ㄨㄛ們），打了聲調才變成中文字；一聲用空白。關閉時可以省略聲調（jiap7 → 我們）。")
+        body("開啟後，沒打聲調的音節會維持注音符號（jiap7 → ㄨㄛ們），打了聲調才變成中文字；一聲用空白。" +
+            "還沒打聲調時發現打錯，直接補打正確的注音再打聲調就會蓋掉（ㄒㄧㄥ 再打 ㄩˊ → ㄒㄩㄥˊ 雄）。關閉時可以省略聲調（jiap7 → 我們）。")
 
         heading("按鍵")
         body(

@@ -132,7 +132,7 @@ class CompositionEngine(
      */
     private fun isAmbiguousWord(keys: List<String>): Boolean {
         if (!keys.all { Bopomofo.isZhuyinKey(it) }) return false
-        val p = Bopomofo.parse(keys + " ")
+        val p = parse(keys + " ")
         if (p.pending != null || p.syllables.isEmpty() || p.strayTones != 0 || p.foreignKeys != 0) return false
         val best = ArrayList<Double>()
         for (ps in p.syllables) {
@@ -143,6 +143,9 @@ class CompositionEngine(
         if (context != Mode.LITERAL) return true   // first word: hold anything that reads as Zhuyin
         return best.size == 1 && best[0] >= HOLD_MIN_SCORE
     }
+
+    /** With 要打聲調才出字 on, symbols typed over an untoned syllable correct it (see Bopomofo.parse). */
+    private fun parse(keys: List<String>) = Bopomofo.parse(keys, strict = converter.requireTones)
 
     val segments: List<Segment> get() = segments(keys)
 
@@ -157,7 +160,7 @@ class CompositionEngine(
 
     /** (syllables converted to Chinese, pending Bopomofo) for a Zhuyin segment. */
     private fun convertible(seg: Segment, final: Boolean): Pair<List<Syllable>, String> {
-        val p = Bopomofo.parse(keys.subList(seg.start, seg.end))
+        val p = parse(keys.subList(seg.start, seg.end))
         if (final) return p.syllables.map { it.syllable } to ""
         return p.completed.map { it.syllable } to (p.pending?.syllable?.reading ?: "")
     }
@@ -178,7 +181,7 @@ class CompositionEngine(
 
     /** Absolute key index after each syllable of a Zhuyin segment. */
     private fun syllableEnds(seg: Segment): List<Int> =
-        Bopomofo.parse(keys.subList(seg.start, seg.end)).syllables.map { seg.start + it.end }
+        parse(keys.subList(seg.start, seg.end)).syllables.map { seg.start + it.end }
 
     /**
      * Key indices the cursor can stop at: after every Zhuyin syllable and at every segment
@@ -295,7 +298,7 @@ class CompositionEngine(
         var start = pos - 1
         for (seg in segments) {
             if (seg.mode == Mode.ZHUYIN && seg.start < pos && pos <= seg.end) {
-                for (ps in Bopomofo.parse(keys.subList(seg.start, seg.end)).syllables) {
+                for (ps in parse(keys.subList(seg.start, seg.end)).syllables) {
                     if (seg.start + ps.end == pos) start = seg.start + ps.start
                 }
             }
@@ -534,7 +537,7 @@ class CompositionEngine(
     private fun lastParse(segs: List<Segment>): ZhuyinParse? {
         val last = segs.lastOrNull() ?: return null
         if (last.mode != Mode.ZHUYIN) return null
-        return Bopomofo.parse(keys.subList(last.start, last.end))
+        return parse(keys.subList(last.start, last.end))
     }
 
     private fun handleCharacter(c: String): KeyResult {

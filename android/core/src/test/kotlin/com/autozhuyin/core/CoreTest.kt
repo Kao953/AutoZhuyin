@@ -130,6 +130,33 @@ class TypedOverTests {
     }
 }
 
+/** 要打聲調才出字: every syllable has its tone, so anything typed over an untoned one corrects it. */
+class StrictTypedOverTests {
+    private fun strict(keys: String) = Bopomofo.parse(keysOf(keys), strict = true).syllables.map { it.syllable.reading }
+
+    @Test fun medialsAndFinalsReplace() {
+        assertEquals(listOf("ㄒㄩㄥˊ"), strict("vu/m6"))             // ㄒㄧㄥ, ㄩ over ㄧ
+        assertEquals(listOf("ㄒㄧㄥ", "ㄩˊ"), readings("vu/m6"))      // not strict: 一 五 於 can be syllables
+        assertEquals(listOf("ㄏㄨㄤ"), strict("cj/; "))              // ㄏㄨㄥ, ㄤ over ㄥ
+        assertEquals(listOf("ㄏㄨㄥˇ"), strict("xj/cj/3"))           // the whole syllable typed again
+        assertEquals(listOf("ㄤˊ"), strict("/;6"))
+    }
+
+    @Test fun tonedSyllablesStay() {
+        assertEquals(listOf("ㄨㄢˋ", "ㄧ"), strict("j04u "))          // 萬一 with its tones
+        assertEquals(listOf("ㄌㄨㄥ", "ㄒ"), strict("xj/v "))          // ㄒㄨㄥ is no syllable: kept apart
+    }
+
+    @Test fun engine() {
+        fun type(keys: String) = CompositionEngine(Classifier(LEX, ENG, weights = WEIGHTS))
+            .apply { converter.requireTones = true }.let { typeKeys(keys, it) }
+        assertEquals("雄", type("vu/m6\n"))
+        assertEquals("你雄", type("su3vu/m6\n"))
+        assertEquals("萬一", type("j04u \n"))
+        assertEquals(2, typeKeys("vu/m6\n", makeEngine()).length)   // not strict: two characters, as before
+    }
+}
+
 class ConverterTests {
     @Test fun phrase() = assertEquals("你好", convert("su3cl3"))
 

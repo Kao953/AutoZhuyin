@@ -140,6 +140,15 @@ object Models {
         }
     }
 
+    /** 要打聲調才出字: untoned syllables stay as Bopomofo. */
+    fun requireTones(context: Context): Boolean = prefs(context).getBoolean(REQUIRE_TONES, false)
+
+    fun setRequireTones(context: Context, on: Boolean) = prefs(context).edit().putBoolean(REQUIRE_TONES, on).apply()
+
+    private fun prefs(context: Context) = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    private const val REQUIRE_TONES = "require_tones"
+
     /** 清除學習紀錄: Tab corrections and picked candidates. */
     fun clearLearned(context: Context) {
         val c = classifier

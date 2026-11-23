@@ -110,6 +110,15 @@ class ConverterTests {
 
     @Test fun toneOmission() = assertEquals("我們", convert("jiap7"))
 
+    @Test fun requireTones() {
+        val c = Converter(LEX).apply { requireTones = true }
+        fun conv(keys: String) = c.convert(Bopomofo.parse(keysOf(keys)).syllables.map { it.syllable }).joinToString("") { it.text }
+        assertEquals("ㄨㄛ們", conv("jiap7"))
+        assertEquals("我們", conv("ji3ap7"))
+        val untoned = Bopomofo.parse(keysOf("ji")).syllables.map { it.syllable }
+        assertTrue(c.candidates(untoned, 1).isEmpty())
+    }
+
     @Test fun loadTime() {
         Data.lex.toneless
         System.gc()

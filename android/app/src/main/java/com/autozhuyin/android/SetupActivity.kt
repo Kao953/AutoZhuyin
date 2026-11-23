@@ -16,6 +16,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 
 /** Setup steps, status, a field to try typing in, and 清除學習紀錄 / licenses. */
@@ -74,6 +75,15 @@ class SetupActivity : Activity() {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             minLines = 3
         }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+
+        heading("選項")
+        column.addView(Switch(this).apply {
+            text = "要打聲調才出字"
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            isChecked = Models.requireTones(this@SetupActivity)
+            setOnCheckedChangeListener { _, on -> Models.setRequireTones(this@SetupActivity, on) }
+        }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+        body("開啟後，沒打聲調的音節會維持注音符號（jiap7 → ㄨㄛ們），打了聲調才變成中文字；一聲用空白。關閉時可以省略聲調（jiap7 → 我們）。")
 
         heading("按鍵")
         body(

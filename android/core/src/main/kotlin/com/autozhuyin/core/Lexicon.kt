@@ -149,8 +149,11 @@ class Lexicon {
 
 /** Syllables → Chinese text (Viterbi over lexicon phrases). Port of lexicon.py's Converter. */
 class Converter(val lexicon: Lexicon, val history: UserHistory? = null) {
+    /** Syllables typed without a tone stay as Bopomofo (no characters, no candidates) until the tone is typed. */
+    var requireTones = false
 
     private fun entries(syllables: List<Syllable>): List<Entry> {
+        if (requireTones && syllables.any { it.tone == null }) return emptyList()
         val e = lexicon.entries(syllables)
         return history?.adjust(syllables, e) ?: e
     }

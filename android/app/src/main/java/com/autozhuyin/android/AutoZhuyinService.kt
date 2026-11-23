@@ -212,6 +212,7 @@ class AutoZhuyinService : InputMethodService(), InputManager.InputDeviceListener
     private fun keyDown(keyCode: Int, event: KeyEvent): Boolean {
         val e = engine ?: return false   // still loading: type as usual
         if (passthrough || currentInputConnection == null || event.isSystem) return false
+        e.converter.requireTones = Models.requireTones(this)   // read each key, so the switch applies at once
 
         // Shift pressed and released alone: English mode (or flip the current word).
         if (isShift(keyCode)) {

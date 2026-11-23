@@ -91,6 +91,16 @@ STDMETHODIMP TextService::ActivateEx(ITfThreadMgr* tm, TfClientId id, DWORD) {
         categories->RegisterGUID(GUID_AutoZhuyinDisplayAttribute, &displayAtom_);
         categories->Release();
     }
+    // 中 / 英 by the taskbar clock, with the settings menu.
+    ITfLangBarItemMgr* items = nullptr;
+    if (SUCCEEDED(tm->QueryInterface(IID_ITfLangBarItemMgr, (void**)&items))) {
+        button_ = new LangBarButton(this);
+        if (FAILED(items->AddItem(button_))) {
+            button_->Release();
+            button_ = nullptr;
+        }
+        items->Release();
+    }
     return S_OK;
 }
 
@@ -107,6 +117,16 @@ STDMETHODIMP TextService::Deactivate() {
     }
     engine_.Request("reset");
     engine_.Close();
+    if (button_) {
+        ITfLangBarItemMgr* items = nullptr;
+        if (threadMgr_ && SUCCEEDED(threadMgr_->QueryInterface(IID_ITfLangBarItemMgr, (void**)&items))) {
+            items->RemoveItem(button_);
+            items->Release();
+        }
+        button_->Detach();
+        button_->Release();
+        button_ = nullptr;
+    }
     if (threadMgr_) {
         ITfKeystrokeMgr* keys = nullptr;
         if (SUCCEEDED(threadMgr_->QueryInterface(IID_ITfKeystrokeMgr, (void**)&keys))) {
@@ -244,11 +264,78 @@ void TextService::ShiftTap(ITfContext* ctx) {
     bool idle = composition_ == nullptr;
     EngineReply reply = engine_.Request("shift");
     Apply(ctx, reply, true);   // called from a key-up test handler: no synchronous edits
-    if (idle && ctx) {
-        bool english = reply.english;
-        Edit(ctx, [this, ctx, english](TfEditCookie ec) {
-            candidates_.Flash(english ? L"A" : L"中", TextRect(ec, ctx));
-        }, true);
+    if (idle) Flash(ctx, reply.english ? L"A" : L"中");
+}
+
+void TextService::Flash(ITfContext* ctx, const std::wstring& text) {
+    if (!ctx || text.empty()) return;
+    Edit(ctx, [this, ctx, text](TfEditCookie ec) { candidates_.Flash(text, TextRect(ec, ctx)); }, true);
+}
+
+void TextService::SetEnglish(bool english) {
+    if (english == english_) return;
+    english_ = english;
+    if (button_) button_->Update();
+}
+
+ITfContext* TextService::FocusedContext() {
+    ITfDocumentMgr* doc = nullptr;
+    ITfContext* ctx = nullptr;
+    if (threadMgr_ && SUCCEEDED(threadMgr_->GetFocus(&doc)) && doc) {
+        doc->GetTop(&ctx);
+        doc->Release();
+    }
+    return ctx;   // the caller releases it
+}
+
+// ---- the language bar button ----
+
+void TextService::ToggleEnglish() {
+    EngineReply reply = engine_.Request("english");   // commits the composition first
+    ITfContext* ctx = compositionContext_ ? compositionContext_ : nullptr;
+    if (ctx) ctx->AddRef(); else ctx = FocusedContext();
+    if (ctx) {
+        Apply(ctx, reply, true);   // not in a key event: no synchronous edits
+        Flash(ctx, reply.english ? L"A" : L"中");
+        ctx->Release();
+    } else {
+        SetEnglish(reply.english);
+    }
+}
+
+static const UINT kEnglishCommand = 1;   // the settings' own ids start at 2 (core/menu.py)
+
+void TextService::ShowMenu(POINT pt) {
+    EngineReply reply = engine_.Request("menu");
+    if (reply.menu.empty()) return;   // no engine server
+    SetEnglish(reply.english);
+    HMENU menu = CreatePopupMenu();
+    AppendMenuW(menu, MF_STRING | (english_ ? MF_CHECKED : 0), kEnglishCommand, L"英文模式（單按 Shift）");
+    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    for (const MenuItem& item : reply.menu) {
+        if (item.id < 0) {
+            AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+            continue;
+        }
+        UINT flags = MF_STRING | (item.checked ? MF_CHECKED : 0) | (item.enabled ? 0 : MF_GRAYED);
+        AppendMenuW(menu, flags, (UINT_PTR)item.id, item.text.c_str());
+    }
+    // Owned by the app's focused window (already in the foreground), so a click elsewhere
+    // closes the menu; TPM_RETURNCMD keeps the choice from reaching the app.
+    HWND owner = GetFocus();
+    if (!owner) owner = candidates_.Handle();
+    UINT chosen = (UINT)TrackPopupMenuEx(menu, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON | TPM_BOTTOMALIGN,
+                                         pt.x, pt.y, owner, nullptr);
+    DestroyMenu(menu);
+    if (chosen == 0) return;
+    if (chosen == kEnglishCommand) {
+        ToggleEnglish();
+        return;
+    }
+    EngineReply result = engine_.Request("command", std::to_string(chosen));
+    if (ITfContext* ctx = FocusedContext()) {
+        Flash(ctx, result.message);
+        ctx->Release();
     }
 }
 
@@ -324,7 +411,7 @@ void TextService::Flip(ITfContext* ctx) {
 
 void TextService::Apply(ITfContext* ctx, const EngineReply& reply, bool async) {
     if (!ctx) return;
-    english_ = reply.english;
+    SetEnglish(reply.english);
     bool needed = !reply.commit.empty() || !reply.preedit.empty() || composition_ || !reply.candidates.empty();
     if (needed) Edit(ctx, [this, ctx, reply](TfEditCookie ec) { ApplyInSession(ec, ctx, reply); }, async);
     if (reply.candidates.empty()) candidates_.Hide();

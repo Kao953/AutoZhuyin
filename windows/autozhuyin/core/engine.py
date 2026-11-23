@@ -827,6 +827,16 @@ class CompositionEngine:
         self.forced_start, self.forced_prefix = 0, []
         return self._commit_flippable()
 
+    def set_english_mode(self, on):
+        """English mode on/off from outside (a menu or button); drops any composition."""
+        if on == self.english_mode:
+            return
+        self.reset()
+        self._last_commit = None
+        self.english_mode = on
+        self._previous_mode = LITERAL if on else None
+        self._previous_time = self.now()
+
     def forget_last_commit(self):
         """A key the engine didn't see (the shell passed it on): no flip after it."""
         self._last_commit = None

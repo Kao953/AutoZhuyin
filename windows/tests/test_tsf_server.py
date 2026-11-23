@@ -85,5 +85,62 @@ class TSFServerTests(unittest.TestCase):
         self.assertEqual(parse(self.s.request("bogus"))["handled"], "0")
 
 
+    def test_english_button_commits_and_toggles(self):
+        self.type(["s", "u", "3"])
+        r = parse(self.s.request("english"))
+        self.assertEqual((r["commit"], r["preedit"], r["english"]), ("你", "", "1"))
+        self.assertEqual(parse(self.s.request("english"))["english"], "0")
+
+
+class TSFServerMenuTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from autozhuyin.core.ai import AI
+        from autozhuyin.core.user_phrases import UserPhrasesFile
+        self.user = tempfile.mkdtemp()
+        self.ai = AI(tempfile.mkdtemp(), self.user, background=False)
+        classifier = make_engine().classifier
+        phrases = UserPhrasesFile(os.path.join(self.user, "user-phrases.txt"), classifier.lexicon)
+        self.s = server.Session(classifier, self.ai, phrases)
+
+    def items(self):
+        """[(id, flags, text)] of the menu; None for a separator."""
+        out = []
+        for line in self.s.request("menu").split("\n"):
+            if line.startswith("item="):
+                parts = line[5:].split("\t")
+                out.append((int(parts[0]), parts[1], parts[2]) if len(parts) == 3 else None)
+        return out
+
+    def test_menu_and_mode_command(self):
+        from autozhuyin.core import menu
+        items = self.items()
+        self.assertIn((menu.ID_AI_MODE["standard"], "c", "AI 選字：標準"), items)
+        self.assertIn(None, items)
+        self.assertTrue(any(i and "d" in i[1] for i in items))   # the status line
+        r = parse(self.s.request("command\t%d" % menu.ID_AI_MODE["saver"]))
+        self.assertEqual(r["message"], "AI 選字：省電")
+        self.assertIn((menu.ID_AI_MODE["saver"], "c", "AI 選字：省電"), self.items())
+
+    def test_require_tones_applies_to_every_session(self):
+        from autozhuyin.core import menu
+        other = server.Session(self.s.classifier, self.ai)
+        other.request("test\ta")
+        before = other.engine.require_tones
+        self.s.request("command\t%d" % menu.ID_REQUIRE_TONES)
+        other.request("test\ta")
+        self.assertEqual(other.engine.require_tones, not before)
+
+    def test_edit_phrases_opens_the_file(self):
+        from autozhuyin.core import menu
+        opened = []
+        server.os.startfile = opened.append
+        try:
+            self.s.request("command\t%d" % menu.ID_EDIT_PHRASES)
+        finally:
+            del server.os.startfile
+        self.assertEqual(opened, [os.path.join(self.user, "user-phrases.txt")])
+
+
 if __name__ == "__main__":
     unittest.main()

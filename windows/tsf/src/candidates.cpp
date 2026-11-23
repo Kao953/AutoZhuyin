@@ -35,6 +35,11 @@ void CandidateWindow::Ensure() {
                         L"Microsoft JhengHei UI");
 }
 
+HWND CandidateWindow::Handle() {
+    Ensure();
+    return hwnd_;
+}
+
 void CandidateWindow::Show(const std::vector<std::wstring>& items, int selected, const RECT& textRect) {
     Ensure();
     KillTimer(hwnd_, kFlashTimer);

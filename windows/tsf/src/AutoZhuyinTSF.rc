@@ -1,2 +1,4 @@
-// Icon 0: the input method's icon in the keyboard list and on the taskbar.
+// Icon 1 (index 0): the input method's icon in the keyboard list and on the taskbar (中).
+// Icon 2: English mode, on the language bar button.
 1 ICON "icon.ico"
+2 ICON "icon-en.ico"

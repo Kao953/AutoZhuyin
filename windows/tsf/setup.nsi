@@ -29,13 +29,13 @@ VIAddVersionKey /LANG=1028 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=1028 "LegalCopyright" "GPL-3.0"
 
 !define MUI_WELCOMEPAGE_TITLE "安裝自動注音（獨立版）"
-!define MUI_WELCOMEPAGE_TEXT "這是不需要 PIME 的實驗版本，還沒在實機上完整測試過。$\r$\n$\r$\n它和 PIME 版的自動注音可以同時安裝，在鍵盤清單裡的名稱是「自動注音（獨立版）」。$\r$\n$\r$\n目前沒有設定選單（AI 選字用預設的「標準」，勾選「AI 高品質模型」則用「高品質」），在 Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能無法使用。"
+!define MUI_WELCOMEPAGE_TEXT "這是不需要 PIME 的實驗版本，還沒在實機上完整測試過。$\r$\n$\r$\n它和 PIME 版的自動注音可以同時安裝，在鍵盤清單裡的名稱是「自動注音（獨立版）」。$\r$\n$\r$\n設定在工作列時鐘旁邊的「中／英」圖示上按右鍵；按一下切換英文模式。"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${LICENSE}"
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_TITLE "安裝完成"
-!define MUI_FINISHPAGE_TEXT "到「設定 > 時間與語言 > 語言與地區 > 中文(台灣) > 語言選項 > 新增鍵盤」加入「自動注音（獨立版）」，再用 Win + 空白鍵 切換過去。$\r$\n$\r$\n清單裡沒有的話，重新開機一次。"
+!define MUI_FINISHPAGE_TEXT "到「設定 > 時間與語言 > 語言與地區 > 中文(台灣) > 語言選項 > 新增鍵盤」加入「自動注音（獨立版）」，再用 Win + 空白鍵 切換過去。設定選單在工作列「中／英」圖示上按右鍵。$\r$\n$\r$\n清單裡沒有的話，重新開機一次。"
 !insertmacro MUI_PAGE_FINISH
 
 !insertmacro MUI_UNPAGE_CONFIRM

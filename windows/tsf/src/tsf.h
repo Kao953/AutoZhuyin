@@ -34,6 +34,13 @@ std::string WideToUtf8(const std::wstring& s);
 
 // ---- engine server connection (engine.cpp) ----
 
+struct MenuItem {
+    int id = -1;   // -1: a separator
+    bool checked = false;
+    bool enabled = true;
+    std::wstring text;
+};
+
 struct EngineReply {
     bool handled = false;
     std::wstring commit;
@@ -43,6 +50,8 @@ struct EngineReply {
     int candidateIndex = 0;
     bool english = false;
     std::wstring text;   // "flippable"
+    std::vector<MenuItem> menu;   // "menu"
+    std::wstring message;         // "command": what to show briefly
 };
 
 class EngineClient {
@@ -70,6 +79,8 @@ public:
     // A one-item badge ("A" / "中") that hides itself, for English mode on/off.
     void Flash(const std::wstring& text, const RECT& textRect);
     void Hide();
+    // The (hidden) popup itself, as an owner for the settings menu.
+    HWND Handle();
 
     static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
     static void RegisterWindowClass();
@@ -87,6 +98,50 @@ private:
     int selected_ = -1;
     bool numbered_ = true;
     int rowHeight_ = 0;
+};
+
+// ---- the language bar / taskbar button (langbar.cpp) ----
+
+class TextService;
+
+// 中 / 英 next to the taskbar clock: left click switches English mode, right click opens
+// the settings menu (items from the engine server, core/menu.py).
+class LangBarButton : public ITfLangBarItemButton, public ITfSource {
+public:
+    explicit LangBarButton(TextService* service);
+
+    // IUnknown
+    STDMETHODIMP QueryInterface(REFIID riid, void** ppv) override;
+    STDMETHODIMP_(ULONG) AddRef() override;
+    STDMETHODIMP_(ULONG) Release() override;
+
+    // ITfLangBarItem
+    STDMETHODIMP GetInfo(TF_LANGBARITEMINFO* info) override;
+    STDMETHODIMP GetStatus(DWORD* status) override;
+    STDMETHODIMP Show(BOOL show) override;
+    STDMETHODIMP GetTooltipString(BSTR* tooltip) override;
+
+    // ITfLangBarItemButton
+    STDMETHODIMP OnClick(TfLBIClick click, POINT pt, const RECT* area) override;
+    STDMETHODIMP InitMenu(ITfMenu* menu) override;
+    STDMETHODIMP OnMenuSelect(UINT id) override;
+    STDMETHODIMP GetIcon(HICON* icon) override;
+    STDMETHODIMP GetText(BSTR* text) override;
+
+    // ITfSource
+    STDMETHODIMP AdviseSink(REFIID riid, IUnknown* sink, DWORD* cookie) override;
+    STDMETHODIMP UnadviseSink(DWORD cookie) override;
+
+    // English mode changed: redraw.
+    void Update();
+    // The service is going away.
+    void Detach();
+
+private:
+    virtual ~LangBarButton();
+    LONG ref_ = 1;
+    TextService* service_;
+    ITfLangBarItemSink* sink_ = nullptr;
 };
 
 // ---- the text service (textservice.cpp) ----
@@ -123,6 +178,11 @@ public:
     STDMETHODIMP EnumDisplayAttributeInfo(IEnumTfDisplayAttributeInfo** ppEnum) override;
     STDMETHODIMP GetDisplayAttributeInfo(REFGUID guid, ITfDisplayAttributeInfo** ppInfo) override;
 
+    // From the language bar button.
+    bool IsEnglish() const { return english_; }
+    void ToggleEnglish();
+    void ShowMenu(POINT pt);
+
 private:
     virtual ~TextService();
 
@@ -146,6 +206,11 @@ private:
     void EndComposition(TfEditCookie ec);
     RECT TextRect(TfEditCookie ec, ITfContext* ctx);
     void ShiftTap(ITfContext* ctx);
+    // The context with focus in this thread (for the button, which has no key event).
+    ITfContext* FocusedContext();
+    // Shows `text` briefly by the caret (English mode, menu results).
+    void Flash(ITfContext* ctx, const std::wstring& text);
+    void SetEnglish(bool english);
 
     LONG ref_ = 1;
     ITfThreadMgr* threadMgr_ = nullptr;
@@ -155,6 +220,7 @@ private:
     TfGuidAtom displayAtom_ = TF_INVALID_GUIDATOM;
     EngineClient engine_;
     CandidateWindow candidates_;
+    LangBarButton* button_ = nullptr;
     bool english_ = false;
     std::wstring flipText_;   // the commit Tab would replace (set by CanFlip)
 

@@ -7,14 +7,18 @@ connection per text service instance. Started at sign-in (Run key) or by the DLL
 Protocol, UTF-8, one message each way:
   request   op [TAB arg]
             test <key> | key <key> | testctrl <c> | ctrl <c> | shift | select <i> | commit | reset
-            | forget | flippable | flip
+            | forget | flippable | flip | english | menu | command <id>
   reply     lines "name=value" (value with \\ and newlines escaped):
             handled, commit, preedit, cursor, cand (one per candidate on the page),
-            candsel, english; for flippable: text
+            candsel, english; for flippable: text; for menu: item (one per menu item,
+            "<id> TAB <flags> TAB <text>", flags c = checked, d = disabled; an empty item is a
+            separator); for command: message (to show briefly, may be empty)
 "test" of a key the engine doesn't take, and "forget" (a key the DLL passed on without
 asking), end the chance to flip the last commit. Tab right after a commit: the DLL asks
 "flippable", checks that text is right before the caret, then "flip" gives the
-replacement in "commit".
+replacement in "commit". "english" (the language bar button): English mode on/off,
+committing the composition first. "menu" / "command" are the settings menu (core/menu.py)
+of the language bar button.
 Keys: one character, or BS ENTER ESC TAB UP DOWN LEFT RIGHT.
 """
 import json
@@ -32,7 +36,7 @@ from autozhuyin.core.ai import AI  # noqa: E402
 from autozhuyin.core.classifier import Classifier, LearnedPreferences  # noqa: E402
 from autozhuyin.core.engine import (BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP,  # noqa: E402
                                     TAB, UP, CompositionEngine)
-from autozhuyin.core import loading  # noqa: E402
+from autozhuyin.core import loading, menu  # noqa: E402
 from autozhuyin.core.history import UserHistory  # noqa: E402
 from autozhuyin.core.user_phrases import UserPhrasesFile  # noqa: E402
 
@@ -79,16 +83,25 @@ def _escape(s):
 
 
 class Session:
-    """One text service instance (one app thread): its own composition engine."""
+    """One text service instance (one app thread): its own composition engine. `ai` (the
+    settings) and `phrases` (user-phrases.txt) are shared by all sessions."""
 
-    def __init__(self, classifier, reranker=None, require_tones=False):
+    def __init__(self, classifier, ai=None, phrases=None):
+        self.classifier = classifier
+        self.ai = ai
+        self.phrases = phrases
         self.engine = CompositionEngine(classifier)
-        self.engine.reranker = reranker
-        self.engine.require_tones = require_tones   # "require_tones" in settings.json (no menu here)
+        self.engine.reranker = ai.reranker if ai else None
 
     def request(self, message):
         op, _, arg = message.partition("\t")
         e = self.engine
+        if self.ai:
+            e.require_tones = self.ai.require_tones   # the menu may have changed it in another app
+        if op == "menu":
+            return self._menu()
+        if op == "command":
+            return self._command(int(arg) if arg.isdigit() else -1)
         if op == "test":
             wanted = e.wants(KEYS.get(arg, arg))
             if not wanted:
@@ -114,12 +127,36 @@ class Session:
             handled, commit = new is not None, new
         elif op == "commit":
             handled, commit = True, e.commit_all()
+        elif op == "english":
+            commit = e.commit_all() if e.keys else None
+            e.set_english_mode(not e.english_mode)
+            handled = True
         elif op == "reset":
             e.reset()
             handled, commit = True, None
         else:
             return "handled=0"
         return self._reply(handled, commit)
+
+    def _menu(self):
+        lines = []
+        for item in menu.items(self.ai) if self.ai else []:
+            if not item:
+                lines.append("item=")
+                continue
+            flags = ("c" if item.get("checked") else "") + ("" if item.get("enabled", True) else "d")
+            lines.append("item=%d\t%s\t%s" % (item["id"], flags, _escape(item["text"])))
+        lines.append("english=%d" % self.engine.english_mode)
+        return "\n".join(lines)
+
+    def _command(self, command_id):
+        if not self.ai:
+            return "handled=0"
+        message, action = menu.run(self.ai, command_id, self.classifier)
+        if action == menu.EDIT_PHRASES and self.phrases is not None:
+            # From this process: the app the DLL runs in may not be allowed to start programs.
+            os.startfile(self.phrases.ensure_exists())
+        return "handled=1\nmessage=" + _escape(message or "")
 
     def _reply(self, handled, commit):
         e = self.engine
@@ -133,9 +170,86 @@ class Session:
         return "\n".join(lines)
 
 
+# Who may open the pipe: this user (its SID filled in), SYSTEM, and apps running in an
+# AppContainer (Microsoft Store apps, the Start menu search) at low integrity, which the
+# default security of a pipe leaves out.
+PIPE_SDDL = "D:(A;;GA;;;SY)(A;;GA;;;{user})(A;;GRGW;;;AC)(A;;GRGW;;;S-1-15-2-2)S:(ML;;NW;;;LW)"
+
+
+def _user_sid():
+    """The SID of the user running this process, as a string ("S-1-5-21-…")."""
+    import ctypes
+    from ctypes import wintypes
+    advapi32, kernel32 = ctypes.windll.advapi32, ctypes.windll.kernel32
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    advapi32.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+    advapi32.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD,
+                                             ctypes.POINTER(wintypes.DWORD)]
+    advapi32.ConvertSidToStringSidW.argtypes = [wintypes.LPVOID, ctypes.POINTER(wintypes.LPWSTR)]
+    kernel32.LocalFree.argtypes = [wintypes.HLOCAL]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    token = wintypes.HANDLE()
+    if not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), 0x0008, ctypes.byref(token)):   # TOKEN_QUERY
+        raise OSError("OpenProcessToken")
+    try:
+        size = wintypes.DWORD()
+        advapi32.GetTokenInformation(token, 1, None, 0, ctypes.byref(size))   # TokenUser
+        buf = ctypes.create_string_buffer(size.value)
+        if not advapi32.GetTokenInformation(token, 1, buf, size, ctypes.byref(size)):
+            raise OSError("GetTokenInformation")
+        sid = ctypes.cast(buf, ctypes.POINTER(wintypes.LPVOID))[0]   # TOKEN_USER.User.Sid
+        text = wintypes.LPWSTR()
+        if not advapi32.ConvertSidToStringSidW(sid, ctypes.byref(text)):
+            raise OSError("ConvertSidToStringSidW")
+        try:
+            return text.value
+        finally:
+            kernel32.LocalFree(text)
+    finally:
+        kernel32.CloseHandle(token)
+
+
+def _allow_app_containers():
+    """Makes multiprocessing create its pipes with PIPE_SDDL. Best effort: without it the
+    input method still works in ordinary apps."""
+    import ctypes
+    import _winapi
+    from ctypes import wintypes
+    from multiprocessing import connection
+
+    class SECURITY_ATTRIBUTES(ctypes.Structure):
+        _fields_ = [("nLength", wintypes.DWORD), ("lpSecurityDescriptor", wintypes.LPVOID),
+                    ("bInheritHandle", wintypes.BOOL)]
+
+    convert = ctypes.windll.advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW
+    convert.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(wintypes.LPVOID), wintypes.LPVOID]
+    convert.restype = wintypes.BOOL
+    descriptor = wintypes.LPVOID()
+    if not convert(PIPE_SDDL.format(user=_user_sid()), 1, ctypes.byref(descriptor), None):   # SDDL_REVISION_1
+        return
+    attributes = SECURITY_ATTRIBUTES(ctypes.sizeof(SECURITY_ATTRIBUTES), descriptor, False)
+
+    def new_handle(self, first=False):   # PipeListener._new_handle with security attributes
+        flags = _winapi.PIPE_ACCESS_DUPLEX | _winapi.FILE_FLAG_OVERLAPPED
+        if first:
+            flags |= _winapi.FILE_FLAG_FIRST_PIPE_INSTANCE
+        return _winapi.CreateNamedPipe(
+            self._address, flags,
+            _winapi.PIPE_TYPE_MESSAGE | _winapi.PIPE_READMODE_MESSAGE | _winapi.PIPE_WAIT,
+            _winapi.PIPE_UNLIMITED_INSTANCES, connection.BUFSIZE, connection.BUFSIZE,
+            _winapi.NMPWAIT_WAIT_FOREVER, ctypes.addressof(attributes))
+
+    new_handle.attributes = attributes   # keep them alive with the method
+    connection.PipeListener._new_handle = new_handle
+
+
 def serve():
     from multiprocessing.connection import Listener
     user = os.environ.get("USERNAME", "user")
+    try:
+        _allow_app_containers()
+    except Exception:   # noqa: BLE001 — ordinary apps work without it
+        pass
     try:
         listener = Listener(r"\\.\pipe\AutoZhuyin-" + user, family="AF_PIPE")
     except OSError:
@@ -148,7 +262,7 @@ def serve():
     lock = threading.Lock()
 
     def run(conn):
-        session = Session(classifier, ai.reranker, ai.require_tones)
+        session = Session(classifier, ai, phrases)
         try:
             while True:
                 message = conn.recv_bytes().decode("utf-8")

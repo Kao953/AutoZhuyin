@@ -73,7 +73,7 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 
 遇到誤判也歡迎[開 issue](https://github.com/Kao953/AutoZhuyin/issues)，告訴我們是哪一套防毒軟體、顯示的病毒名稱是什麼，我們會向廠商回報誤判。
 
-**獨立版（實驗）**：`AutoZhuyin-Windows-Standalone-<版本>-setup.exe` 不需要 PIME，自帶輸入法元件和 Python，需要 64 位元的 Windows 10 / 11。在鍵盤清單裡叫「自動注音（獨立版）」，可以和 PIME 版同時安裝。還沒在實機上測過；目前沒有設定選單（AI 選字是「標準」，安裝時勾選「AI 高品質模型」則是「高品質」；也可以改 `%APPDATA%\AutoZhuyin\settings.json` 的 `"ai_mode"`，自訂詞直接改 `%APPDATA%\AutoZhuyin\user-phrases.txt`，存檔後馬上生效），Microsoft Store 類的 App（例如開始功能表的搜尋）裡可能打不出字。學習紀錄和自訂詞在 `%APPDATA%\AutoZhuyin`。
+**獨立版（實驗）**：`AutoZhuyin-Windows-Standalone-<版本>-setup.exe` 不需要 PIME，自帶輸入法元件和 Python（64 位元，跑高品質模型比較不會記憶體不夠），需要 64 位元的 Windows 10 / 11。在鍵盤清單裡叫「自動注音（獨立版）」，可以和 PIME 版同時安裝。還沒在實機上測過。工作列時鐘旁邊的「中／英」圖示：按一下切換英文模式，按右鍵是設定選單（和 PIME 版一樣：AI 選字、下載或移除高品質模型、要打聲調才出字、編輯自訂詞、清除學習紀錄）。Microsoft Store 類的 App（例如開始功能表的搜尋）也要能用，伺服器已開放它們連線，但還沒實測。學習紀錄、自訂詞和設定在 `%APPDATA%\AutoZhuyin`，自訂詞存檔後馬上生效。
 
 ### Linux（Bazzite、SteamOS 桌面模式、Fedora…）
 
@@ -219,7 +219,7 @@ Android 版存在 App 的私有目錄（`learned.json`、`user-history.json`、`
 
 自訂詞的格式和 `lexicon.txt` 一樣，每行一個詞：`ㄗˋ-ㄉㄨㄥˋ-ㄓㄨˋ-ㄧㄣ 自動注音 -4`（讀音、詞、分數；分數越大越優先）。自訂詞會蓋過內建詞庫裡同一個詞、同一個讀音的分數。直接改檔案也可以，各平台都會自動重新讀取。
 選字紀錄最多保留 2000 筆，太久沒用的會先淘汰。被選過的字只會排到同讀音第一順位，不會蓋過整個詞組（例如選過「添」之後，ㄊㄧㄢ 單打會出「添」，但「今天」還是「今天」）。
-輸入法選單的「清除學習紀錄」會把中英判斷和選字紀錄一起清除（Windows 獨立版沒有選單，刪除上面的檔案即可）。
+輸入法選單的「清除學習紀錄」會把中英判斷和選字紀錄一起清除。
 
 ## 開發
 

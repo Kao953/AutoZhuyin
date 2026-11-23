@@ -121,6 +121,20 @@ EngineReply EngineClient::Request(const std::string& op, const std::string& arg)
                 else if (name == "candsel") reply.candidateIndex = atoi(value.c_str());
                 else if (name == "english") reply.english = value == "1";
                 else if (name == "text") reply.text = Unescape(value);
+                else if (name == "message") reply.message = Unescape(value);
+                else if (name == "item") {
+                    // "<id>\t<flags>\t<text>", or empty for a separator.
+                    MenuItem item;
+                    size_t t1 = value.find('\t'), t2 = t1 == std::string::npos ? t1 : value.find('\t', t1 + 1);
+                    if (t2 != std::string::npos) {
+                        item.id = atoi(value.substr(0, t1).c_str());
+                        std::string flags = value.substr(t1 + 1, t2 - t1 - 1);
+                        item.checked = flags.find('c') != std::string::npos;
+                        item.enabled = flags.find('d') == std::string::npos;
+                        item.text = Unescape(value.substr(t2 + 1));
+                    }
+                    reply.menu.push_back(item);
+                }
             }
             start = end + 1;
         }

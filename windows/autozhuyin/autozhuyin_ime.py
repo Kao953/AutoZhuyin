@@ -22,9 +22,10 @@ if os.path.isdir(_VENDOR) and _VENDOR not in sys.path:
 from keycodes import *  # noqa: F401,F403  (VK_* constants, provided by PIME)
 from textService import COMMAND_LEFT_CLICK, COMMAND_MENU, TextService  # noqa: F401
 
-from .core.ai import AI, MODE_NAMES
+from .core.ai import AI
 from .core.history import UserHistory
-from .core.reranker import MODES
+from .core import menu
+from .core.menu import ID_AI_MODE, ID_EDIT_PHRASES  # noqa: F401  (used by the tests)
 from .core.classifier import Classifier, LearnedPreferences
 from .core.engine import BACKSPACE, DOWN, ENTER, ESCAPE, LEFT, RIGHT, SHIFT_TAP, TAB, UP, CompositionEngine
 from .core import loading
@@ -47,8 +48,7 @@ _phrases = None   # UserPhrasesFile
 _loaded = threading.Event()   # set when the background load (below) has finished
 _load_error = None
 
-ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR, ID_EDIT_PHRASES, ID_REQUIRE_TONES, ID_LARGE_MODEL = 1, 2, 3, 4, 5, 6, 7
-ID_AI_MODE = {mode: 10 + i for i, mode in enumerate(MODES)}   # 10..13
+ID_MODE_ICON = 1   # the settings items are in core/menu.py
 _ICON = os.path.join(_HERE, "icon.ico")
 _ICON_EN = os.path.join(_HERE, "icon-en.ico")     # shown while English mode is on
 
@@ -221,20 +221,7 @@ class AutoZhuyinTextService(TextService):
     def onMenu(self, buttonId):
         if buttonId not in ("windows-mode-icon", "autozhuyin-settings"):
             return None
-        ai = _shared_ai()
-        items = [{"text": "AI 選字：" + MODE_NAMES[m], "id": ID_AI_MODE[m], "checked": ai.reranker.mode == m}
-                 for m in MODES]
-        items += [
-            {"text": ai.large_menu_text(), "id": ID_LARGE_MODEL},
-            {},
-            {"text": "系統忙碌時自動暫停 AI", "id": ID_AUTO_PAUSE, "checked": ai.auto_pause},
-            {"text": ai.status_text(), "id": ID_STATUS, "enabled": False},
-            {},
-            {"text": "要打聲調才出字", "id": ID_REQUIRE_TONES, "checked": ai.require_tones},
-            {"text": "編輯自訂詞…", "id": ID_EDIT_PHRASES},
-            {"text": "清除學習紀錄", "id": ID_CLEAR},
-        ]
-        return items
+        return menu.items(_shared_ai())
 
     def onCommand(self, commandId, commandType):
         ai = _shared_ai()
@@ -243,28 +230,14 @@ class AutoZhuyinTextService(TextService):
             self._update_mode_icon()
             self.showMessage("英文" if self.engine.english_mode else "中英自動", 1)
             return
-        for mode, cid in ID_AI_MODE.items():
-            if commandId == cid:
-                ai.set_mode(mode)
-                self.showMessage("AI 選字：" + MODE_NAMES[mode], 1)
-                return
-        if commandId == ID_EDIT_PHRASES:
+        message, action = menu.run(ai, commandId, _shared_classifier())
+        if action == menu.EDIT_PHRASES:
             # Opens in the default editor (Notepad); saved changes load on the next activation.
             os.startfile(_phrases.ensure_exists())
-        elif commandId == ID_LARGE_MODEL:
-            downloading = ai.download_progress is not None
-            ai.large_menu_clicked()
-            if not downloading and ai.download_progress is not None:
-                self.showMessage("開始下載高品質模型，完成後自動使用（選單可看進度）", 3)
-        elif commandId == ID_AUTO_PAUSE:
-            ai.set_auto_pause(not ai.auto_pause)
-        elif commandId == ID_REQUIRE_TONES:
-            ai.set_require_tones(not ai.require_tones)
+        elif action == menu.REQUIRE_TONES_CHANGED:
             self.engine.require_tones = ai.require_tones
-        elif commandId == ID_CLEAR:
-            _shared_classifier().learned.clear()
-            _shared_classifier().history.clear()
-            self.showMessage("已清除學習紀錄", 1)
+        if message:
+            self.showMessage(message, 3 if "下載" in message else 1)
 
     def onCompositionTerminated(self, forced):
         # The app ended the composition (focus change, mouse click): the shown text stays.

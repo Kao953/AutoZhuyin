@@ -33,7 +33,7 @@ export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Develope
 
 VERSION="$(scripts/bump-version.sh "$LEVEL")"
 echo "==> Version $VERSION"
-sed -i '' "s/^## 未發佈.*/## v$VERSION（$(date +%Y-%m-%d)）/" CHANGELOG.md
+sed -i '' "s/^## 未發佈.*/## v${VERSION}（$(date +%Y-%m-%d)）/" CHANGELOG.md
 
 restore() {
     echo "Release failed; reverting the version bump." >&2

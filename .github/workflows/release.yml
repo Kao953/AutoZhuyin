@@ -144,8 +144,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # This version's section of CHANGELOG.md, above GitHub's generated compare link.
+          awk -v tag="$TAG" '/^## / { if (s) exit; if (index($0, "## " tag "（") == 1) { s = 1; next } } s' \
+            CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else
-            gh release create "$TAG" dist/* --title "AutoZhuyin $TAG" --generate-notes --verify-tag
+            gh release create "$TAG" dist/* --title "AutoZhuyin $TAG" --notes-file "$RUNNER_TEMP/notes.md" \
+              --generate-notes --verify-tag
           fi

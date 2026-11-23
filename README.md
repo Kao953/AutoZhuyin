@@ -339,7 +339,7 @@ scripts/release.sh minor --push   # 同時 push commit 和 tag
 3. 產生 `build/AutoZhuyin-<版本>.pkg`、`build/AutoZhuyin-Windows-<版本>-setup.exe`、`build/AutoZhuyin-Windows-<版本>.zip`、`build/AutoZhuyin-Linux-<版本>.tar.gz`（Windows 安裝程式用 NSIS 打包：`brew install makensis`）
 4. commit「Release v<版本>」並打上 `v<版本>` tag
 
-任何一步失敗都會把版本號改回去。只想改版本號不打包：`scripts/bump-version.sh [patch|minor|major]`。
+發版前先把這次的修改寫在 `CHANGELOG.md` 的「## 未發佈」底下（沒寫會拒絕發版）；腳本會把它改成版本號，GitHub Release 的說明也會用這一段。任何一步失敗都會把版本號改回去。只想改版本號不打包：`scripts/bump-version.sh [patch|minor|major]`。
 
 tag push 到 GitHub 之後，GitHub Actions（`.github/workflows/release.yml`）會在 macOS 機器上重跑測試、建置各平台的安裝檔，並自動建立 Release 附上 `.pkg`、`-setup.exe`、`.zip`、`.tar.gz`、`.apk`（有設定簽章時）和 `SHA256SUMS.txt`。tag 必須和 `Info.plist` 的版本一致（例如 `v0.15.0`）。
 

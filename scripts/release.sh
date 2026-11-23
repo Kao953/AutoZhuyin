@@ -1,6 +1,7 @@
 #!/bin/bash
 # One-step release: bump the version, run all tests, build all installers, then
-# commit the version change and tag it.
+# commit the version change and tag it. The notes under "## 未發佈" in CHANGELOG.md
+# become this version's section (and the GitHub Release description).
 #
 # Usage: scripts/release.sh [patch|minor|major] [--push]   (default: patch)
 #   --push  also pushes the commit and tag to origin
@@ -22,14 +23,21 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
 fi
 
+# What changed, for CHANGELOG.md and the GitHub Release.
+if ! awk '/^## 未發佈/ {s=1; next} /^## / {s=0} s && /^- / {n++} END {exit !n}' CHANGELOG.md; then
+    echo "CHANGELOG.md has no notes under \"## 未發佈\"; write what changed there first." >&2
+    exit 1
+fi
+
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 
 VERSION="$(scripts/bump-version.sh "$LEVEL")"
 echo "==> Version $VERSION"
+sed -i '' "s/^## 未發佈.*/## v$VERSION（$(date +%Y-%m-%d)）/" CHANGELOG.md
 
 restore() {
     echo "Release failed; reverting the version bump." >&2
-    git checkout -- Resources/Info.plist windows/autozhuyin/ime.json
+    git checkout -- Resources/Info.plist windows/autozhuyin/ime.json CHANGELOG.md
 }
 trap restore ERR
 
@@ -47,7 +55,7 @@ else
 fi
 
 trap - ERR
-git add Resources/Info.plist windows/autozhuyin/ime.json
+git add Resources/Info.plist windows/autozhuyin/ime.json CHANGELOG.md
 git commit -q -m "Release v$VERSION"
 git tag -a "v$VERSION" -m "AutoZhuyin v$VERSION"
 echo "==> Tagged v$VERSION"

@@ -1,6 +1,6 @@
 # 自動注音 AutoZhuyin
 
-給繁體中文使用者的輸入法（macOS、Windows、Linux）：**不用按切換鍵**，直接用大千注音鍵盤打字，輸入法會自動判斷你打的是注音還是英文。
+給繁體中文使用者的輸入法（macOS、Windows、Linux、Android 實體鍵盤）：**不用按切換鍵**，直接用大千注音鍵盤打字，輸入法會自動判斷你打的是注音還是英文。
 
 ```
 按鍵： ji3 hello world su3cl3␣
@@ -84,6 +84,17 @@ SmartScreen 出現警告時，按「其他資訊 → 仍要執行」。解除安
 3. 之後每次登入會自動切換到自動注音（`~/.config/autostart/autozhuyin.desktop`）。
 
 暫時改回一般鍵盤：`ibus engine xkb:us::eng`；切回：`ibus engine autozhuyin`；移除：`./uninstall.sh`。
+
+### Android（實體鍵盤，開發中）
+
+需求：Android 8.0 以上，接上實體鍵盤（USB、藍牙、平板鍵盤）。Android 版**只處理實體鍵盤**：沒有接鍵盤時，會自動切回你原本的螢幕鍵盤（例如 Gboard）。
+
+1. 安裝 `AutoZhuyin-Android-<版本>.apk`（需要允許「安裝不明來源的應用程式」），打開「自動注音」App 照著步驟做。
+2. 設定 → 系統 → 鍵盤 → 螢幕鍵盤（或「輸入法」）→ 開啟 **自動注音（實體鍵盤）**。
+3. 實體鍵盤配置設成「英文（美國）」（大千鍵位以美式鍵盤為準；Android 14 以上通常會自動套用）。
+4. 接上鍵盤後，從鍵盤切換按鈕選「自動注音」。拔掉鍵盤會自動切回原本的輸入法；**再次接上時要手動切回**（Android 不允許輸入法在別的輸入法使用中時把自己切回來）。
+
+密碼、數字、電話欄位和終端機這類要原始按鍵的程式，按鍵會直接送出，不經過自動注音。目前還沒有 AI 選字。
 
 ## 按鍵
 
@@ -177,6 +188,8 @@ Windows、Linux 版用 numpy 執行同一個模型（`windows/autozhuyin/core/lm
 | 選字紀錄 | `~/Library/Application Support/AutoZhuyin/user-history.json` | `%APPDATA%\PIME\autozhuyin\user-history.json` | `~/.config/autozhuyin/user-history.json` |
 | 自訂詞 | `~/Library/Application Support/AutoZhuyin/user-phrases.txt` | `%APPDATA%\PIME\autozhuyin\user-phrases.txt` | `~/.config/autozhuyin/user-phrases.txt` |
 
+Android 版存在 App 的私有目錄（`learned.json`、`user-history.json`、`user-phrases.txt`），格式和桌面版一樣，App 裡有「清除學習紀錄」。App 沒有網路權限，也不會被系統備份。
+
 輸入法選單的「編輯自訂詞…」：
 - Mac、Linux：打開編輯視窗。打好詞會自動填入常用讀音（可以改，注音符號或大千鍵位都行），按加入就生效；用這個視窗加入的詞分數是 -1，會排在同讀音的內建詞前面。表格裡的詞和注音可以直接點兩下修改。
 - Windows（PIME 版）：用記事本打開自訂詞檔（第一次會附上格式說明），存檔後下次切換到輸入法時生效，看不懂的行會提示行號。
@@ -234,7 +247,23 @@ scripts/package-linux.sh                       # 產生 build/AutoZhuyin-Linux-<
 - 安裝在使用者目錄，不寫入 `/usr`：開機時由 autostart 啟動 `autozhuyin_ibus.py --activate`，它會把引擎動態註冊給 ibus-daemon 並切換過去。
 - 也支援由 ibus-daemon 啟動（`--ibus`，配合 `/usr/share/ibus/component` 的 XML），之後要做 RPM 時可以用。
 
-> 修改核心邏輯時，Swift（`Sources/AutoZhuyinCore/`）和 Python（`windows/autozhuyin/core/`）兩邊都要改，並在兩邊的測試加上相同案例。
+### Android
+
+Android 版是實體鍵盤專用的輸入法（`InputMethodService`），核心邏輯用 Kotlin 重寫（`android/core/`，純 JVM，不需要 Android 也能測試），對照 Python 版逐行移植，測試案例也一樣。
+
+```bash
+python3 windows/tools/build_data.py                                # 準備共用資料
+(cd android && ./gradlew -Pautozhuyin.coreOnly=true :core:test)    # 只測核心：只需要 JDK 17+
+scripts/package-android.sh                                         # 產生 build/AutoZhuyin-Android-<版本>.apk（需要 Android SDK）
+```
+
+- 核心測試會比對 `training/parity-fixtures.json`，確保切分結果和 Python 版完全一樣。這份資料是用 macOS 的英文字典產生的，在其他系統上用別的字典時，可以用 `AUTOZHUYIN_PARITY=<檔案>` 指定自己用 `training/make_parity.py` 產生的版本。
+- 打包用的 `english-dict.txt` 也要在 macOS 上產生，判斷結果才會和其他平台一樣，所以 GitHub Actions 在 macOS 機器上建置 APK。
+- 版本號直接讀 `Resources/Info.plist`（`versionName` = `CFBundleShortVersionString`，`versionCode` = `CFBundleVersion`）。
+- 正式簽章：設定 `ANDROID_KEYSTORE`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`；GitHub Actions 用同名的 secrets（keystore 本身放 `ANDROID_KEYSTORE_BASE64`）。沒有設定時只產生 debug 簽章的 `-debug.apk`，只放在測試建置，不會發布。
+- `release.sh` 在有 `ANDROID_HOME` 時才會打包 Android。
+
+> 修改核心邏輯時，Swift（`Sources/AutoZhuyinCore/`）、Python（`windows/autozhuyin/core/`）和 Kotlin（`android/core/`）都要改，並在各自的測試加上相同案例。
 
 ### 訓練判斷權重
 
@@ -311,7 +340,7 @@ scripts/release.sh minor --push   # 同時 push commit 和 tag
 
 任何一步失敗都會把版本號改回去。只想改版本號不打包：`scripts/bump-version.sh [patch|minor|major]`。
 
-tag push 到 GitHub 之後，GitHub Actions（`.github/workflows/release.yml`）會在 macOS 機器上重跑測試、建置三個平台的安裝檔，並自動建立 Release 附上 `.pkg`、`-setup.exe`、`.zip`、`.tar.gz` 和 `SHA256SUMS.txt`。tag 必須和 `Info.plist` 的版本一致（例如 `v0.15.0`）。
+tag push 到 GitHub 之後，GitHub Actions（`.github/workflows/release.yml`）會在 macOS 機器上重跑測試、建置各平台的安裝檔，並自動建立 Release 附上 `.pkg`、`-setup.exe`、`.zip`、`.tar.gz`、`.apk`（有設定簽章時）和 `SHA256SUMS.txt`。tag 必須和 `Info.plist` 的版本一致（例如 `v0.15.0`）。
 
 也可以在 GitHub 的 Actions → Release → Run workflow 手動執行：填入既有的 tag 就會補建那一版的 Release；留空則只試建 `main`，產出的檔案放在該次執行的 Artifacts，不會發布。
 
@@ -342,6 +371,9 @@ windows/
   tests/                      Python 測試
   tools/                      產生資料檔、圖示
   tsf/                        獨立版（實驗）：TSF 元件原始碼（src/）、引擎伺服器、安裝程式
+android/
+  core/                       核心邏輯（Kotlin 版，純 JVM）與測試
+  app/                        Android 輸入法外殼（實體鍵盤）、設定頁
 linux/
   autozhuyin_ibus.py          IBus 外殼（共用 windows/autozhuyin/core）
   installer/                  install.sh、uninstall.sh、給使用者的 README.txt
@@ -353,7 +385,8 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進三個平台�
 
 ## 已知限制
 
-- Windows 版、Linux 版還沒在實機上測試過。
+- Windows 版、Linux 版、Android 版還沒在實機上測試過。
+- Android 版只支援實體鍵盤，還沒有 AI 選字；拔掉鍵盤後切回原本的輸入法，再接上時要手動切回。
 - Linux 版只支援 IBus。KDE 上有些 Flatpak 程式（例如 Flatpak 版 Chrome）在 IBus Wayland 下可能打不出字。
 - 聲調鍵打在注音符號中間（例如 `uv3l`）無法自動修正。
 - 很短的字串本質上就有歧義。開頭第一個詞如果也能讀成注音，按空白後會先保留（顯示成英文），看下一個詞再決定：`up jo4` = 因為、`el ji3` = 高我、`no su3cl3` = no 你好、`up the` = up the。接在英文後面時只保留 `up`（因）這種很常見的讀音，不會拖慢打英文。還是判斷錯的話按 Tab 修正，修正後會記住。
@@ -366,6 +399,8 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進三個平台�
 - [x] Windows 版
 - [x] Linux 版（IBus）
 - [ ] Linux Fcitx5 版（KDE 上相容性較好）
+- [x] Android 版（實體鍵盤）
+- [ ] Android 版 AI 選字
 - [x] 用資料訓練判斷權重（合成資料）
 - [ ] 加入真實打字資料一起訓練
 - [x] 已送出的英文單字若判斷錯誤，可以「事後翻轉」（macOS、Linux、Windows 獨立版；PIME 版做不到）

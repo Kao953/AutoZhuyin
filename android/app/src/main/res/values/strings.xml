@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">自動注音</string>
+    <string name="ime_name">自動注音（實體鍵盤）</string>
+    <string name="subtype_label">中文（台灣）自動注音</string>
+</resources>

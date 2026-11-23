@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Physical keyboards only: with no keyboard attached the service hands over to the
+     previous input method. The hint asks Android 14+ to use the US layout, which Dachen
+     key positions assume. -->
+<input-method xmlns:android="http://schemas.android.com/apk/res/android"
+    android:settingsActivity="com.autozhuyin.android.SetupActivity"
+    android:supportsSwitchingToNextInputMethod="true">
+    <subtype
+        android:imeSubtypeLocale="zh_TW"
+        android:imeSubtypeMode="keyboard"
+        android:isAsciiCapable="true"
+        android:label="@string/subtype_label"
+        android:languageTag="zh-Hant-TW"
+        android:physicalKeyboardHintLanguageTag="en-US"
+        android:physicalKeyboardHintLayoutType="qwerty" />
+</input-method>

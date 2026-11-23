@@ -227,6 +227,14 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(type_keys("\n", e), "我內")
         self.assertEqual(e.classifier.learned.weights, {"so": 1})
         self.assertEqual(type_keys("ji3so\t\t\n", make_engine()), "我so")   # Tab again flips it back
+        # In Chinese, the last character: 我要 Tab is 我ul4; an untoned tail is flipped as a whole.
+        self.assertEqual(type_keys("ji3ul4\t\n", make_engine()), "我ul4")
+        self.assertEqual(type_keys("ji3ul4\t\t\n", make_engine()), "我要")
+        self.assertEqual(type_keys("su3cl3\t\n", make_engine()), "你cl3")
+        e = make_engine()
+        e.require_tones = True
+        type_keys("ji3ul4fm4test\t", e)
+        self.assertEqual(e.segments[-1], (9, 13, ZHUYIN))
         e = make_engine()
         type_keys("ji3so\t\b\b", e)                 # the flipped word deleted: no flip left
         self.assertIsNone(e.forced_mode)

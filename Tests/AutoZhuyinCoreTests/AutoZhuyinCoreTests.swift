@@ -193,6 +193,10 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(type("\n", into: e), "我內")
         XCTAssertEqual(e.classifier.learned.weights, ["so": 1])
         XCTAssertEqual(type("ji3so\t\t\n", into: makeEngine()), "我so")   // Tab again flips it back
+        // In Chinese, the last character: 我要 Tab is 我ul4; Tab again gives 我要 back.
+        XCTAssertEqual(type("ji3ul4\t\n", into: makeEngine()), "我ul4")
+        XCTAssertEqual(type("ji3ul4\t\t\n", into: makeEngine()), "我要")
+        XCTAssertEqual(type("su3cl3\t\n", into: makeEngine()), "你cl3")
         // Backspace after a flip, then commit: the learned word is what is left of it.
         let f = makeEngine()
         _ = type("so\t", into: f)

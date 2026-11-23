@@ -432,14 +432,31 @@ class CompositionEngine:
     # --- key handling ---
 
     def _flip(self):
-        """Forces the last segment into the other mode (a correction that is learned); the
-        ones before it stay as they are ("ji3so" Tab: 我 stays, so → 內)."""
+        """Forces the last word into the other mode (a correction that is learned); what is
+        before it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4)."""
         segs = self.segments
-        start, _, mode = segs[-1]
-        self.forced_prefix = segs[:-1]
+        start, end, mode = segs[-1]
+        prefix = segs[:-1]
+        if mode == ZHUYIN:
+            cut = self._flip_start(start, end)
+            if cut > start:
+                prefix = prefix + [(start, cut, ZHUYIN)]
+                start = cut
+        self.forced_prefix = prefix
         self.forced_start = start
         self.forced_mode = LITERAL if mode == ZHUYIN else ZHUYIN
         self.forced_count = len(self.keys)   # that word is learned, not what is typed after it
+
+    def _flip_start(self, start, end):
+        """Where Tab's flip starts in a Chinese segment: the untoned keys at its end (a word
+        still being typed, like "test" read as ㄔㄍㄋㄔ), or else its last syllable."""
+        syls = self._parse(self.keys[start:end]).syllables
+        if not syls:
+            return start
+        if syls[-1].toned:
+            return start + syls[-1].start
+        toned = [s for s in syls if s.toned]
+        return start + (toned[-1].end if toned else 0)
 
     def _unforce_before(self, pos):
         """An edit at key index pos: a flip after it no longer lines up, so drop it."""

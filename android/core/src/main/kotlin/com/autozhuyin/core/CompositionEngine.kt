@@ -380,16 +380,36 @@ class CompositionEngine(
     // --- key handling ---
 
     /**
-     * Forces the last segment into the other mode (a correction that is learned); the ones
-     * before it stay as they are ("ji3so" Tab: 我 stays, so → 內).
+     * Forces the last word into the other mode (a correction that is learned); what is before
+     * it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4).
      */
     private fun flip() {
         val segs = segments
         val last = segs.lastOrNull() ?: return
-        forcedPrefix = segs.dropLast(1)
-        forcedStart = last.start
+        var prefix = segs.dropLast(1)
+        var start = last.start
+        if (last.mode == Mode.ZHUYIN) {
+            val cut = flipStart(last)
+            if (cut > start) {
+                prefix = prefix + Segment(start, cut, Mode.ZHUYIN)
+                start = cut
+            }
+        }
+        forcedPrefix = prefix
+        forcedStart = start
         forcedMode = last.mode.other
         forcedCount = keys.size   // that word is learned, not what is typed after it
+    }
+
+    /**
+     * Where Tab's flip starts in a Chinese segment: the untoned keys at its end (a word still
+     * being typed, like "test" read as ㄔㄍㄋㄔ), or else its last syllable.
+     */
+    private fun flipStart(seg: Segment): Int {
+        val syls = parse(keys.subList(seg.start, seg.end)).syllables
+        val lastSyl = syls.lastOrNull() ?: return seg.start
+        if (lastSyl.toned) return seg.start + lastSyl.start
+        return seg.start + (syls.lastOrNull { it.toned }?.end ?: 0)
     }
 
     /** An edit at key index pos: a flip after it no longer lines up, so drop it. */

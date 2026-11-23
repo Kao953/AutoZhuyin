@@ -477,15 +477,33 @@ public final class CompositionEngine {
         previousCommitTime = now()
     }
 
-    /// Forces the last segment into the other mode (a correction that is learned); the ones
-    /// before it stay as they are ("ji3so" Tab: 我 stays, so → 內).
+    /// Forces the last word into the other mode (a correction that is learned); what is
+    /// before it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4).
     private func flip() {
         let segs = segments
         guard let last = segs.last else { return }
-        forcedPrefix = Array(segs.dropLast())
-        forcedStart = last.range.lowerBound
+        var prefix = Array(segs.dropLast())
+        var start = last.range.lowerBound
+        if last.mode == .zhuyin {
+            let cut = flipStart(last.range)
+            if cut > start {
+                prefix.append(Segment(range: start..<cut, mode: .zhuyin))
+                start = cut
+            }
+        }
+        forcedPrefix = prefix
+        forcedStart = start
         forcedMode = (last.mode == .zhuyin) ? .literal : .zhuyin
         forcedCount = keys.count
+    }
+
+    /// Where Tab's flip starts in a Chinese segment: the untoned keys at its end (a word still
+    /// being typed, like "test" read as ㄔㄍㄋㄔ), or else its last syllable.
+    private func flipStart(_ range: Range<Int>) -> Int {
+        let syls = parse(Array(keys[range])).syllables
+        guard let lastSyl = syls.last else { return range.lowerBound }
+        if lastSyl.toned { return range.lowerBound + lastSyl.keyRange.lowerBound }
+        return range.lowerBound + (syls.last(where: \.toned)?.keyRange.upperBound ?? 0)
     }
 
     /// An edit at key index pos: a flip after it no longer lines up, so drop it.

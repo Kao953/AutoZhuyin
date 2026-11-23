@@ -254,6 +254,10 @@ class EngineTests {
         assertEquals("我內", typeKeys("\n", e))
         assertEquals(mapOf("so" to 1), e.classifier.learned.weights.toMap())
         assertEquals("我so", typeKeys("ji3so\t\t\n", makeEngine()))   // Tab again flips it back
+        // In Chinese, the last character: 我要 Tab is 我ul4; Tab again gives 我要 back.
+        assertEquals("我ul4", typeKeys("ji3ul4\t\n", makeEngine()))
+        assertEquals("我要", typeKeys("ji3ul4\t\t\n", makeEngine()))
+        assertEquals("你cl3", typeKeys("su3cl3\t\n", makeEngine()))
         // Backspace after a flip, then commit: used to throw (subList past the end).
         assertEquals(1, typeKeys("so\t\b\n", makeEngine()).length)
     }

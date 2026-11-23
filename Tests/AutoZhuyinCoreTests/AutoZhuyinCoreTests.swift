@@ -226,7 +226,7 @@ final class EngineTests: XCTestCase {
 
     func testFullwidthPunctuationAfterChinese() {
         let e = makeEngine()
-        XCTAssertEqual(type("su3cl3?", into: e), "你好？")
+        XCTAssertEqual(type("su3cl3?\n", into: e), "你好？")
     }
 
     func testCandidates() {
@@ -455,7 +455,8 @@ final class CursorTests: XCTestCase {
         _ = type("rup wu0 ←", into: e)
         XCTAssertEqual(e.cursorOffset, 1)
         _ = type("?", into: e)
-        XCTAssertEqual(e.markedText, "")
+        XCTAssertEqual(e.markedText, "今天？")
+        XCTAssertEqual(e.cursorOffset, 3)
     }
 
     func testInsertSyllable() {
@@ -595,7 +596,7 @@ final class BacktickSymbolTests: XCTestCase {
     }
 
     func testBackslashIsDunhao() {
-        XCTAssertEqual(type("ji3\\", into: makeEngine()), "我、")
+        XCTAssertEqual(type("ji3\\\n", into: makeEngine()), "我、")
         XCTAssertEqual(type("hello\\", into: makeEngine()), "hello\\")
     }
 
@@ -648,7 +649,7 @@ final class HeldPunctuationTests: XCTestCase {
     func type(_ s: String, into e: CompositionEngine) -> String {
         var out = ""
         for c in s {
-            let key: KeyInput = ["\n": .enter, "\t": .tab, "⇧": .shiftTap, "\u{8}": .backspace][c] ?? .character(c)
+            let key: KeyInput = ["\n": .enter, "\t": .tab, "⇧": .shiftTap, "\u{8}": .backspace, "↓": .down][c] ?? .character(c)
             let r = e.handle(key)
             if let t = r.commit { out += t } else if !r.handled { out.append(c) }
         }
@@ -672,7 +673,8 @@ final class HeldPunctuationTests: XCTestCase {
     func testGuessFromContext() {
         XCTAssertEqual(type("ji3 <\n", into: makeEngine()), "我，")
         XCTAssertEqual(type("ji3 !\t\n", into: makeEngine()), "我!")
-        XCTAssertEqual(type("ji3<", into: makeEngine()), "我，")   // after a composition: sent at once
+        XCTAssertEqual(type("ji3<\n", into: makeEngine()), "我，")
+        XCTAssertEqual(type("hello!", into: makeEngine()), "hello!")   // after English: sent at once
         XCTAssertEqual(type("hello\\", into: makeEngine()), "hello\\")
     }
 
@@ -690,6 +692,56 @@ final class HeldPunctuationTests: XCTestCase {
         let e = makeEngine()
         XCTAssertEqual(type("(\u{8}", into: e), "")
         XCTAssertEqual(e.markedText, "")
+    }
+
+    /// After Chinese it waits too, after the composition; the next key sends both.
+    func testHeldAfterChinese() {
+        let e = makeEngine()
+        XCTAssertEqual(type("ji3[", into: e), "")
+        XCTAssertEqual(e.markedText, "我「")
+        XCTAssertEqual(type("su3", into: e), "我「")
+        XCTAssertEqual(e.markedText, "你")
+        XCTAssertEqual(type("ji3<\t\n", into: makeEngine()), "我<")
+        XCTAssertEqual(type("ji3(\u{8}\n", into: makeEngine()), "我")
+    }
+
+    /// Enter sends the punctuation like a composition, without a new line.
+    func testEnterSendsItOnly() {
+        let e = makeEngine()
+        _ = type("!", into: e)
+        XCTAssertEqual(e.handle(.enter), KeyResult(handled: true, commit: "!"))
+    }
+
+    func testDownPicksAnother() {
+        let e = makeEngine()
+        _ = type("ji3[↓", into: e)
+        XCTAssertTrue(e.isPunctuationTable)
+        let texts = e.candidates.map(\.text)
+        XCTAssertEqual(Array(texts.prefix(4)), ["「", "『", "（", "【"])
+        XCTAssertEqual(texts[e.candidateIndex], "「")
+        _ = type("2", into: e)
+        XCTAssertFalse(e.isShowingCandidates)
+        XCTAssertEqual(e.markedText, "我『")   // picked, not sent yet
+        XCTAssertEqual(type("\n", into: e), "我『")
+    }
+
+    func testChoices() {
+        XCTAssertEqual(CompositionEngine.punctuationChoices("{").first, "『")
+        XCTAssertEqual(CompositionEngine.punctuationChoices("{").last, "{")
+        XCTAssertEqual(Set(CompositionEngine.punctuationChoices("(")).count, CompositionEngine.punctuationChoices("(").count)
+        XCTAssertEqual(Array(CompositionEngine.punctuationChoices(")").prefix(2)), ["）", "」"])
+        XCTAssertTrue(CompositionEngine.punctuationChoices("<").contains("、"))
+    }
+
+    func testTabAfterAPick() {
+        let e = makeEngine()
+        _ = type("ji3 (↓", into: e)
+        e.selectCandidate(e.candidates.firstIndex { $0.text == "【" }!)
+        XCTAssertEqual(e.markedText, "【")
+        _ = type("\t", into: e)
+        XCTAssertEqual(e.markedText, "(")
+        _ = type("\t", into: e)
+        XCTAssertEqual(e.markedText, "（")
     }
 
     func testCommitAll() {

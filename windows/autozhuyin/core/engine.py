@@ -21,6 +21,23 @@ FULLWIDTH = {
     "{": "『", "}": "』", "[": "「", "]": "」", "~": "～", "_": "——", "\\": "、",
 }
 
+# ↓ on a held punctuation: the other symbols that key could mean. The list is the
+# full-width default, these, then the key itself.
+_OPENING = ["「", "『", "（", "【", "〔", "《", "〈", "“", "‘", "［", "｛"]
+_CLOSING = ["」", "』", "）", "】", "〕", "》", "〉", "”", "’", "］", "｝"]
+PUNCT_VARIANTS = {
+    "<": ["、", "；", "：", "《", "〈", "＜"], ">": ["．", "…", "⋯", "・", "》", "〉", "＞"],
+    "?": ["！"], "!": ["？"], ":": ["；"], "~": ["〜"], "_": ["—", "－", "＿"], "\\": ["＼", "｜", "／"],
+    '"': _OPENING, "[": _OPENING, "{": _OPENING, "(": _OPENING,
+    "]": _CLOSING, "}": _CLOSING, ")": _CLOSING,
+}
+
+
+def punct_choices(key):
+    """Everything ↓ offers for a held punctuation key, the full-width default first."""
+    default = FULLWIDTH[key]
+    return [default] + [v for v in PUNCT_VARIANTS.get(key, []) if v != default] + [key]
+
 # The first word of a composition that also reads as Zhuyin is not committed as English
 # on space; the next word decides ("up jo4" = 因為, "up the" = up the, "no su3" = no 你).
 # Right after English text only common one-syllable readings are held (up = 因, url = 教),
@@ -69,15 +86,17 @@ class CompositionEngine:
         # to the app (no composition, no underline) until Shift is tapped again.
         self.english_mode = False
         self.backtick = False    # "`" typed; the next key may be a forced symbol
-        # A Shift-punctuation typed with nothing composed, not sent yet: full-width or not is
-        # only a guess from the context, so Tab (or a Shift tap) switches "<" ↔ "，" first.
-        # Any other key sends it.
+        # A Shift-punctuation after Chinese or with nothing composed, not sent yet: full-width
+        # or not is only a guess, so Tab (or a Shift tap) switches "<" ↔ "，" first and ↓
+        # offers the other symbols the key could mean ("[" → 「『（【…). Any other key sends it.
         self.punct = None
         self._punct_fullwidth = False
-        self._punct_flipped = False
+        self._punct_guess = False     # what _punct_fullwidth started as
+        self._punct_choice = None     # picked with ↓, shown instead
         self.fixed = {}          # zhuyin segment start -> {(syl_start, syl_end): text}
         self.candidates = []
         self.symbol_table = False   # candidates are the "`" + space symbol table
+        self.punct_table = False    # candidates are the held punctuation's choices
         self.candidate_index = 0
         self._candidate_segment_start = 0
         # Composition cursor: a key index into self.keys (None = at the end). ← → move it
@@ -379,7 +398,8 @@ class CompositionEngine:
         if self.backtick:
             pieces.append((BACKTICK, LITERAL))
         if self.punct:
-            pieces.append((self._punct_text(), ZHUYIN if self._punct_fullwidth else LITERAL))
+            text = self._punct_text()
+            pieces.append((text, LITERAL if text == self.punct else ZHUYIN))
         return pieces
 
     def _segment_pieces(self):
@@ -503,38 +523,59 @@ class CompositionEngine:
             handled, more = True, key
         return handled, committed + BACKTICK + (more or "")
 
+    def _hold_punct(self, c, fullwidth):
+        self.punct, self._punct_fullwidth, self._punct_guess, self._punct_choice = c, fullwidth, fullwidth, None
+
     def _punct_text(self):
         if not self.punct:
             return ""
+        if self._punct_choice is not None:
+            return self._punct_choice
         return FULLWIDTH.get(self.punct, self.punct) if self._punct_fullwidth else self.punct
 
     def _after_punct(self, key):
         if key in (TAB, SHIFT_TAP):
-            self._punct_fullwidth = not self._punct_fullwidth
-            self._punct_flipped = not self._punct_flipped
+            # To the other width (after a pick, too).
+            self._punct_fullwidth = self._punct_text() == self.punct
+            self._punct_choice = None
+            return CONSUMED
+        if key == DOWN:
+            self._open_punct_table()
             return CONSUMED
         if key in (ESCAPE, BACKSPACE):
             self.punct = None
             return CONSUMED
-        fullwidth = self._punct_fullwidth
-        text = self._commit_punct()
+        halfwidth = self._punct_text() == self.punct
+        text = self._commit_held()
         # Space sends it like a word: half-width gets the space too.
         if key == " ":
-            return True, text + ("" if fullwidth else " ")
+            return True, text + (" " if halfwidth else "")
+        if key == ENTER:
+            return True, text
         handled, more = self.handle(key)
         if not handled and len(key) == 1:
             handled, more = True, key
         return handled, text + (more or "")
 
-    def _commit_punct(self):
-        """Sends the held punctuation. A switch with Tab says which language is being typed,
-        so the next punctuation is guessed the same way."""
-        text = self._punct_text()
-        if text and self._punct_flipped:
-            self._previous_mode = ZHUYIN if self._punct_fullwidth else LITERAL
-            self._previous_time = self.now()
+    def _commit_held(self):
+        """Sends the composition, then the punctuation held after it. A switch of width says
+        which language is being typed, so the next punctuation is guessed the same way."""
+        punct = self._punct_text()
+        switched = bool(punct) and (punct != self.punct) != self._punct_guess
         self.punct = None
-        return text
+        text = self._commit() if self.keys else ""
+        if switched:
+            self._previous_mode = LITERAL if self._punct_guess else ZHUYIN
+            self._previous_time = self.now()
+        return text + punct
+
+    def _open_punct_table(self):
+        choices = punct_choices(self.punct)
+        shown = self._punct_text()
+        self.candidates = [((0, 0), s) for s in choices]
+        self.candidate_index = choices.index(shown) if shown in choices else 0
+        self.symbol_table = False
+        self.punct_table = True
 
     def _last_parse(self, segs):
         if not segs or segs[-1][2] != ZHUYIN:
@@ -582,9 +623,9 @@ class CompositionEngine:
             return CONSUMED
 
         chinese = (self.context == ZHUYIN) if not self.keys else (self.mode == ZHUYIN)
-        if not self.keys and c in FULLWIDTH:
-            # Nothing typed before it to tell: hold it so Tab can switch it.
-            self.punct, self._punct_fullwidth, self._punct_flipped = c, chinese, False
+        if c in FULLWIDTH and (chinese or not self.keys):
+            # Hold it after the Chinese (or alone) so Tab can switch it and ↓ pick another.
+            self._hold_punct(c, chinese)
             return CONSUMED
         committed = self._commit() if self.keys else ""
         punct = FULLWIDTH.get(c, c) if chinese else c
@@ -607,11 +648,13 @@ class CompositionEngine:
         self._candidate_segment_start = seg[0]
         self.candidate_index = 0
         self.symbol_table = False
+        self.punct_table = False
 
     def _open_symbol_table(self):
         self.candidates = [((0, 0), s) for s in SYMBOL_TABLE]
         self.candidate_index = 0
         self.symbol_table = True
+        self.punct_table = False
 
     def handle_control(self, key):
         """Ctrl + ; ' , . / → ；、，。？ (commits any composition first). None: not one of
@@ -625,8 +668,7 @@ class CompositionEngine:
         if self.inserting:
             self._splice(self.inserting)
             self.inserting = []
-        committed = self._commit_punct() + (self._commit() if self.keys else "")
-        return True, committed + symbol
+        return True, self._commit_held() + symbol
 
     def page(self):
         """Candidates on the current page and the cursor within it."""
@@ -639,6 +681,11 @@ class CompositionEngine:
             return None
         self._last_commit = None
         rng, text = self.candidates[index]
+        if self.punct_table:
+            self._punct_choice = text
+            self.candidates = []
+            self.punct_table = False
+            return None
         if self.symbol_table:
             self.candidates = []
             self.symbol_table = False
@@ -663,6 +710,7 @@ class CompositionEngine:
         elif key in (ESCAPE, BACKSPACE):
             self.candidates = []
             self.symbol_table = False
+            self.punct_table = False
         return True, commit
 
     # --- commit ---
@@ -731,7 +779,7 @@ class CompositionEngine:
 
     def commit_all(self):
         self._last_commit = None
-        return self._commit_punct() + (self._commit() if self.keys else "")
+        return self._commit_held()
 
     def reset(self):
         self.keys = []
@@ -744,3 +792,4 @@ class CompositionEngine:
         self.fixed = {}
         self.candidates = []
         self.symbol_table = False
+        self.punct_table = False

@@ -37,20 +37,26 @@ class CompositionEngine(
     /** "`" typed; the next key may be a forced symbol. */
     private var backtick = false
     /**
-     * A Shift-punctuation typed with nothing composed, not sent yet: full-width or not is only
-     * a guess from the context, so Tab (or a Shift tap) switches "<" ↔ "，" first. Any other
-     * key sends it.
+     * A Shift-punctuation after Chinese or with nothing composed, not sent yet: full-width or
+     * not is only a guess, so Tab (or a Shift tap) switches "<" ↔ "，" first and ↓ offers the
+     * other symbols the key could mean ("[" → 「『（【…). Any other key sends it.
      */
     var punct: String? = null
         private set
     private var punctFullwidth = false
-    private var punctFlipped = false
+    /** What punctFullwidth started as. */
+    private var punctGuess = false
+    /** Picked with ↓, shown instead. */
+    private var punctChoice: String? = null
     /** Zhuyin segment start -> {syllable range: picked text}. */
     private var fixed = mutableMapOf<Int, MutableMap<Span, String>>()
     var candidates: List<Piece> = emptyList()
         private set
     /** Candidates are the "`" + space symbol table. */
     var symbolTable = false
+        private set
+    /** Candidates are the held punctuation's choices. */
+    var punctTable = false
         private set
     var candidateIndex = 0
     private var candidateSegmentStart = 0
@@ -351,7 +357,7 @@ class CompositionEngine(
                 pieces = out.filter { it.text.isNotEmpty() }
             }
             if (backtick) pieces = pieces + MarkedPiece(BACKTICK, Mode.LITERAL)
-            if (punct != null) pieces = pieces + MarkedPiece(punctText(), if (punctFullwidth) Mode.ZHUYIN else Mode.LITERAL)
+            if (punct != null) pieces = pieces + MarkedPiece(punctText(), if (punctIsHalfwidth()) Mode.LITERAL else Mode.ZHUYIN)
             return pieces
         }
 
@@ -470,40 +476,59 @@ class CompositionEngine(
 
     private fun punctText(): String {
         val p = punct ?: return ""
+        punctChoice?.let { return it }
         return if (punctFullwidth) FULLWIDTH[p] ?: p else p
     }
 
+    private fun punctIsHalfwidth() = punct != null && punctText() == punct
+
     private fun afterPunct(key: String): KeyResult {
         if (key == TAB || key == SHIFT_TAP) {
-            punctFullwidth = !punctFullwidth
-            punctFlipped = !punctFlipped
+            // To the other width (after a pick, too).
+            punctFullwidth = punctIsHalfwidth()
+            punctChoice = null
+            return KeyResult.CONSUMED
+        }
+        if (key == DOWN) {
+            openPunctTable()
             return KeyResult.CONSUMED
         }
         if (key == ESCAPE || key == BACKSPACE) {
             punct = null
             return KeyResult.CONSUMED
         }
-        val fullwidth = punctFullwidth
-        val text = commitPunct()
+        val halfwidth = punctIsHalfwidth()
+        val text = commitHeld()
         // Space sends it like a word: half-width gets the space too.
-        if (key == " ") return KeyResult(true, text + if (fullwidth) "" else " ")
+        if (key == " ") return KeyResult(true, text + if (halfwidth) " " else "")
+        if (key == ENTER) return KeyResult(true, text)
         var r = handle(key)
         if (!r.handled && key.length == 1) r = KeyResult(true, key)
         return KeyResult(r.handled, text + (r.commit ?: ""))
     }
 
     /**
-     * Sends the held punctuation. A switch with Tab says which language is being typed, so the
-     * next punctuation is guessed the same way.
+     * Sends the composition, then the punctuation held after it. A switch of width says which
+     * language is being typed, so the next punctuation is guessed the same way.
      */
-    private fun commitPunct(): String {
-        val text = punctText()
-        if (text.isNotEmpty() && punctFlipped) {
-            previousMode = if (punctFullwidth) Mode.ZHUYIN else Mode.LITERAL
+    private fun commitHeld(): String {
+        val p = punctText()
+        val switched = p.isNotEmpty() && !punctIsHalfwidth() != punctGuess
+        punct = null
+        val text = if (keys.isNotEmpty()) commit() else ""
+        if (switched) {
+            previousMode = if (punctGuess) Mode.LITERAL else Mode.ZHUYIN
             previousTime = now()
         }
-        punct = null
-        return text
+        return text + p
+    }
+
+    private fun openPunctTable() {
+        val choices = punctChoices(punct ?: return)
+        candidates = choices.map { Piece(0, 0, it) }
+        candidateIndex = choices.indexOf(punctText()).coerceAtLeast(0)
+        symbolTable = false
+        punctTable = true
     }
 
     private fun lastParse(segs: List<Segment>): ZhuyinParse? {
@@ -557,11 +582,12 @@ class CompositionEngine(
         }
 
         val chinese = if (keys.isEmpty()) context == Mode.ZHUYIN else mode == Mode.ZHUYIN
-        if (keys.isEmpty() && c in FULLWIDTH) {
-            // Nothing typed before it to tell: hold it so Tab can switch it.
+        if (c in FULLWIDTH && (chinese || keys.isEmpty())) {
+            // Hold it after the Chinese (or alone) so Tab can switch it and ↓ pick another.
             punct = c
             punctFullwidth = chinese
-            punctFlipped = false
+            punctGuess = chinese
+            punctChoice = null
             return KeyResult.CONSUMED
         }
         val committed = if (keys.isNotEmpty()) commit() else ""
@@ -582,12 +608,14 @@ class CompositionEngine(
         candidateSegmentStart = seg.start
         candidateIndex = 0
         symbolTable = false
+        punctTable = false
     }
 
     private fun openSymbolTable() {
         candidates = SYMBOL_TABLE.map { Piece(0, 0, it) }
         candidateIndex = 0
         symbolTable = true
+        punctTable = false
     }
 
     /** Ctrl + ; ' , . / → ；、，。？ (commits any composition first). null: a shortcut for the app. */
@@ -600,8 +628,7 @@ class CompositionEngine(
             splice(inserting.toList())
             inserting.clear()
         }
-        val committed = commitPunct() + if (keys.isNotEmpty()) commit() else ""
-        return KeyResult(true, committed + symbol)
+        return KeyResult(true, commitHeld() + symbol)
     }
 
     /** Candidates on the current page and the highlighted one within it. */
@@ -615,6 +642,12 @@ class CompositionEngine(
         if (index !in candidates.indices) return null
         lastCommit = null
         val c = candidates[index]
+        if (punctTable) {
+            punctChoice = c.text
+            candidates = emptyList()
+            punctTable = false
+            return null
+        }
         if (symbolTable) {
             candidates = emptyList()
             symbolTable = false
@@ -631,6 +664,7 @@ class CompositionEngine(
     fun closeCandidates() {
         candidates = emptyList()
         symbolTable = false
+        punctTable = false
     }
 
     private fun handleCandidateKey(key: String): KeyResult {
@@ -715,7 +749,7 @@ class CompositionEngine(
 
     fun commitAll(): String {
         lastCommit = null
-        return commitPunct() + if (keys.isNotEmpty()) commit() else ""
+        return commitHeld()
     }
 
     fun reset() {
@@ -729,6 +763,7 @@ class CompositionEngine(
         fixed = mutableMapOf()
         candidates = emptyList()
         symbolTable = false
+        punctTable = false
     }
 
     companion object {
@@ -748,6 +783,23 @@ class CompositionEngine(
             "<" to "，", ">" to "。", "?" to "？", "!" to "！", ":" to "：", "\"" to "「", "(" to "（", ")" to "）",
             "{" to "『", "}" to "』", "[" to "「", "]" to "」", "~" to "～", "_" to "——", "\\" to "、",
         )
+
+        /** ↓ on a held punctuation: the other symbols that key could mean. */
+        private val OPENING = listOf("「", "『", "（", "【", "〔", "《", "〈", "“", "‘", "［", "｛")
+        private val CLOSING = listOf("」", "』", "）", "】", "〕", "》", "〉", "”", "’", "］", "｝")
+        val PUNCT_VARIANTS = mapOf(
+            "<" to listOf("、", "；", "：", "《", "〈", "＜"), ">" to listOf("．", "…", "⋯", "・", "》", "〉", "＞"),
+            "?" to listOf("！"), "!" to listOf("？"), ":" to listOf("；"), "~" to listOf("〜"),
+            "_" to listOf("—", "－", "＿"), "\\" to listOf("＼", "｜", "／"),
+            "\"" to OPENING, "[" to OPENING, "{" to OPENING, "(" to OPENING,
+            "]" to CLOSING, "}" to CLOSING, ")" to CLOSING,
+        )
+
+        /** Everything ↓ offers for a held punctuation key, the full-width default first. */
+        fun punctChoices(key: String): List<String> {
+            val full = FULLWIDTH[key] ?: key
+            return listOf(full) + (PUNCT_VARIANTS[key] ?: emptyList()).filter { it != full } + key
+        }
 
         /**
          * The first word of a composition that also reads as Zhuyin is not committed as English

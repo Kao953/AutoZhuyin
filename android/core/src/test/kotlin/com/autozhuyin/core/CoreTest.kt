@@ -238,7 +238,7 @@ class EngineTests {
 
     @Test fun punctuation() {
         assertEquals("hello, ", typeKeys("hello, ", makeEngine()))
-        assertEquals("你好？", typeKeys("su3cl3?", makeEngine()))
+        assertEquals("你好？", typeKeys("su3cl3?\n", makeEngine()))
     }
 
     @Test fun candidates() {
@@ -380,7 +380,8 @@ class CursorTests {
         typeKeys("rup wu0 ←", e)
         assertEquals(1, e.cursorOffset)
         typeKeys("?", e)
-        assertEquals("", e.markedText)
+        assertEquals("今天？", e.markedText)
+        assertEquals(3, e.cursorOffset)
     }
 }
 
@@ -485,7 +486,7 @@ class HeldWordTests {
 
 class BacktickSymbolTests {
     @Test fun backslashIsDunhao() {
-        assertEquals("我、", typeKeys("ji3\\", makeEngine()))
+        assertEquals("我、", typeKeys("ji3\\\n", makeEngine()))
         assertEquals("hello\\", typeKeys("hello\\", makeEngine()))
     }
 
@@ -614,7 +615,8 @@ class HeldPunctuationTests {
     @Test fun guessFromContext() {
         assertEquals("我，", typeKeys("ji3 <\n", makeEngine()))
         assertEquals("我!", typeKeys("ji3 !\t\n", makeEngine()))
-        assertEquals("我，", typeKeys("ji3<", makeEngine()))   // after a composition: sent at once
+        assertEquals("我，", typeKeys("ji3<\n", makeEngine()))
+        assertEquals("hello!", typeKeys("hello!", makeEngine()))   // after English: sent at once
         assertEquals("hello\\", typeKeys("hello\\", makeEngine()))
     }
 
@@ -639,6 +641,56 @@ class HeldPunctuationTests {
         assertTrue(e.wants(ENTER))
         assertTrue(e.wants(TAB))
         assertTrue(e.isComposing)
+    }
+
+    /** After Chinese it waits too, after the composition; the next key sends both. */
+    @Test fun heldAfterChinese() {
+        val e = makeEngine()
+        assertEquals("", typeKeys("ji3[", e))
+        assertEquals("我「", e.markedText)
+        assertEquals("我「", typeKeys("su3", e))
+        assertEquals("你", e.markedText)
+        assertEquals("我<", typeKeys("ji3<\t\n", makeEngine()))
+        assertEquals("我", typeKeys("ji3(\b\n", makeEngine()))
+    }
+
+    /** Enter sends the punctuation like a composition, without a new line. */
+    @Test fun enterSendsItOnly() {
+        val e = makeEngine()
+        typeKeys("!", e)
+        assertEquals(KeyResult(true, "!"), e.handle(ENTER))
+    }
+
+    @Test fun downPicksAnother() {
+        val e = makeEngine()
+        typeKeys("ji3[↓", e)
+        assertTrue(e.punctTable)
+        val (texts, index) = e.page()
+        assertEquals(listOf("「", "『", "（", "【"), texts.take(4))
+        assertEquals("「", texts[index])
+        typeKeys("2", e)
+        assertFalse(e.showingCandidates)
+        assertEquals("我『", e.markedText)   // picked, not sent yet
+        assertEquals("我『", typeKeys("\n", e))
+    }
+
+    @Test fun choices() {
+        assertEquals("『", CompositionEngine.punctChoices("{").first())
+        assertEquals("{", CompositionEngine.punctChoices("{").last())
+        assertEquals(CompositionEngine.punctChoices("(").size, CompositionEngine.punctChoices("(").toSet().size)
+        assertEquals(listOf("）", "」"), CompositionEngine.punctChoices(")").take(2))
+        assertTrue("、" in CompositionEngine.punctChoices("<"))
+    }
+
+    @Test fun tabAfterAPick() {
+        val e = makeEngine()
+        typeKeys("ji3 (↓", e)
+        e.selectCandidate(e.candidates.indexOfFirst { it.text == "【" })
+        assertEquals("【", e.markedText)
+        typeKeys("\t", e)
+        assertEquals("(", e.markedText)
+        typeKeys("\t", e)
+        assertEquals("（", e.markedText)
     }
 
     @Test fun commitAll() {

@@ -168,7 +168,7 @@ class EngineTests(unittest.TestCase):
 
     def test_punctuation(self):
         self.assertEqual(type_keys("hello, ", make_engine()), "hello, ")
-        self.assertEqual(type_keys("su3cl3?", make_engine()), "你好？")
+        self.assertEqual(type_keys("su3cl3?\n", make_engine()), "你好？")
 
     def test_candidates(self):
         e = make_engine()
@@ -297,7 +297,8 @@ class CursorTests(unittest.TestCase):
         type_keys("rup wu0 ←", e)
         self.assertEqual(e.cursor_offset, 1)
         type_keys("?", e)
-        self.assertEqual(e.marked_text, "")
+        self.assertEqual(e.marked_text, "今天？")
+        self.assertEqual(e.cursor_offset, 3)
 
 
 class InsertInMiddleTests(unittest.TestCase):
@@ -393,7 +394,7 @@ class HeldWordTests(unittest.TestCase):
 
 class BacktickSymbolTests(unittest.TestCase):
     def test_backslash_is_dunhao(self):
-        self.assertEqual(type_keys("ji3\\", make_engine()), "我、")
+        self.assertEqual(type_keys("ji3\\\n", make_engine()), "我、")
         self.assertEqual(type_keys("hello\\", make_engine()), "hello\\")
 
     def test_control_symbols(self):
@@ -432,6 +433,10 @@ class BacktickSymbolTests(unittest.TestCase):
         self.assertEqual(e.marked_text, "你")
 
 
+def punct_choices_index(e, text):
+    return [t for _, t in e.candidates].index(text)
+
+
 class HeldPunctuationTests(unittest.TestCase):
     """A Shift-punctuation typed with nothing composed waits for the next key; Tab switches it."""
     def test_tab_switches(self):
@@ -450,7 +455,8 @@ class HeldPunctuationTests(unittest.TestCase):
     def test_guess_from_context(self):
         self.assertEqual(type_keys("ji3 <\n", make_engine()), "我，")
         self.assertEqual(type_keys("ji3 !\t\n", make_engine()), "我!")
-        self.assertEqual(type_keys("ji3<", make_engine()), "我，")   # after a composition: sent at once
+        self.assertEqual(type_keys("ji3<\n", make_engine()), "我，")
+        self.assertEqual(type_keys("hello!", make_engine()), "hello!")   # after English: sent at once
         self.assertEqual(type_keys("hello\\", make_engine()), "hello\\")
 
     def test_space_sends_it(self):
@@ -465,6 +471,55 @@ class HeldPunctuationTests(unittest.TestCase):
         e = make_engine()
         self.assertEqual(type_keys("(\b", e), "")
         self.assertEqual(e.marked_text, "")
+
+    def test_held_after_chinese(self):
+        """After Chinese it waits too, after the composition; the next key sends both."""
+        e = make_engine()
+        self.assertEqual(type_keys("ji3[", e), "")
+        self.assertEqual(e.marked_text, "我「")
+        self.assertEqual(type_keys("su3", e), "我「")
+        self.assertEqual(e.marked_text, "你")
+        self.assertEqual(type_keys("ji3<\t\n", make_engine()), "我<")
+        self.assertEqual(type_keys("ji3(\b\n", make_engine()), "我")
+
+    def test_enter_sends_it_only(self):
+        """Enter sends the punctuation like a composition, without a new line."""
+        e = make_engine()
+        type_keys("!", e)
+        self.assertEqual(e.handle(ENTER), (True, "!"))
+
+    def test_down_picks_another(self):
+        e = make_engine()
+        type_keys("ji3[", e)
+        e.handle(DOWN)
+        self.assertTrue(e.showing_candidates)
+        texts, index = e.page()
+        self.assertEqual(texts[:4], ["「", "『", "（", "【"])
+        self.assertEqual(texts[index], "「")
+        type_keys("2", e)
+        self.assertFalse(e.showing_candidates)
+        self.assertEqual(e.marked_text, "我『")   # picked, not sent yet
+        self.assertEqual(type_keys("\n", e), "我『")
+
+    def test_choices(self):
+        from autozhuyin.core.engine import punct_choices
+        self.assertEqual(punct_choices("{")[0], "『")
+        self.assertEqual(punct_choices("{")[-1], "{")
+        self.assertEqual(len(set(punct_choices("("))), len(punct_choices("(")))
+        self.assertEqual(punct_choices(")")[:2], ["）", "」"])
+        self.assertIn("、", punct_choices("<"))
+
+    def test_tab_after_a_pick(self):
+        e = make_engine()
+        type_keys("ji3 ", e)
+        type_keys("(", e)
+        e.handle(DOWN)
+        e.select_candidate(punct_choices_index(e, "【"))
+        self.assertEqual(e.marked_text, "【")
+        type_keys("\t", e)
+        self.assertEqual(e.marked_text, "(")
+        type_keys("\t", e)
+        self.assertEqual(e.marked_text, "（")
 
     def test_wants(self):
         e = make_engine()

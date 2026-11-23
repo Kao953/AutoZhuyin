@@ -801,6 +801,7 @@ class RealModelTests(unittest.TestCase):
             self.skipTest("needs numpy and the model")
         model = lm.GPT2LanguageModel(path, os.path.join(DATA, "lm-vocab.txt"))
         self.assertAlmostEqual(model.log_prob("他在家"), -14.329, delta=0.05)
+        self.assertGreater(model.log_prob("好耶"), model.log_prob("好䱒"))   # 䱒 is not in the vocabulary
         cases = {"w8 ql32k71u3ji3dj94cp32ji ": "他跑得比我快很多", "fu/3su3y94gji u h4cl3a87": "請你再說一次好嗎"}
         for keys, want in cases.items():
             self.assertNotEqual(type_keys(keys + "\n", make_engine()), want)

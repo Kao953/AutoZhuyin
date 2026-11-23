@@ -956,6 +956,12 @@ final class GPT2LanguageModelTests: XCTestCase {
         }
     }
 
+    /// Characters outside the model's vocabulary don't win just because [UNK] is likely.
+    func testUnknownCharacterIsUnlikely() throws {
+        let m = try model()
+        XCTAssertGreaterThan(m.logProb("好耶", context: ""), m.logProb("好䱒", context: ""))
+    }
+
     func testSpeed() throws {
         let m = try model()
         let start = Date()

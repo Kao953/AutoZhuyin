@@ -15,6 +15,10 @@ import struct
 np = None
 
 CLS, UNK = 101, 100
+# Log-probability of a character the model doesn't know. The model gives its [UNK] token a
+# high probability (it stands for every rare character), which made it prefer rare
+# characters (好䱒 over 好耶); a known character is almost always the better guess.
+UNKNOWN_LOG_PROB = -15.0
 
 
 def available():
@@ -116,7 +120,7 @@ class GPT2LanguageModel:
             m = logits.max(-1, keepdims=True)
             lse = np.log(np.exp(logits - m).sum(-1)) + m[..., 0]
             picked = np.take_along_axis(logits, targets[..., None], -1)[..., 0]
-            scores = (picked - lse).sum(-1)
+            scores = np.where(targets == UNK, UNKNOWN_LOG_PROB, picked - lse).sum(-1)
             for j, i in enumerate(idx):
                 out[i] = float(scores[j])
         return out

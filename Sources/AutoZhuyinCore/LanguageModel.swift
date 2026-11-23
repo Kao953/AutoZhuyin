@@ -18,6 +18,10 @@ public final class GPT2LanguageModel: LanguageModel {
     private var offsets: [String: Int] = [:]
     private var vocab: [Character: Int32] = [:]
     static let cls: Int32 = 101, unk: Int32 = 100
+    /// Log-probability of a character the model doesn't know. The model gives its [UNK]
+    /// token a high probability (it stands for every rare character), which made it prefer
+    /// rare characters (好䱒 over 好耶); a known character is almost always the better guess.
+    static let unknownLogProb = -15.0
     /// Longest input scored (context + text); longer contexts are cut from the left.
     public var maxTokens = 64
 
@@ -224,6 +228,10 @@ public final class GPT2LanguageModel: LanguageModel {
             expBuf.withUnsafeMutableBufferPointer { eb in
                 let e = eb.baseAddress!
                 for i in 0..<rowsUsed {
+                    if targets[i] == GPT2LanguageModel.unk {
+                        total += GPT2LanguageModel.unknownLogProb
+                        continue
+                    }
                     let row = lp.baseAddress! + i * V
                     var m: Float = 0
                     vDSP_maxv(row, 1, &m, vDSP_Length(V))

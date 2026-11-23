@@ -218,6 +218,20 @@ class EngineTests(unittest.TestCase):
         type_keys("\n", e)
         self.assertEqual(e.classifier.learned.weights["so"], 1)
 
+    def test_tab_flips_the_last_segment(self):
+        """Tab flips only the last segment; what is before it stays, and only that word is learned."""
+        e = make_engine()
+        type_keys("ji3so\t", e)
+        self.assertEqual(e.segments, [(0, 3, ZHUYIN), (3, 5, ZHUYIN)])
+        self.assertTrue(e.marked_text.startswith("我"))
+        self.assertEqual(type_keys("\n", e), "我內")
+        self.assertEqual(e.classifier.learned.weights, {"so": 1})
+        self.assertEqual(type_keys("ji3so\t\t\n", make_engine()), "我so")   # Tab again flips it back
+        e = make_engine()
+        type_keys("ji3so\t\b\b", e)                 # the flipped word deleted: no flip left
+        self.assertIsNone(e.forced_mode)
+        self.assertEqual(e.marked_text, "我")
+
     def test_punctuation(self):
         self.assertEqual(type_keys("hello, ", make_engine()), "hello, ")
         self.assertEqual(type_keys("su3cl3?\n", make_engine()), "你好？")

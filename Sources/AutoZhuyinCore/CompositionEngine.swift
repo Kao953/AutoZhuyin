@@ -43,12 +43,16 @@ public final class CompositionEngine {
     private func parse(_ keys: [Character]) -> ZhuyinParse { ZhuyinParser.parse(keys, strict: requireTones) }
 
     public private(set) var keys: [Character] = []
-    /// Set by Tab / a Shift tap while typing: overrides the classifier for the whole
-    /// buffer. It is a correction, learned on commit.
+    /// Set by Tab / a Shift tap while typing: overrides the classifier for the last segment
+    /// (keys from forcedStart on). It is a correction, learned on commit.
     public private(set) var forcedMode: InputMode?
     /// How many keys there were when the user flipped: that word is what gets learned, not
     /// whatever was typed after it.
     private var forcedCount = 0
+    /// Where the flipped segment starts, and the segments before it as they were when it was
+    /// flipped (they stay as they are).
+    private var forcedStart = 0
+    private var forcedPrefix: [Segment] = []
     /// English mode, toggled by a Shift tap when nothing is being typed. Keys go straight
     /// to the app (no composition, no underline) until Shift is tapped again.
     public private(set) var isEnglishMode = false
@@ -123,7 +127,7 @@ public final class CompositionEngine {
 
     private func segments(of keys: [Character], finishing: Bool = false) -> [Segment] {
         guard !keys.isEmpty else { return [] }
-        if let forced = forcedMode { return [Segment(range: 0..<keys.count, mode: forced)] }
+        if let forced = forcedMode { return forcedPrefix + [Segment(range: forcedStart..<keys.count, mode: forced)] }
         if let h = held, h < keys.count, keys[h] == " " {
             return heldSegments(keys, held: h, finishing: finishing)
         }
@@ -346,6 +350,7 @@ public final class CompositionEngine {
     private func splice(_ newKeys: [Character]) {
         guard let pos = cursor else { keys += newKeys; return }
         trimFixed(at: pos)
+        unforce(before: pos)
         keys.insert(contentsOf: newKeys, at: pos)
         if let h = held, h >= pos { held = h + newKeys.count }
         let next = pos + newKeys.count
@@ -362,6 +367,7 @@ public final class CompositionEngine {
             }
         }
         trimFixed(at: start)
+        unforce(before: start)
         keys.removeSubrange(start..<pos)
         if let h = held {
             if h >= start && h < pos { held = nil } else if h >= pos { held = h - (pos - start) }
@@ -418,7 +424,8 @@ public final class CompositionEngine {
             keys.removeLast()
             if let h = held, keys.count <= h { held = nil }
             fixed = fixed.filter { $0.key < keys.count }
-            if keys.isEmpty { forcedMode = nil; fixed = [:] }
+            if keys.count <= forcedStart { forcedMode = nil; forcedPrefix = [] }   // the flipped word is gone
+            if keys.isEmpty { fixed = [:] }
             return .consumed
         case .enter:
             guard !keys.isEmpty else { return .passThrough }
@@ -470,10 +477,23 @@ public final class CompositionEngine {
         previousCommitTime = now()
     }
 
-    /// Forces the whole buffer into the other mode (a correction that is learned).
+    /// Forces the last segment into the other mode (a correction that is learned); the ones
+    /// before it stay as they are ("ji3so" Tab: 我 stays, so → 內).
     private func flip() {
-        forcedMode = (mode == .zhuyin) ? .literal : .zhuyin
+        let segs = segments
+        guard let last = segs.last else { return }
+        forcedPrefix = Array(segs.dropLast())
+        forcedStart = last.range.lowerBound
+        forcedMode = (last.mode == .zhuyin) ? .literal : .zhuyin
         forcedCount = keys.count
+    }
+
+    /// An edit at key index pos: a flip after it no longer lines up, so drop it.
+    private func unforce(before pos: Int) {
+        if forcedMode != nil && pos < forcedStart {
+            forcedMode = nil
+            forcedPrefix = []
+        }
     }
 
     private func handleCharacter(_ c: Character) -> KeyResult {
@@ -753,7 +773,7 @@ public final class CompositionEngine {
         rememberPicks(segs)
         recentText = String((rerankContext + text).suffix(20))
         if let forced = forcedMode {
-            classifier.learned.record(String(keys.prefix(forcedCount)), as: forced)
+            classifier.learned.record(String(keys[forcedStart..<max(forcedStart, min(forcedCount, keys.count))]), as: forced)
         }
         previousMode = segs.last?.mode
         previousCommitTime = now()
@@ -791,6 +811,8 @@ public final class CompositionEngine {
         }
         forcedMode = last.mode == .zhuyin ? .literal : .zhuyin
         forcedCount = keys.count
+        forcedStart = 0
+        forcedPrefix = []
         return commitFlippable()
     }
 
@@ -824,6 +846,8 @@ public final class CompositionEngine {
         pendingPunctuation = nil
         cursor = nil
         forcedMode = nil
+        forcedStart = 0
+        forcedPrefix = []
         fixed = [:]
         candidates = []
         isSymbolTable = false

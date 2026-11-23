@@ -29,8 +29,12 @@ class CompositionEngine(
     var contextWindow = 20.0
 
     val keys = mutableListOf<String>()
+    /** Tab flips the last segment: keys from forcedStart on are forced into forcedMode. */
     private var forcedMode: Mode? = null
     private var forcedCount = 0
+    private var forcedStart = 0
+    /** The segments before the flipped one, as they were when it was flipped (they stay). */
+    private var forcedPrefix: List<Segment> = emptyList()
     /** English mode, toggled by a Shift tap when nothing is being typed: keys go straight to the app. */
     var englishMode = false
         private set
@@ -91,7 +95,7 @@ class CompositionEngine(
 
     private fun segments(keys: List<String>, finishing: Boolean = false): List<Segment> {
         if (keys.isEmpty()) return emptyList()
-        forcedMode?.let { return listOf(Segment(0, keys.size, it)) }
+        forcedMode?.let { return forcedPrefix + Segment(forcedStart, keys.size, it) }
         val ctx = context
         val h = held?.takeIf { it < keys.size && keys[it] == " " }
         val key = CacheKey(keys.toList(), finishing, ctx, h)
@@ -286,6 +290,7 @@ class CompositionEngine(
     private fun splice(newKeys: List<String>) {
         val pos = cursor ?: keys.size
         trimFixed(pos)
+        unforceBefore(pos)
         keys.addAll(pos, newKeys)
         held?.let { if (it >= pos) held = it + newKeys.size }
         val c = pos + newKeys.size
@@ -304,6 +309,7 @@ class CompositionEngine(
             }
         }
         trimFixed(start)
+        unforceBefore(start)
         keys.subList(start, pos).clear()
         held?.let {
             if (it in start until pos) held = null else if (it >= pos) held = it - (pos - start)
@@ -373,10 +379,25 @@ class CompositionEngine(
 
     // --- key handling ---
 
-    /** Forces the whole buffer into the other mode (a correction that is learned). */
+    /**
+     * Forces the last segment into the other mode (a correction that is learned); the ones
+     * before it stay as they are ("ji3so" Tab: 我 stays, so → 內).
+     */
     private fun flip() {
-        forcedMode = mode.other
+        val segs = segments
+        val last = segs.lastOrNull() ?: return
+        forcedPrefix = segs.dropLast(1)
+        forcedStart = last.start
+        forcedMode = last.mode.other
         forcedCount = keys.size   // that word is learned, not what is typed after it
+    }
+
+    /** An edit at key index pos: a flip after it no longer lines up, so drop it. */
+    private fun unforceBefore(pos: Int) {
+        if (forcedMode != null && pos < forcedStart) {
+            forcedMode = null
+            forcedPrefix = emptyList()
+        }
     }
 
     /** Whether handle(key) would consume the key, without changing state. */
@@ -410,10 +431,11 @@ class CompositionEngine(
                 keys.removeAt(keys.size - 1)
                 held?.let { if (keys.size <= it) held = null }
                 fixed = fixed.filterKeys { it < keys.size }.toMutableMap()
-                if (keys.isEmpty()) {
-                    forcedMode = null
-                    fixed = mutableMapOf()
+                if (keys.size <= forcedStart) {
+                    forcedMode = null   // the flipped word is gone
+                    forcedPrefix = emptyList()
                 }
+                if (keys.isEmpty()) fixed = mutableMapOf()
                 return KeyResult.CONSUMED
             }
             ENTER -> {
@@ -689,7 +711,10 @@ class CompositionEngine(
         rememberPicks(segs)
         val ctx = if (now() - previousTime < contextWindow) recentText else ""
         recentText = (ctx + text).takeLast(20)
-        forcedMode?.let { classifier.learned.record(keys.subList(0, forcedCount).joinToString(""), it) }
+        forcedMode?.let {
+            val end = forcedCount.coerceIn(forcedStart, keys.size)   // Backspace may have shortened it
+            classifier.learned.record(keys.subList(forcedStart, end).joinToString(""), it)
+        }
         previousMode = segs.lastOrNull()?.mode
         previousTime = now()
         reset()
@@ -730,6 +755,8 @@ class CompositionEngine(
         }
         forcedMode = last.mode.other
         forcedCount = keys.size
+        forcedStart = 0
+        forcedPrefix = emptyList()
         return commitFlippable()
     }
 
@@ -763,6 +790,8 @@ class CompositionEngine(
         punct = null
         cursor = null
         forcedMode = null
+        forcedStart = 0
+        forcedPrefix = emptyList()
         fixed = mutableMapOf()
         candidates = emptyList()
         symbolTable = false

@@ -184,6 +184,22 @@ final class EngineTests: XCTestCase {
         return out
     }
 
+    /// Tab flips only the last segment; what is before it stays, and only that word is learned.
+    func testTabFlipsTheLastSegment() {
+        let e = makeEngine()
+        _ = type("ji3so\t", into: e)
+        XCTAssertEqual(e.segments.map(\.range), [0..<3, 3..<5])
+        XCTAssertTrue(e.markedText.hasPrefix("我"))
+        XCTAssertEqual(type("\n", into: e), "我內")
+        XCTAssertEqual(e.classifier.learned.weights, ["so": 1])
+        XCTAssertEqual(type("ji3so\t\t\n", into: makeEngine()), "我so")   // Tab again flips it back
+        // Backspace after a flip, then commit: the learned word is what is left of it.
+        let f = makeEngine()
+        _ = type("so\t", into: f)
+        _ = f.handle(.backspace)
+        XCTAssertEqual(f.handle(.enter).commit?.count, 1)
+    }
+
     /// The menu-bar input mode can switch English mode directly.
     func testSetEnglishMode() {
         let e = makeEngine()

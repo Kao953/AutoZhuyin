@@ -80,8 +80,12 @@ class CompositionEngine:
         self.converter = Converter(classifier.lexicon, classifier.history)
         self.now = now
         self.keys = []
+        # Tab flips the last segment: keys[forced_start:] are forced into forced_mode, the
+        # segments before it (forced_prefix) stay as they were when it was flipped.
         self.forced_mode = None
         self.forced_count = 0
+        self.forced_start = 0
+        self.forced_prefix = []
         # English mode, toggled by a Shift tap when nothing is being typed: keys go straight
         # to the app (no composition, no underline) until Shift is tapped again.
         self.english_mode = False
@@ -128,7 +132,7 @@ class CompositionEngine:
         if not keys:
             return []
         if self.forced_mode:
-            return [(0, len(keys), self.forced_mode)]
+            return self.forced_prefix + [(self.forced_start, len(keys), self.forced_mode)]
         ctx = self.context
         held = self.held if self.held is not None and self.held < len(keys) and keys[self.held] == " " else None
         cache_key = (tuple(keys), finishing, ctx, held)
@@ -344,6 +348,7 @@ class CompositionEngine:
         """Inserts keys at the cursor and moves the cursor after them."""
         pos = self.cursor
         self._trim_fixed(pos)
+        self._unforce_before(pos)
         self.keys[pos:pos] = new_keys
         if self.held is not None and self.held >= pos:
             self.held += len(new_keys)
@@ -361,6 +366,7 @@ class CompositionEngine:
                     if seg[0] + ps.end == pos:
                         start = seg[0] + ps.start
         self._trim_fixed(start)
+        self._unforce_before(start)
         del self.keys[start:pos]
         if self.held is not None:
             if start <= self.held < pos:
@@ -426,9 +432,20 @@ class CompositionEngine:
     # --- key handling ---
 
     def _flip(self):
-        """Forces the whole buffer into the other mode (a correction that is learned)."""
-        self.forced_mode = LITERAL if self.mode == ZHUYIN else ZHUYIN
+        """Forces the last segment into the other mode (a correction that is learned); the
+        ones before it stay as they are ("ji3so" Tab: 我 stays, so → 內)."""
+        segs = self.segments
+        start, _, mode = segs[-1]
+        self.forced_prefix = segs[:-1]
+        self.forced_start = start
+        self.forced_mode = LITERAL if mode == ZHUYIN else ZHUYIN
         self.forced_count = len(self.keys)   # that word is learned, not what is typed after it
+
+    def _unforce_before(self, pos):
+        """An edit at key index pos: a flip after it no longer lines up, so drop it."""
+        if self.forced_mode and pos < self.forced_start:
+            self.forced_mode = None
+            self.forced_prefix = []
 
     def wants(self, key):
         """Whether handle(key) would consume the key, without changing state."""
@@ -473,8 +490,10 @@ class CompositionEngine:
             if self.held is not None and len(self.keys) <= self.held:
                 self.held = None
             self.fixed = {k: v for k, v in self.fixed.items() if k < len(self.keys)}
+            if len(self.keys) <= self.forced_start:
+                self.forced_mode = None   # the flipped word is gone
+                self.forced_prefix = []
             if not self.keys:
-                self.forced_mode = None
                 self.fixed = {}
             return CONSUMED
         if key == ENTER:
@@ -734,7 +753,7 @@ class CompositionEngine:
         self._remember_picks(segs)
         self._recent_text = (self._rerank_context() + text)[-20:]
         if self.forced_mode:
-            self.classifier.learned.record("".join(self.keys[:self.forced_count]), self.forced_mode)
+            self.classifier.learned.record("".join(self.keys[self.forced_start:self.forced_count]), self.forced_mode)
         self._previous_mode = segs[-1][2] if segs else None
         self._previous_time = self.now()
         self.reset()
@@ -773,6 +792,7 @@ class CompositionEngine:
                 self.keys.pop()   # first-tone spaces aren't English
         self.forced_mode = LITERAL if mode == ZHUYIN else ZHUYIN
         self.forced_count = len(self.keys)
+        self.forced_start, self.forced_prefix = 0, []
         return self._commit_flippable()
 
     def forget_last_commit(self):
@@ -802,6 +822,8 @@ class CompositionEngine:
         self.punct = None
         self.cursor = None
         self.forced_mode = None
+        self.forced_start = 0
+        self.forced_prefix = []
         self.fixed = {}
         self.candidates = []
         self.symbol_table = False

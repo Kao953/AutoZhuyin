@@ -245,6 +245,19 @@ class EngineTests {
 
     @Test fun enterCommitsEnglish() = assertEquals("github", typeKeys("github\n", makeEngine()))
 
+    /** Tab flips only the last segment; what is before it stays, and only that word is learned. */
+    @Test fun tabFlipsTheLastSegment() {
+        val e = makeEngine()
+        typeKeys("ji3so\t", e)
+        assertEquals(listOf(0 to 3, 3 to 5), e.segments.map { it.start to it.end })
+        assertTrue(e.markedText.startsWith("我"))
+        assertEquals("我內", typeKeys("\n", e))
+        assertEquals(mapOf("so" to 1), e.classifier.learned.weights.toMap())
+        assertEquals("我so", typeKeys("ji3so\t\t\n", makeEngine()))   // Tab again flips it back
+        // Backspace after a flip, then commit: used to throw (subList past the end).
+        assertEquals(1, typeKeys("so\t\b\n", makeEngine()).length)
+    }
+
     /** Tab right after a commit retypes it in the other mode and learns the correction. */
     @Test fun flipLastCommit() {
         val e = makeEngine()

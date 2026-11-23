@@ -167,7 +167,7 @@ class CompositionEngine:
         Any Dachen keys count, not only letters: "0" is ㄢ (安), "5j;" is ㄓㄨㄤ (裝)."""
         if not all(bopomofo.is_zhuyin_key(k) for k in keys):
             return False
-        p = bopomofo.parse(list(keys) + [" "])
+        p = self._parse(list(keys) + [" "])
         if p.pending is not None or not p.syllables or p.stray_tones or p.foreign_keys:
             return False
         best = []
@@ -179,6 +179,19 @@ class CompositionEngine:
         if self.context != LITERAL:
             return True    # first word: hold anything that reads as Zhuyin
         return len(best) == 1 and best[0] >= HOLD_MIN_SCORE
+
+    @property
+    def require_tones(self):
+        """要打聲調才出字: untoned syllables stay as Bopomofo, and symbols typed over one
+        correct it (see bopomofo.parse)."""
+        return self.converter.require_tones
+
+    @require_tones.setter
+    def require_tones(self, on):
+        self.converter.require_tones = bool(on)
+
+    def _parse(self, keys):
+        return bopomofo.parse(keys, strict=self.converter.require_tones)
 
     @property
     def segments(self):
@@ -200,7 +213,7 @@ class CompositionEngine:
     def _convertible(self, seg, final):
         """(syllables converted to Chinese, pending Bopomofo) for a Zhuyin segment."""
         start, end, _ = seg
-        p = bopomofo.parse(self.keys[start:end])
+        p = self._parse(self.keys[start:end])
         if final:
             return [s.syllable for s in p.syllables], ""
         return [s.syllable for s in p.completed], (p.pending.syllable.reading if p.pending else "")
@@ -228,7 +241,7 @@ class CompositionEngine:
 
     def _syllable_ends(self, seg):
         """Absolute key index after each syllable of a Zhuyin segment."""
-        return [seg[0] + ps.end for ps in bopomofo.parse(self.keys[seg[0]:seg[1]]).syllables]
+        return [seg[0] + ps.end for ps in self._parse(self.keys[seg[0]:seg[1]]).syllables]
 
     def _cursor_positions(self):
         """Key indices the cursor can stop at: after every Zhuyin syllable and at every
@@ -344,7 +357,7 @@ class CompositionEngine:
         start = pos - 1
         for seg in self.segments:
             if seg[2] == ZHUYIN and seg[0] < pos <= seg[1]:
-                for ps in bopomofo.parse(self.keys[seg[0]:seg[1]]).syllables:
+                for ps in self._parse(self.keys[seg[0]:seg[1]]).syllables:
                     if seg[0] + ps.end == pos:
                         start = seg[0] + ps.start
         self._trim_fixed(start)
@@ -581,7 +594,7 @@ class CompositionEngine:
         if not segs or segs[-1][2] != ZHUYIN:
             return None
         start, end, _ = segs[-1]
-        return bopomofo.parse(self.keys[start:end])
+        return self._parse(self.keys[start:end])
 
     def _handle_character(self, c):
         if self.cursor is not None and self.keys and (c == " " or bopomofo.is_zhuyin_key(c)):

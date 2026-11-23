@@ -44,6 +44,12 @@ enum Shared {
         return Classifier(lexicon: lexicon, english: english, learned: learned, weights: trained, history: history)
     }()
 
+    /// 要打聲調才出字: untoned syllables stay as Bopomofo, and symbols typed over one correct it.
+    static var requireTones: Bool {
+        get { UserDefaults.standard.bool(forKey: "RequireTones") }
+        set { UserDefaults.standard.set(newValue, forKey: "RequireTones") }
+    }
+
     /// Optional user phrases: ~/Library/Application Support/AutoZhuyin/user-phrases.txt
     /// (edited with "編輯自訂詞…" or by hand).
     private static var userPhrasesDate: Date?
@@ -118,6 +124,7 @@ final class InputController: IMKInputController {
         }
         guard event.type == .keyDown else { return false }
         shiftTap.keyPressed()
+        engine.requireTones = Shared.requireTones   // read each key, so the menu applies to every app at once
 
         // Ctrl + ; ' , . / → full-width ；、，。？
         if event.modifierFlags.intersection([.command, .control, .option]) == .control,
@@ -283,6 +290,8 @@ final class InputController: IMKInputController {
         let status = menu.addItem(withTitle: AI.statusText, action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(.separator())
+        let tones = menu.addItem(withTitle: "要打聲調才出字", action: #selector(toggleRequireTones(_:)), keyEquivalent: "")
+        tones.state = Shared.requireTones ? .on : .off
         menu.addItem(withTitle: "編輯自訂詞…", action: #selector(editPhrases(_:)), keyEquivalent: "")
         menu.addItem(withTitle: "清除學習紀錄", action: #selector(clearLearned(_:)), keyEquivalent: "")
         return menu
@@ -298,6 +307,8 @@ final class InputController: IMKInputController {
     @objc private func aiStandard(_ sender: Any?) { AI.setMode(.standard) }
     @objc private func aiQuality(_ sender: Any?) { AI.setMode(.quality) }
     @objc private func toggleAutoPause(_ sender: Any?) { AI.autoPause.toggle() }
+
+    @objc private func toggleRequireTones(_ sender: Any?) { Shared.requireTones.toggle() }
 
     @objc private func editPhrases(_ sender: Any?) { PhraseEditor.open() }
 

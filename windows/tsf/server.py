@@ -81,9 +81,10 @@ def _escape(s):
 class Session:
     """One text service instance (one app thread): its own composition engine."""
 
-    def __init__(self, classifier, reranker=None):
+    def __init__(self, classifier, reranker=None, require_tones=False):
         self.engine = CompositionEngine(classifier)
         self.engine.reranker = reranker
+        self.engine.require_tones = require_tones   # "require_tones" in settings.json (no menu here)
 
     def request(self, message):
         op, _, arg = message.partition("\t")
@@ -147,7 +148,7 @@ def serve():
     lock = threading.Lock()
 
     def run(conn):
-        session = Session(classifier, ai.reranker)
+        session = Session(classifier, ai.reranker, ai.require_tones)
         try:
             while True:
                 message = conn.recv_bytes().decode("utf-8")

@@ -57,6 +57,35 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(readings("xj/v "), ["ㄌㄨㄥ", "ㄒ"])     // ㄒㄨㄥ is no syllable either
     }
 
+    /// 要打聲調才出字: every syllable has its tone, so anything typed over an untoned one corrects it.
+    func testStrictTypedOver() {
+        func strict(_ keys: String) -> [String] { ZhuyinParser.parse(Array(keys), strict: true).syllables.map(\.syllable.reading) }
+        XCTAssertEqual(strict("vu/m6"), ["ㄒㄩㄥˊ"])               // ㄒㄧㄥ, ㄩ over ㄧ
+        XCTAssertEqual(ZhuyinParser.parse(Array("vu/m6")).syllables.map(\.syllable.reading), ["ㄒㄧㄥ", "ㄩˊ"])   // not strict
+        XCTAssertEqual(strict("cj/; "), ["ㄏㄨㄤ"])                // ㄏㄨㄥ, ㄤ over ㄥ
+        XCTAssertEqual(strict("xj/cj/3"), ["ㄏㄨㄥˇ"])             // the whole syllable typed again
+        XCTAssertEqual(strict("j04u "), ["ㄨㄢˋ", "ㄧ"])            // 萬一 with its tones
+        XCTAssertEqual(strict("xj/v "), ["ㄌㄨㄥ", "ㄒ"])            // ㄒㄨㄥ is no syllable: kept apart
+
+        func type(_ keys: String, strict: Bool) -> String {
+            let e = CompositionEngine(classifier: Classifier(lexicon: sharedLexicon, english: sharedEnglish, weights: sharedWeights))
+            e.requireTones = strict
+            var out = ""
+            for c in keys {
+                let r = e.handle(c == "\n" ? .enter : .character(c))
+                if let t = r.commit { out += t } else if !r.handled { out.append(c) }
+            }
+            return out
+        }
+        XCTAssertEqual(type("vu/m6\n", strict: true), "雄")
+        XCTAssertEqual(type("su3vu/m6\n", strict: true), "你雄")
+        XCTAssertEqual(type("j04u \n", strict: true), "萬一")
+        XCTAssertEqual(type("vu/m6\n", strict: false).count, 2)   // not strict: two characters, as before
+        XCTAssertEqual(type("su3cpu3\n", strict: true), "你ㄏㄣ以")   // untoned stays Bopomofo (ㄏㄧㄣ is no syllable)
+        XCTAssertEqual(type("su3cpcl3\n", strict: true), "你好")      // ㄏㄣ typed over with ㄏㄠˇ
+        XCTAssertEqual(type("su3cpcl3\n", strict: false), "你很好")
+    }
+
     /// The Bopomofo itself comes last among the candidates.
     func testBopomofoCandidates() {
         let syl = ZhuyinParser.parse(Array(";6")).syllables.map(\.syllable)

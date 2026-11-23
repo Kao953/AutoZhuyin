@@ -161,8 +161,10 @@ class ZhuyinParse:
         return self.syllables if self.pending is None else self.syllables[:-1]
 
 
-def parse(keys):
-    """Splits keystrokes into syllables (Dachen rules, out-of-order symbols merged)."""
+def parse(keys, strict=False):
+    """Splits keystrokes into syllables (Dachen rules, out-of-order symbols merged). `strict`:
+    every syllable gets its tone (要打聲調才出字), so symbols typed over an untoned syllable
+    are a correction even when they read alone (ㄒㄧㄥ then ㄩˊ is ㄒㄩㄥˊ, not ㄒㄧㄥ + ㄩˊ)."""
     result = ZhuyinParse()
     current = Syllable()
     start = 0
@@ -183,7 +185,7 @@ def parse(keys):
                 start = i + 1
             else:
                 prev = result.syllables[-1] if result.syllables else None
-                if prev is not None and prev.end == start and not prev.toned and not is_valid(current):
+                if prev is not None and prev.end == start and not prev.toned and (strict or not is_valid(current)):
                     # Typed over the untoned syllable before it to fix a typo: ㄌㄨㄥ then ㄏ
                     # and a tone is ㄏㄨㄥ, not ㄌㄨㄥ + ㄏ (which is no syllable).
                     merged = prev.syllable.copy()

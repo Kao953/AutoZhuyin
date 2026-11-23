@@ -180,12 +180,18 @@ class AutoZhuyinEngine(IBus.Engine):
             label=IBus.Text.new_from_string("編輯自訂詞…"),
             tooltip=IBus.Text.new_from_string(""), sensitive=True, visible=True,
             state=IBus.PropState.UNCHECKED)
+        self.tones_prop = IBus.Property(
+            key="tones", prop_type=IBus.PropType.TOGGLE,
+            label=IBus.Text.new_from_string("要打聲調才出字"),
+            tooltip=IBus.Text.new_from_string("沒打聲調的音節維持注音；還沒打聲調時補打注音會蓋掉前面的"),
+            sensitive=True, visible=True,
+            state=IBus.PropState.CHECKED if ai.require_tones else IBus.PropState.UNCHECKED)
         self.clear_prop = IBus.Property(
             key="clear", prop_type=IBus.PropType.NORMAL,
             label=IBus.Text.new_from_string("清除學習紀錄"),
             tooltip=IBus.Text.new_from_string(""), sensitive=True, visible=True,
             state=IBus.PropState.UNCHECKED)
-        for prop in (self.pause_prop, self.status_prop, self.phrases_prop, self.clear_prop):
+        for prop in (self.pause_prop, self.status_prop, self.tones_prop, self.phrases_prop, self.clear_prop):
             sub.append(prop)
         self.ai_menu = IBus.Property(
             key="ai", prop_type=IBus.PropType.MENU,
@@ -200,6 +206,7 @@ class AutoZhuyinEngine(IBus.Engine):
 
     def do_process_key_event(self, keyval, keycode, state):
         self._setup()
+        self.engine.require_tones = shared_ai().require_tones
         released = bool(state & IBus.ModifierType.RELEASE_MASK)
 
         # Shift pressed and released alone: English mode (or flip the current word).
@@ -310,6 +317,8 @@ class AutoZhuyinEngine(IBus.Engine):
                 ai.set_mode(prop_name[3:])
         elif prop_name == "ai.autopause":
             ai.set_auto_pause(state == IBus.PropState.CHECKED)
+        elif prop_name == "tones":
+            ai.set_require_tones(state == IBus.PropState.CHECKED)
         elif prop_name == "phrases":
             # A separate process, so the editor can be typed into with this engine.
             subprocess.Popen([sys.executable, os.path.join(HERE, "phrase_editor.py"), _USER_PHRASES,
@@ -326,6 +335,8 @@ class AutoZhuyinEngine(IBus.Engine):
             self.update_property(prop)
         self.pause_prop.set_state(IBus.PropState.CHECKED if ai.auto_pause else IBus.PropState.UNCHECKED)
         self.update_property(self.pause_prop)
+        self.tones_prop.set_state(IBus.PropState.CHECKED if ai.require_tones else IBus.PropState.UNCHECKED)
+        self.update_property(self.tones_prop)
         self.status_prop.set_label(IBus.Text.new_from_string(ai.status_text()))
         self.update_property(self.status_prop)
 

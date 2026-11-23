@@ -99,6 +99,28 @@ class ParserTests(unittest.TestCase):
         e.handle(DOWN)
         self.assertEqual([t for _, t in e.candidates].count("ㄥ"), 1)   # first tone: no mark, once
 
+    def test_strict_typed_over(self):
+        """要打聲調才出字: every syllable has its tone, so anything typed over an untoned one corrects it."""
+        def strict(keys):
+            return [s.syllable.reading for s in bopomofo.parse(list(keys), strict=True).syllables]
+        self.assertEqual(strict("vu/m6"), ["ㄒㄩㄥˊ"])               # ㄒㄧㄥ, ㄩ over ㄧ
+        self.assertEqual(strict("cj/; "), ["ㄏㄨㄤ"])                # ㄏㄨㄥ, ㄤ over ㄥ
+        self.assertEqual(strict("xj/cj/3"), ["ㄏㄨㄥˇ"])             # the whole syllable typed again
+        self.assertEqual(strict("j04u "), ["ㄨㄢˋ", "ㄧ"])            # 萬一 with its tones
+        self.assertEqual(strict("xj/v "), ["ㄌㄨㄥ", "ㄒ"])            # ㄒㄨㄥ is no syllable: kept apart
+
+        def typed(keys, on):
+            e = make_engine()
+            e.require_tones = on
+            return type_keys(keys, e)
+        self.assertEqual(typed("vu/m6\n", True), "雄")
+        self.assertEqual(typed("su3vu/m6\n", True), "你雄")
+        self.assertEqual(typed("j04u \n", True), "萬一")
+        self.assertEqual(len(typed("vu/m6\n", False)), 2)   # not strict: two characters, as before
+        self.assertEqual(typed("su3cpu3\n", True), "你ㄏㄣ以")   # untoned stays Bopomofo (ㄏㄧㄣ is no syllable)
+        self.assertEqual(typed("su3cpcl3\n", True), "你好")      # ㄏㄣ typed over with ㄏㄠˇ
+        self.assertEqual(typed("su3cpcl3\n", False), "你很好")
+
     def test_typed_over_converts(self):
         self.assertEqual(type_keys("xj/c \n", make_engine()), "轟")
 

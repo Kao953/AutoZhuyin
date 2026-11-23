@@ -47,7 +47,7 @@ _phrases = None   # UserPhrasesFile
 _loaded = threading.Event()   # set when the background load (below) has finished
 _load_error = None
 
-ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR, ID_EDIT_PHRASES = 1, 2, 3, 4, 5
+ID_MODE_ICON, ID_AUTO_PAUSE, ID_STATUS, ID_CLEAR, ID_EDIT_PHRASES, ID_REQUIRE_TONES = 1, 2, 3, 4, 5, 6
 ID_AI_MODE = {mode: 10 + i for i, mode in enumerate(MODES)}   # 10..13
 _ICON = os.path.join(_HERE, "icon.ico")
 _ICON_EN = os.path.join(_HERE, "icon-en.ico")     # shown while English mode is on
@@ -164,6 +164,7 @@ class AutoZhuyinTextService(TextService):
         if self._engine is None:
             engine = CompositionEngine(_shared_classifier())
             engine.reranker = _shared_ai().reranker
+            engine.require_tones = _shared_ai().require_tones
             self._engine = engine
         return self._engine
 
@@ -174,6 +175,8 @@ class AutoZhuyinTextService(TextService):
 
     def onActivate(self):
         TextService.onActivate(self)
+        if self._engine is not None:
+            self._engine.require_tones = _shared_ai().require_tones   # changed in another app
         self.setSelKeys("123456789")
         self.customizeUI(candFontSize=16, candPerRow=1, candUseCursor=True)
         # Taskbar IME icon (Windows 8+) and language bar button; both open the settings menu.
@@ -226,6 +229,7 @@ class AutoZhuyinTextService(TextService):
             {"text": "系統忙碌時自動暫停 AI", "id": ID_AUTO_PAUSE, "checked": ai.auto_pause},
             {"text": ai.status_text(), "id": ID_STATUS, "enabled": False},
             {},
+            {"text": "要打聲調才出字", "id": ID_REQUIRE_TONES, "checked": ai.require_tones},
             {"text": "編輯自訂詞…", "id": ID_EDIT_PHRASES},
             {"text": "清除學習紀錄", "id": ID_CLEAR},
         ]
@@ -248,6 +252,9 @@ class AutoZhuyinTextService(TextService):
             os.startfile(_phrases.ensure_exists())
         elif commandId == ID_AUTO_PAUSE:
             ai.set_auto_pause(not ai.auto_pause)
+        elif commandId == ID_REQUIRE_TONES:
+            ai.set_require_tones(not ai.require_tones)
+            self.engine.require_tones = ai.require_tones
         elif commandId == ID_CLEAR:
             _shared_classifier().learned.clear()
             _shared_classifier().history.clear()

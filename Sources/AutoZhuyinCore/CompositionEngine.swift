@@ -32,7 +32,15 @@ public struct MarkedPiece: Equatable {
 /// forces the whole buffer into the other mode and the correction is learned.
 public final class CompositionEngine {
     public let classifier: Classifier
-    public let converter: Converter
+    public private(set) var converter: Converter
+    /// 要打聲調才出字: untoned syllables stay as Bopomofo, and symbols typed over one correct
+    /// it (see ZhuyinParser.parse).
+    public var requireTones: Bool {
+        get { converter.requireTones }
+        set { converter.requireTones = newValue }
+    }
+
+    private func parse(_ keys: [Character]) -> ZhuyinParse { ZhuyinParser.parse(keys, strict: requireTones) }
 
     public private(set) var keys: [Character] = []
     /// Set by Tab / a Shift tap while typing: overrides the classifier for the whole
@@ -152,7 +160,7 @@ public final class CompositionEngine {
     /// keys count, not only letters: "0" is ㄢ (安), "5j;" is ㄓㄨㄤ (裝).
     private func isAmbiguousWord(_ keys: [Character]) -> Bool {
         guard keys.allSatisfy(DachenLayout.isZhuyinKey) else { return false }
-        let p = ZhuyinParser.parse(keys + [" "])
+        let p = parse(keys + [" "])
         guard p.pending == nil, !p.syllables.isEmpty, p.strayTones == 0, p.foreignKeys == 0 else { return false }
         var best: [Double] = []
         for ps in p.syllables {
@@ -215,7 +223,7 @@ public final class CompositionEngine {
     /// Syllables of a Zhuyin segment that are converted to Chinese (all of them when
     /// final, otherwise the finished ones).
     private func convertibleSyllables(_ seg: Segment, final: Bool) -> (syllables: [Syllable], pending: String) {
-        let p = ZhuyinParser.parse(Array(keys[seg.range]))
+        let p = parse(Array(keys[seg.range]))
         if final { return (p.syllables.map(\.syllable), "") }
         return (p.completed.map(\.syllable), p.pending?.syllable.reading ?? "")
     }
@@ -237,7 +245,7 @@ public final class CompositionEngine {
 
     /// Absolute key index after each syllable of a Zhuyin segment.
     private func syllableEnds(_ seg: Segment) -> [Int] {
-        ZhuyinParser.parse(Array(keys[seg.range])).syllables.map { seg.range.lowerBound + $0.keyRange.upperBound }
+        parse(Array(keys[seg.range])).syllables.map { seg.range.lowerBound + $0.keyRange.upperBound }
     }
 
     /// Key indices the cursor can stop at: after every Zhuyin syllable and at every segment
@@ -348,7 +356,7 @@ public final class CompositionEngine {
     private func deleteBeforeCursor(_ pos: Int) {
         var start = pos - 1
         for seg in segments where seg.mode == .zhuyin && seg.range.lowerBound < pos && pos <= seg.range.upperBound {
-            for ps in ZhuyinParser.parse(Array(keys[seg.range])).syllables
+            for ps in parse(Array(keys[seg.range])).syllables
             where seg.range.lowerBound + ps.keyRange.upperBound == pos {
                 start = seg.range.lowerBound + ps.keyRange.lowerBound
             }
@@ -530,7 +538,7 @@ public final class CompositionEngine {
 
     private func parse(ofLast segs: [Segment]) -> ZhuyinParse? {
         guard let last = segs.last, last.mode == .zhuyin else { return nil }
-        return ZhuyinParser.parse(Array(keys[last.range]))
+        return parse(Array(keys[last.range]))
     }
 
     private func afterBacktick(_ key: KeyInput) -> KeyResult {

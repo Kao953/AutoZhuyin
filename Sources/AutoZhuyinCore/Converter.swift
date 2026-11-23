@@ -19,6 +19,9 @@ public struct Converter {
     static let unknownScore = -30.0
     /// Penalty for matching an untoned syllable against all tones.
     static let tonelessPenalty = -1.5
+    /// Syllables typed without a tone stay as Bopomofo (no characters, no candidates) until
+    /// the tone is typed.
+    public var requireTones = false
 
     public init(lexicon: Lexicon, history: UserHistory? = nil) {
         self.lexicon = lexicon
@@ -26,6 +29,7 @@ public struct Converter {
     }
 
     private func entries(_ syllables: [Syllable]) -> [LexiconEntry] {
+        if requireTones && syllables.contains(where: { $0.tone == nil }) { return [] }
         let e = lexicon.entries(for: syllables)
         return history?.adjust(syllables, e) ?? e
     }

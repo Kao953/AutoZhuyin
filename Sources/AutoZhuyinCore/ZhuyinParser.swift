@@ -33,7 +33,9 @@ public struct ZhuyinParse: Equatable {
 /// symbols fill initial → medial → final; a symbol whose slot (or a later one)
 /// is already filled starts a new syllable; a tone key closes the syllable.
 public enum ZhuyinParser {
-    public static func parse(_ keys: [Character]) -> ZhuyinParse {
+    /// `strict`: every syllable gets its tone (要打聲調才出字), so symbols typed over an untoned
+    /// syllable are a correction even when they read alone (ㄒㄧㄥ then ㄩˊ is ㄒㄩㄥˊ).
+    public static func parse(_ keys: [Character], strict: Bool = false) -> ZhuyinParse {
         var result = ZhuyinParse(syllables: [], strayTones: 0, foreignKeys: 0)
         var current = Syllable()
         var start = 0
@@ -55,7 +57,7 @@ public enum ZhuyinParser {
                     start = i + 1
                 } else {
                     if let prev = result.syllables.last, prev.keyRange.upperBound == start, !prev.toned,
-                       !SyllableTable.isValid(current) {
+                       strict || !SyllableTable.isValid(current) {
                         // Typed over the untoned syllable before it to fix a typo: ㄌㄨㄥ then ㄏ
                         // and a tone is ㄏㄨㄥ, not ㄌㄨㄥ + ㄏ (which is no syllable).
                         var merged = prev.syllable

@@ -142,8 +142,13 @@ class Converter:
     def __init__(self, lexicon, history=None):
         self.lexicon = lexicon
         self.history = history   # UserHistory: picked candidates come first
+        # Syllables typed without a tone stay as Bopomofo (no characters, no candidates) until
+        # the tone is typed.
+        self.require_tones = False
 
     def _entries(self, syllables):
+        if self.require_tones and any(s.tone is None for s in syllables):
+            return []
         entries = self.lexicon.entries(syllables)
         return self.history.adjust(syllables, entries) if self.history else entries
 

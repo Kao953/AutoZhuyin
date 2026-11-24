@@ -244,6 +244,11 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(type_keys("hello, ", make_engine()), "hello, ")
         self.assertEqual(type_keys("su3cl3?\n", make_engine()), "你好？")
 
+    def test_three_dots_are_an_ellipsis(self):
+        self.assertEqual(type_keys("ji3...", make_engine()), "我…")
+        self.assertEqual(type_keys("su3cl3......", make_engine()), "你好……")
+        self.assertEqual(type_keys("hello...", make_engine()), "hello...")
+
     def test_candidates(self):
         e = make_engine()
         type_keys("su3", e)

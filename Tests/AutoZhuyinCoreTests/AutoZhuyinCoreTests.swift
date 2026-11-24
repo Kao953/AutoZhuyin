@@ -296,6 +296,12 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(type("hello, ", into: e), "hello, ")
     }
 
+    func testThreeDotsAreAnEllipsis() {
+        XCTAssertEqual(type("ji3...", into: makeEngine()), "我…")
+        XCTAssertEqual(type("su3cl3......", into: makeEngine()), "你好……")
+        XCTAssertEqual(type("hello...", into: makeEngine()), "hello...")
+    }
+
     func testFullwidthPunctuationAfterChinese() {
         let e = makeEngine()
         XCTAssertEqual(type("su3cl3?\n", into: e), "你好？")

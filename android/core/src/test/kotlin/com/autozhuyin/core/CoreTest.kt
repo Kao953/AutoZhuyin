@@ -312,6 +312,12 @@ class EngineTests {
         assertEquals("你好？", typeKeys("su3cl3?\n", makeEngine()))
     }
 
+    @Test fun threeDotsAreAnEllipsis() {
+        assertEquals("我…", typeKeys("ji3...", makeEngine()))
+        assertEquals("你好……", typeKeys("su3cl3......", makeEngine()))
+        assertEquals("hello...", typeKeys("hello...", makeEngine()))
+    }
+
     @Test fun candidates() {
         val e = makeEngine()
         typeKeys("su3", e)

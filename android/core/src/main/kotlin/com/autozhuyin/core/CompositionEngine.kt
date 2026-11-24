@@ -52,6 +52,8 @@ class CompositionEngine(
     private var punctGuess = false
     /** Picked with ↓, shown instead. */
     private var punctChoice: String? = null
+    /** The last key was a "." sent as English punctuation: more dots follow it ("hello..."). */
+    private var afterEnglishDot = false
     /** Zhuyin segment start -> {syllable range: picked text}. */
     private var fixed = mutableMapOf<Int, MutableMap<Span, String>>()
     var candidates: List<Piece> = emptyList()
@@ -447,6 +449,8 @@ class CompositionEngine(
 
     fun handle(key: String): KeyResult {
         lastCommit = null
+        if (key == "." && afterEnglishDot && keys.isEmpty()) return KeyResult(true, ".")
+        afterEnglishDot = false
         if (candidates.isNotEmpty()) return handleCandidateKey(key)
         if (backtick) return afterBacktick(key)
         if (punct != null) return afterPunct(key)
@@ -626,12 +630,28 @@ class CompositionEngine(
             return KeyResult(true, commitFlippable(segs))
         }
 
+        // "...": ㄡㄡㄡ is never meant. An ellipsis (…) in Chinese, three dots in English.
+        if (c == "." && forcedMode == null && keys.size >= 2 && keys.takeLast(2).all { it == "." }) {
+            keys.removeAt(keys.size - 1)
+            keys.removeAt(keys.size - 1)
+            val chinese = if (keys.isEmpty()) context != Mode.LITERAL else segments.last().mode == Mode.ZHUYIN
+            val text = if (keys.isEmpty()) "" else commit()
+            reset()
+            previousMode = if (chinese) Mode.ZHUYIN else Mode.LITERAL
+            previousTime = now()
+            afterEnglishDot = !chinese
+            return KeyResult(true, text + if (chinese) "…" else "...")
+        }
+
         val composable = Bopomofo.isZhuyinKey(c) || isAsciiLetter(c) || (c == "'" && keys.isNotEmpty())
         if (composable) {
             // ", . / ; -" are Zhuyin symbols but act as punctuation after an English word.
-            if (keys.isNotEmpty() && c in Bopomofo.SYMBOLS && !c[0].isLetterOrDigit() && forcedMode != Mode.ZHUYIN) {
+            // A second "." waits for a third (an ellipsis).
+            if (keys.isNotEmpty() && c in Bopomofo.SYMBOLS && !c[0].isLetterOrDigit() && forcedMode != Mode.ZHUYIN &&
+                !(c == "." && keys.last() == ".")) {
                 val withKey = segments(keys + c)
                 if (withKey.last().mode == Mode.LITERAL && !keys.all { k -> k[0].isDigit() }) {
+                    afterEnglishDot = c == "."
                     return KeyResult(true, commit() + c)
                 }
             }

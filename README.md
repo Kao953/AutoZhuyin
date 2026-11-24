@@ -47,7 +47,7 @@ PKG 會裝到 `/Library/Input Methods/`，系統上所有使用者都能用。
 2. 設定 → 時間與語言 → 語言與地區 → 中文(台灣) → 語言選項 → 新增鍵盤 → **自動注音 AutoZhuyin**。
 3. 用 Win + 空白鍵 切換過去。清單裡沒出現的話，重新開機一次。
 
-SmartScreen 出現警告時，按「其他資訊 → 仍要執行」（安裝程式的簽章見 [Code signing policy](#程式碼簽章政策code-signing-policy)）。解除安裝：「設定 → 應用程式」裡的「自動注音 AutoZhuyin」（PIME 會留著，不需要的話另外移除）。
+SmartScreen 出現警告時，按「其他資訊 → 仍要執行」（安裝程式沒有數位簽章）。解除安裝：「設定 → 應用程式」裡的「自動注音 AutoZhuyin」（PIME 會留著，不需要的話另外移除）。
 也可以用 zip 版手動安裝：先裝好 PIME，解壓縮 `AutoZhuyin-Windows-<版本>.zip`，以系統管理員身分執行 `install.bat`（移除用 `uninstall.bat`）。
 
 **安裝時被防毒軟體擋下？** 自動注音是個人開發的免費軟體，沒有花錢買微軟認證的「數位簽章」，所以 Windows 內建的防毒（Microsoft Defender）有時會誤以為它是病毒，把安裝檔刪掉或不讓它執行。確定檔案是從本專案的 [GitHub 下載頁](https://github.com/Kao953/AutoZhuyin/releases)下載的，就可以照下面的步驟暫時關閉防護，裝完再打開：
@@ -432,18 +432,9 @@ THIRD_PARTY_LICENSES.txt      第三方授權聲明（會打包進三個平台�
 - [x] 使用者詞頻學習（選過的候選字優先）
 - [ ] 偏好設定視窗（已有自訂詞編輯：macOS、Linux 是視窗，Windows 用記事本）
 
-## 程式碼簽章政策（Code signing policy）
+## 隱私（Privacy policy）
 
-Windows 安裝程式（`AutoZhuyin-Windows-<版本>-setup.exe`、`AutoZhuyin-Windows-Standalone-<版本>-setup.exe`）正在申請 SignPath Foundation 的免費開源簽章，通過後的版本會帶有數位簽章：
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)
-
-- 只簽本專案原始碼由 GitHub Actions（`.github/workflows/release.yml`）自動建置出來的檔案；每一次簽章都要由核准者手動同意。
-- Committers and reviewers: [Kao953](https://github.com/Kao953)
-- Approvers: [Kao953](https://github.com/Kao953)
-- 安裝程式內附的第三方程式（PIME 官方安裝程式、Python、NumPy）維持原作者發布的樣子，沒有用本專案的憑證重新簽章。
-
-**隱私（Privacy policy）**：This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
 
 自動注音只在兩種情況連網，而且都由使用者自己啟動：在設定裡選擇下載高品質 AI 選字模型（從本專案的 GitHub Releases 下載），以及 Linux 版安裝時下載 NumPy（從 PyPI）。打字內容、學習紀錄和自訂詞都只存在你的電腦上，不會傳到任何地方（詳見[個人資料](#個人資料)）。
 

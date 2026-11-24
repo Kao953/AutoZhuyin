@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath artifact configuration "windows-installers" (paste into the SignPath project;
+  kept here for review). The GitHub artifact "AutoZhuyin-Windows-unsigned" is a zip with
+  the two NSIS installers built by .github/workflows/release.yml:
+    AutoZhuyin-Windows-<version>-setup.exe             (PIME version)
+    AutoZhuyin-Windows-Standalone-<version>-setup.exe  (stand-alone, experimental)
+  Both set ProductName "自動注音 AutoZhuyin" and ProductVersion <version>
+  (windows/installer/setup.nsi, windows/tsf/setup.nsi).
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="AutoZhuyin-Windows-*-setup.exe" max-matches="2" product-name="自動注音 AutoZhuyin">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

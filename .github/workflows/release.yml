@@ -14,6 +14,12 @@
 # Android signing: set the repository secrets ANDROID_KEYSTORE_BASE64 (base64 of the
 # .jks file), ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD.
 # Without them the APK is debug-signed and only kept in test builds, not released.
+#
+# Windows signing (SignPath Foundation, free for open source): set the repository
+# variable SIGNPATH_ORGANIZATION_ID and the secret SIGNPATH_API_TOKEN. Then each tagged
+# release submits both setup.exe files to SignPath, waits for an approver to accept the
+# request on signpath.io, and publishes the signed files. Without them, or in test
+# builds, the installers stay unsigned. See README "Code signing policy".
 name: Release
 
 on:
@@ -36,7 +42,7 @@ concurrency:
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 120   # includes waiting for the SignPath approval
     env:
       TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
     steps:
@@ -117,6 +123,38 @@ jobs:
           fi
           scripts/package-android.sh
 
+      - name: Upload Windows installers for signing
+        id: unsigned
+        if: env.TAG != '' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoZhuyin-Windows-unsigned
+          path: build/AutoZhuyin-Windows-*-setup.exe
+          if-no-files-found: error
+
+      - name: Sign Windows installers (SignPath)
+        if: steps.unsigned.outcome == 'success'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: AutoZhuyin
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: windows-installers
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 5400
+          output-artifact-directory: build/signed
+
+      - name: Use the signed Windows installers
+        if: steps.unsigned.outcome == 'success'
+        run: |
+          ls -l build/signed
+          for f in build/signed/*-setup.exe; do
+            test -f "build/$(basename "$f")"
+            cp "$f" build/
+          done
+
       - name: Collect files
         run: |
           mkdir -p dist
@@ -147,6 +185,8 @@ jobs:
           # This version's section of CHANGELOG.md, above GitHub's generated compare link.
           awk -v tag="$TAG" '/^## / { if (s) exit; if (index($0, "## " tag "（") == 1) { s = 1; next } } s' \
             CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          printf '\n---\n[Code signing policy](https://github.com/%s#程式碼簽章政策code-signing-policy)\n' \
+            "$GITHUB_REPOSITORY" >> "$RUNNER_TEMP/notes.md"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else

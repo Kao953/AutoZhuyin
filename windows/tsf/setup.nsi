@@ -22,7 +22,7 @@ ShowInstDetails show
 ShowUninstDetails show
 
 VIProductVersion "${VERSION}.0"
-VIAddVersionKey /LANG=1028 "ProductName" "自動注音（獨立版）"
+VIAddVersionKey /LANG=1028 "ProductName" "自動注音 AutoZhuyin"
 VIAddVersionKey /LANG=1028 "FileDescription" "自動注音（獨立版）安裝程式"
 VIAddVersionKey /LANG=1028 "FileVersion" "${VERSION}"
 VIAddVersionKey /LANG=1028 "ProductVersion" "${VERSION}"

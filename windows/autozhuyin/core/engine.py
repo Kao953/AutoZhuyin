@@ -97,6 +97,7 @@ class CompositionEngine:
         self._punct_fullwidth = False
         self._punct_guess = False     # what _punct_fullwidth started as
         self._punct_choice = None     # picked with ↓, shown instead
+        self._after_english_dot = False   # the last key was a "." sent as English punctuation
         self.fixed = {}          # zhuyin segment start -> {(syl_start, syl_end): text}
         self.candidates = []
         self.symbol_table = False   # candidates are the "`" + space symbol table
@@ -499,6 +500,9 @@ class CompositionEngine:
 
     def handle(self, key):
         self._last_commit = None
+        if key == "." and self._after_english_dot and not self.keys:
+            return True, "."   # "hello..."
+        self._after_english_dot = False
         if self.candidates:
             return self._handle_candidate_key(key)
         if self.backtick:
@@ -676,12 +680,26 @@ class CompositionEngine:
                 return CONSUMED
             return True, self._commit_flippable(segs)
 
+        # "...": ㄡㄡㄡ is never meant. An ellipsis (…) in Chinese, three dots in English.
+        if c == "." and self.forced_mode is None and self.keys[-2:] == [".", "."]:
+            del self.keys[-2:]
+            chinese = self.context != LITERAL if not self.keys else self.mode == ZHUYIN
+            text = self._commit() if self.keys else ""
+            self.reset()
+            self._previous_mode = ZHUYIN if chinese else LITERAL
+            self._previous_time = self.now()
+            self._after_english_dot = not chinese
+            return True, text + ("…" if chinese else "...")
+
         composable = bopomofo.is_zhuyin_key(c) or (c.isascii() and c.isalpha()) or (c == "'" and self.keys)
         if composable:
             # ", . / ; -" are Zhuyin symbols but act as punctuation after an English word.
-            if self.keys and c in bopomofo.SYMBOLS and not c.isalnum() and self.forced_mode != ZHUYIN:
+            # A second "." waits for a third (an ellipsis).
+            if (self.keys and c in bopomofo.SYMBOLS and not c.isalnum() and self.forced_mode != ZHUYIN
+                    and not (c == "." and self.keys[-1] == ".")):
                 with_key = self._segments(self.keys + [c])
                 if with_key[-1][2] == LITERAL and not all(k.isdigit() for k in self.keys):
+                    self._after_english_dot = c == "."
                     return True, self._commit() + c
             self.keys.append(c)
             return CONSUMED

@@ -89,6 +89,8 @@ public final class CompositionEngine {
     private var punctuationGuess = false
     /// Picked with ↓, shown instead.
     private var punctuationChoice: String?
+    /// The last key was a "." sent as English punctuation: more dots follow it ("hello...").
+    private var afterEnglishDot = false
     static let holdMinScore = -3.5
 
     /// "AI 選字" (language-model reranking); nil = lexicon only.
@@ -417,6 +419,8 @@ public final class CompositionEngine {
 
     public func handle(_ key: KeyInput) -> KeyResult {
         lastCommit = nil
+        if key == .character("."), afterEnglishDot, keys.isEmpty { return KeyResult(handled: true, commit: ".") }
+        afterEnglishDot = false
         if isShowingCandidates { return handleCandidateKey(key) }
         if pendingBacktick { return afterBacktick(key) }
         if pendingPunctuation != nil { return afterPunctuation(key) }
@@ -557,13 +561,28 @@ public final class CompositionEngine {
             return KeyResult(handled: true, commit: commitFlippable(segs))
         }
 
+        // "...": ㄡㄡㄡ is never meant. An ellipsis (…) in Chinese, three dots in English.
+        if c == ".", forcedMode == nil, keys.count >= 2, keys.suffix(2).allSatisfy({ $0 == "." }) {
+            keys.removeLast(2)
+            let chinese = keys.isEmpty ? context != .literal : segments.last?.mode == .zhuyin
+            let text = keys.isEmpty ? "" : commitCurrent()
+            reset()
+            previousMode = chinese ? .zhuyin : .literal
+            previousCommitTime = now()
+            afterEnglishDot = !chinese
+            return KeyResult(handled: true, commit: text + (chinese ? "…" : "..."))
+        }
+
         let composable = DachenLayout.isZhuyinKey(c) || (c.isASCII && c.isLetter) || (c == "'" && !keys.isEmpty)
         if composable {
             // ", . / ; -" are Zhuyin symbols (ㄝ ㄡ ㄥ ㄤ ㄦ) but act as punctuation after an
             // English word. Decide with the key included: "2;" is ㄉㄤ (檔…), "hello," is English.
-            if !keys.isEmpty, DachenLayout.symbols[c] != nil, !c.isLetter, !c.isNumber, forcedMode != .zhuyin {
+            // A second "." waits for a third (an ellipsis).
+            if !keys.isEmpty, DachenLayout.symbols[c] != nil, !c.isLetter, !c.isNumber, forcedMode != .zhuyin,
+               !(c == "." && keys.last == ".") {
                 let withKey = segments(of: keys + [c])
                 if withKey.last?.mode == .literal && !keys.allSatisfy(\.isNumber) {
+                    afterEnglishDot = c == "."
                     return KeyResult(handled: true, commit: commitCurrent() + String(c))
                 }
             }

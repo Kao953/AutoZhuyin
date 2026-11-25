@@ -529,6 +529,28 @@ class InsertInMiddleTests {
         }
     }
 
+    /** At most two emoji on a page; the rest move to later pages, still in order. */
+    @Test fun emojiPerPage() {
+        val e = makeEngine()
+        val lexicon = e.classifier.lexicon
+        val all = listOf("😀", "😃", "😄", "😁", "😆")
+        lexicon.loadEmoji("笑\t" + all.joinToString(" ") + "\n")
+        try {
+            typeKeys("vul4↓", e)
+            val texts = e.candidates.map { it.text }
+            for (page in texts.indices step e.pageSize) {
+                assertTrue(texts.subList(page, minOf(page + e.pageSize, texts.size)).count { it in all } <= 2)
+            }
+            val shown = texts.filter { it in all }
+            assertEquals(all.take(shown.size), shown)
+            assertTrue(shown.size > 2)
+            val i = texts.indexOf("笑")
+            assertEquals(listOf("😀", "😃"), texts.subList(i + 1, i + 3))
+        } finally {
+            lexicon.loadEmoji("")
+        }
+    }
+
     @Test fun cursorStopsAfterFirstCharacter() {
         val e = makeEngine()
         typeKeys("su3cl3←←←", e)

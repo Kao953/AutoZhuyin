@@ -444,6 +444,29 @@ class InsertInMiddleTests(unittest.TestCase):
             lexicon.load_emoji(os.path.join(path, "missing"))
         self.assertEqual(lexicon.emoji, {})
 
+    def test_emoji_per_page(self):
+        """At most two emoji on a page; the rest move to later pages, still in order."""
+        import tempfile
+        e = make_engine()
+        lexicon = e.classifier.lexicon
+        emoji = ["😀", "😃", "😄", "😁", "😆"]
+        path = os.path.join(tempfile.mkdtemp(), "emoji.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("笑\t" + " ".join(emoji) + "\n")
+        lexicon.load_emoji(path)
+        try:
+            type_keys("vul4↓", e)
+            texts = [t for _, t in e.candidates]
+            for page in range(0, len(texts), e.page_size):
+                self.assertLessEqual(sum(t in emoji for t in texts[page:page + e.page_size]), 2)
+            shown = [t for t in texts if t in emoji]
+            self.assertEqual(shown, emoji[:len(shown)])
+            self.assertGreater(len(shown), 2)
+            i = texts.index("笑")
+            self.assertEqual(texts[i + 1:i + 3], ["😀", "😃"])
+        finally:
+            lexicon.load_emoji(path + ".missing")
+
     def test_emoji_data(self):
         """Resources/emoji.txt (scripts/build-emoji.py) parses and has the common words."""
         from autozhuyin.core.lexicon import Lexicon

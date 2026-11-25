@@ -556,6 +556,24 @@ final class CursorTests: XCTestCase {
         XCTAssertFalse(e.candidates.contains { $0.text == "🤣" })
     }
 
+    /// At most two emoji on a page; the rest move to later pages, still in order.
+    func testEmojiPerPage() {
+        let all = ["😀", "😃", "😄", "😁", "😆"]
+        sharedLexicon.loadEmoji("笑\t" + all.joined(separator: " ") + "\n")
+        defer { sharedLexicon.loadEmoji("") }
+        let e = engine()
+        XCTAssertEqual(type("vul4↓", into: e), "")
+        let texts = e.candidates.map(\.text)
+        for page in stride(from: 0, to: texts.count, by: e.pageSize) {
+            XCTAssertLessThanOrEqual(texts[page..<min(page + e.pageSize, texts.count)].filter(all.contains).count, 2)
+        }
+        let shown = texts.filter(all.contains)
+        XCTAssertEqual(shown, Array(all.prefix(shown.count)))
+        XCTAssertGreaterThan(shown.count, 2)                       // ㄒㄧㄠˋ has pages of characters to share
+        let i = texts.firstIndex(of: "笑")!
+        XCTAssertEqual(Array(texts[(i + 1)...(i + 2)]), ["😀", "😃"])
+    }
+
     func testCursorMovesAndClamps() {
         let e = engine()
         _ = type("rup wu0 wu0 fu4", into: e)        // 今天天氣

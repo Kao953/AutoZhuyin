@@ -840,25 +840,42 @@ public final class CompositionEngine {
         isPunctuationTable = false
     }
 
-    /// The emoji a candidate names go right after it (see `showEmoji`).
+    /// At most this many emoji on one page of candidates; the rest move to later pages.
+    static let emojiPerPage = 2
+
+    /// The emoji a candidate names go right after it (see `showEmoji`), at most
+    /// `emojiPerPage` on a page so the other characters stay in view.
     private func withEmoji(_ list: [Candidate]) -> [Candidate] {
         let table = classifier.lexicon.emoji
         guard showEmoji, !table.isEmpty else { return list }
         var out: [Candidate] = []
         var seen = Set(list.map(\.text))
+        var pending: [Candidate] = []
+        var emojiOnPage = 0
+        func add(_ c: Candidate, emoji: Bool) {
+            if out.count % pageSize == 0 { emojiOnPage = 0 }
+            out.append(c)
+            if emoji { emojiOnPage += 1 }
+        }
+        func flush() {
+            while !pending.isEmpty && (out.count % pageSize == 0 || emojiOnPage < Self.emojiPerPage) {
+                add(pending.removeFirst(), emoji: true)
+            }
+        }
         var i = 0
         while i < list.count {
             let c = list[i]
-            out.append(c)
+            add(c, emoji: false)
             i += 1
             // 上's arrow stays right after it; the emoji come next.
-            if i < list.count, list[i].text == Converter.arrows[c.text] { out.append(list[i]); i += 1 }
+            if i < list.count, list[i].text == Converter.arrows[c.text] { add(list[i], emoji: false); i += 1 }
             for e in table[c.text] ?? [] where !seen.contains(e) {
                 seen.insert(e)
-                out.append(Candidate(range: c.range, text: e))
+                pending.append(Candidate(range: c.range, text: e))
             }
+            flush()
         }
-        return out
+        return out   // emoji still pending when the characters run out are left out
     }
 
     /// Picks a candidate. Returns the text to commit when it comes from the symbol table.

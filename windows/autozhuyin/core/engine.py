@@ -11,6 +11,8 @@ from .classifier import LITERAL, ZHUYIN
 from .features import dot
 from .lexicon import ARROWS, Converter
 
+EMOJI_PER_PAGE = 2   # at most this many emoji on one page of candidates
+
 BACKSPACE, ENTER, ESCAPE, TAB = "<backspace>", "<enter>", "<escape>", "<tab>"
 UP, DOWN, LEFT, RIGHT = "<up>", "<down>", "<left>", "<right>"
 SHIFT_TAP = "<shift-tap>"   # Shift pressed and released on its own
@@ -805,24 +807,36 @@ class CompositionEngine:
         self.punct_table = False
 
     def _with_emoji(self, candidates):
-        """The emoji a candidate names go right after it (see show_emoji)."""
+        """The emoji a candidate names go right after it (see show_emoji), at most
+        EMOJI_PER_PAGE on a page so the other characters stay in view; the rest move to later
+        pages, and those still left when the characters run out are left out."""
         table = self.classifier.lexicon.emoji
         if not self.show_emoji or not table:
             return candidates
-        out, seen = [], {text for _, text in candidates}
+        out, seen, pending = [], {text for _, text in candidates}, []
+        on_page = [0]
+
+        def add(c, emoji):
+            if len(out) % self.page_size == 0:
+                on_page[0] = 0
+            out.append(c)
+            on_page[0] += emoji
+
         i = 0
         while i < len(candidates):
             rng, text = candidates[i]
-            out.append((rng, text))
+            add((rng, text), False)
             i += 1
             # 上's arrow stays right after it; the emoji come next.
             if i < len(candidates) and candidates[i][1] == ARROWS.get(text):
-                out.append(candidates[i])
+                add(candidates[i], False)
                 i += 1
             for e in table.get(text, ()):
                 if e not in seen:
                     seen.add(e)
-                    out.append((rng, e))
+                    pending.append((rng, e))
+            while pending and (len(out) % self.page_size == 0 or on_page[0] < EMOJI_PER_PAGE):
+                add(pending.pop(0), True)
         return out
 
     def _open_symbol_table(self):

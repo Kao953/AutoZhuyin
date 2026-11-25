@@ -781,19 +781,31 @@ class CompositionEngine(
         punctTable = false
     }
 
-    /** The emoji a candidate names go right after it (see showEmoji). */
+    /**
+     * The emoji a candidate names go right after it (see showEmoji), at most EMOJI_PER_PAGE on
+     * a page so the other characters stay in view; the rest move to later pages, and those
+     * still left when the characters run out are left out.
+     */
     private fun withEmoji(list: List<Piece>): List<Piece> {
         val table = classifier.lexicon.emoji
         if (!showEmoji || table.isEmpty()) return list
         val out = ArrayList<Piece>()
         val seen = list.mapTo(HashSet()) { it.text }
+        val pending = ArrayDeque<Piece>()
+        var onPage = 0
+        fun add(c: Piece, emoji: Boolean) {
+            if (out.size % pageSize == 0) onPage = 0
+            out.add(c)
+            if (emoji) onPage++
+        }
         var i = 0
         while (i < list.size) {
             val c = list[i++]
-            out.add(c)
+            add(c, false)
             // 上's arrow stays right after it; the emoji come next.
-            if (i < list.size && list[i].text == Converter.ARROWS[c.text]) out.add(list[i++])
-            for (e in table[c.text].orEmpty()) if (seen.add(e)) out.add(Piece(c.start, c.end, e))
+            if (i < list.size && list[i].text == Converter.ARROWS[c.text]) add(list[i++], false)
+            for (e in table[c.text].orEmpty()) if (seen.add(e)) pending.addLast(Piece(c.start, c.end, e))
+            while (pending.isNotEmpty() && (out.size % pageSize == 0 || onPage < EMOJI_PER_PAGE)) add(pending.removeFirst(), true)
         }
         return out
     }
@@ -963,6 +975,8 @@ class CompositionEngine(
     }
 
     companion object {
+        /** At most this many emoji on one page of candidates; the rest move to later pages. */
+        const val EMOJI_PER_PAGE = 2
         const val BACKSPACE = "<backspace>"
         const val ENTER = "<enter>"
         const val ESCAPE = "<escape>"

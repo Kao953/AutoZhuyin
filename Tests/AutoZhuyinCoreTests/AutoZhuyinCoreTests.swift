@@ -498,11 +498,24 @@ final class CursorTests: XCTestCase {
         var out = ""
         for c in s {
             let key: KeyInput = c == "←" ? .left : c == "→" ? .right : c == "↓" ? .down : c == "\n" ? .enter
-                : c == "\u{8}" ? .backspace : .character(c)
+                : c == "\u{8}" ? .backspace : c == "\t" ? .tab : .character(c)
             let r = e.handle(key)
             if let t = r.commit { out += t } else if !r.handled { out.append(c) }
         }
         return out
+    }
+
+    /// Tab with the cursor in the middle flips the word before the cursor, not the last one.
+    func testTabFlipsTheWordAtTheCursor() {
+        let e = engine()
+        XCTAssertEqual(type("ji3ul4cl3←\t", into: e), "")
+        XCTAssertEqual(e.markedText, "我ul4好")
+        XCTAssertEqual(type("\t", into: e), "")              // again: back
+        XCTAssertEqual(e.markedText, "我要好")
+        XCTAssertEqual(type("\t→ji3", into: e), "")          // typing at the end after a flip in the middle
+        XCTAssertEqual(e.markedText, "我ul4好我")
+        XCTAssertEqual(type("\n", into: e), "我ul4好我")
+        XCTAssertEqual(type("ji3ul4cl3←←\t\n", into: engine()), "ji3要好")
     }
 
     func testCursorMovesAndClamps() {

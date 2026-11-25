@@ -35,6 +35,11 @@ class CompositionEngine(
     private var forcedStart = 0
     /** The segments before the flipped one, as they were when it was flipped (they stay). */
     private var forcedPrefix: List<Segment> = emptyList()
+    /**
+     * Tab with the cursor in the middle flips the word before it: where that word ends (the
+     * keys after it are segmented as usual). null: the flip runs to the end.
+     */
+    private var forcedEnd: Int? = null
     /** English mode, toggled by a Shift tap when nothing is being typed: keys go straight to the app. */
     var englishMode = false
         private set
@@ -101,7 +106,13 @@ class CompositionEngine(
 
     private fun segments(keys: List<String>, finishing: Boolean = false): List<Segment> {
         if (keys.isEmpty()) return emptyList()
-        forcedMode?.let { return forcedPrefix + Segment(forcedStart, keys.size, it) }
+        forcedMode?.let { forced ->
+            val end = forcedEnd
+            if (end == null || end >= keys.size) return forcedPrefix + Segment(forcedStart, keys.size, forced)
+            val tail = classifier.segment(keys.subList(end, keys.size), finishing, forced)
+                .map { Segment(it.start + end, it.end + end, it.mode) }
+            return forcedPrefix + Segment(forcedStart, end, forced) + tail
+        }
         val ctx = context
         val h = held?.takeIf { it < keys.size && keys[it] == " " }
         val key = CacheKey(keys.toList(), finishing, ctx, h, heldStart)
@@ -303,6 +314,12 @@ class CompositionEngine(
         val pos = cursor ?: keys.size
         trimFixed(pos)
         unforceBefore(pos)
+        forcedEnd?.let {
+            if (forcedMode != null && pos < it) {
+                forcedEnd = it + newKeys.size
+                forcedCount += newKeys.size
+            }
+        }
         keys.addAll(pos, newKeys)
         held?.let {
             if (it >= pos) {
@@ -340,6 +357,18 @@ class CompositionEngine(
         }
         trimFixed(start)
         unforceBefore(start)
+        forcedEnd?.let {
+            if (forcedMode != null && start < it) {
+                val cut = minOf(pos, it) - start
+                forcedEnd = it - cut
+                forcedCount = maxOf(forcedStart, forcedCount - cut)
+                if (it - cut <= forcedStart) {   // the flipped word is gone
+                    forcedMode = null
+                    forcedPrefix = emptyList()
+                    forcedEnd = null
+                }
+            }
+        }
         keys.subList(start, pos).clear()
         held?.let {
             if (it in start until pos) held = null else if (it >= pos) held = it - (pos - start)
@@ -413,9 +442,11 @@ class CompositionEngine(
 
     /**
      * Forces the last word into the other mode (a correction that is learned); what is before
-     * it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4).
+     * it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4). With the cursor in
+     * the middle, the word before the cursor instead.
      */
     private fun flip() {
+        cursor?.let { if (it < keys.size) { flipAt(it); return } }
         val segs = segments
         val last = segs.lastOrNull() ?: return
         var prefix = segs.dropLast(1)
@@ -431,6 +462,33 @@ class CompositionEngine(
         forcedStart = start
         forcedMode = last.mode.other
         forcedCount = keys.size   // that word is learned, not what is typed after it
+        forcedEnd = null
+    }
+
+    /**
+     * Tab with the cursor at key index pos: flips the syllable (in Chinese) or the English word
+     * that ends at the cursor; the rest stays as it is.
+     */
+    private fun flipAt(pos: Int) {
+        val segs = segments
+        val i = segs.indexOfFirst { it.start < pos && pos <= it.end }
+        if (i < 0) return
+        val seg = segs[i]
+        var prefix = segs.subList(0, i).toList()
+        var start = seg.start
+        var end = seg.end
+        if (seg.mode == Mode.ZHUYIN) {
+            parse(keys.subList(seg.start, seg.end)).syllables.firstOrNull { seg.start + it.end >= pos }?.let {
+                start = seg.start + it.start
+                end = seg.start + it.end
+                if (start > seg.start) prefix = prefix + Segment(seg.start, start, Mode.ZHUYIN)
+            }
+        }
+        forcedPrefix = prefix
+        forcedStart = start
+        forcedEnd = if (end < keys.size) end else null
+        forcedMode = seg.mode.other
+        forcedCount = end
     }
 
     /**
@@ -449,6 +507,7 @@ class CompositionEngine(
         if (forcedMode != null && pos < forcedStart) {
             forcedMode = null
             forcedPrefix = emptyList()
+            forcedEnd = null
         }
     }
 
@@ -489,6 +548,7 @@ class CompositionEngine(
                     forcedMode = null   // the flipped word is gone
                     forcedPrefix = emptyList()
                 }
+                forcedEnd?.let { if (keys.size <= it) forcedEnd = null }
                 if (keys.isEmpty()) fixed = mutableMapOf()
                 return KeyResult.CONSUMED
             }
@@ -507,6 +567,10 @@ class CompositionEngine(
             }
             TAB -> {
                 if (keys.isEmpty()) return KeyResult.PASS
+                if (inserting.isNotEmpty()) {
+                    splice(inserting.toList())
+                    inserting.clear()
+                }
                 flip()
                 return KeyResult.CONSUMED
             }
@@ -836,6 +900,7 @@ class CompositionEngine(
         forcedCount = keys.size
         forcedStart = 0
         forcedPrefix = emptyList()
+        forcedEnd = null
         return commitFlippable()
     }
 
@@ -871,6 +936,7 @@ class CompositionEngine(
         forcedMode = null
         forcedStart = 0
         forcedPrefix = emptyList()
+        forcedEnd = null
         fixed = mutableMapOf()
         candidates = emptyList()
         symbolTable = false

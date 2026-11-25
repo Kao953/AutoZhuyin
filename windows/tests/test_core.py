@@ -391,6 +391,18 @@ class InsertInMiddleTests(unittest.TestCase):
         self.assertEqual(e.cursor_offset, 2)
         self.assertEqual(type_keys("\n", e), "今天氣")
 
+    def test_tab_flips_the_word_at_the_cursor(self):
+        """Tab with the cursor in the middle flips the word before the cursor, not the last one."""
+        e = make_engine()
+        self.assertEqual(type_keys("ji3ul4cl3←\t", e), "")
+        self.assertEqual(e.marked_text, "我ul4好")
+        self.assertEqual(type_keys("\t", e), "")             # again: back
+        self.assertEqual(e.marked_text, "我要好")
+        self.assertEqual(type_keys("\t→ji3", e), "")         # typing at the end after a flip in the middle
+        self.assertEqual(e.marked_text, "我ul4好我")
+        self.assertEqual(type_keys("\n", e), "我ul4好我")
+        self.assertEqual(type_keys("ji3ul4cl3←←\t\n", make_engine()), "ji3要好")
+
     def test_cursor_stops_after_first_character(self):
         e = make_engine()
         type_keys("su3cl3←←←", e)

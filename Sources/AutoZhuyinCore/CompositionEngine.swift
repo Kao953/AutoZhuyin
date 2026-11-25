@@ -53,6 +53,9 @@ public final class CompositionEngine {
     /// flipped (they stay as they are).
     private var forcedStart = 0
     private var forcedPrefix: [Segment] = []
+    /// Where the flipped word ends when Tab flipped a word in the middle (the cursor's); the
+    /// keys after it are segmented as usual. nil: the flip runs to the end.
+    private var forcedEnd: Int?
     /// English mode, toggled by a Shift tap when nothing is being typed. Keys go straight
     /// to the app (no composition, no underline) until Shift is tapped again.
     public private(set) var isEnglishMode = false
@@ -133,7 +136,15 @@ public final class CompositionEngine {
 
     private func segments(of keys: [Character], finishing: Bool = false) -> [Segment] {
         guard !keys.isEmpty else { return [] }
-        if let forced = forcedMode { return forcedPrefix + [Segment(range: forcedStart..<keys.count, mode: forced)] }
+        if let forced = forcedMode {
+            guard let end = forcedEnd, end < keys.count else {
+                return forcedPrefix + [Segment(range: forcedStart..<keys.count, mode: forced)]
+            }
+            let tail = classifier.segment(Array(keys[end...]), finishing: finishing, previous: forced).map {
+                Segment(range: ($0.range.lowerBound + end)..<($0.range.upperBound + end), mode: $0.mode)
+            }
+            return forcedPrefix + [Segment(range: forcedStart..<end, mode: forced)] + tail
+        }
         if let h = held, h < keys.count, keys[h] == " " {
             return heldSegments(keys, held: h, start: heldStart, finishing: finishing)
         }
@@ -367,6 +378,10 @@ public final class CompositionEngine {
         guard let pos = cursor else { keys += newKeys; return }
         trimFixed(at: pos)
         unforce(before: pos)
+        if forcedMode != nil, let end = forcedEnd, pos < end {
+            forcedEnd = end + newKeys.count
+            forcedCount += newKeys.count
+        }
         keys.insert(contentsOf: newKeys, at: pos)
         if let h = held, h >= pos {
             held = h + newKeys.count
@@ -396,6 +411,12 @@ public final class CompositionEngine {
         }
         trimFixed(at: start)
         unforce(before: start)
+        if forcedMode != nil, let end = forcedEnd, start < end {
+            let cut = min(pos, end) - start
+            forcedEnd = end - cut
+            forcedCount = max(forcedStart, forcedCount - cut)
+            if end - cut <= forcedStart { forcedMode = nil; forcedPrefix = []; forcedEnd = nil }   // the flipped word is gone
+        }
         keys.removeSubrange(start..<pos)
         if let h = held {
             if h >= start && h < pos { held = nil } else if h >= pos { held = h - (pos - start) }
@@ -457,6 +478,7 @@ public final class CompositionEngine {
             if let h = held, keys.count <= h { held = nil }
             fixed = fixed.filter { $0.key < keys.count }
             if keys.count <= forcedStart { forcedMode = nil; forcedPrefix = [] }   // the flipped word is gone
+            if let end = forcedEnd, keys.count <= end { forcedEnd = nil }
             if keys.isEmpty { fixed = [:] }
             return .consumed
         case .enter:
@@ -469,6 +491,7 @@ public final class CompositionEngine {
             return .consumed
         case .tab:
             guard !keys.isEmpty else { return .passThrough }
+            if !inserting.isEmpty { splice(inserting); inserting = [] }
             flip()
             return .consumed
         case .shiftTap:
@@ -510,8 +533,10 @@ public final class CompositionEngine {
     }
 
     /// Forces the last word into the other mode (a correction that is learned); what is
-    /// before it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4).
+    /// before it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4). With the
+    /// cursor in the middle, the word before the cursor instead.
     private func flip() {
+        if let pos = cursor, pos < keys.count { flip(at: pos); return }
         let segs = segments
         guard let last = segs.last else { return }
         var prefix = Array(segs.dropLast())
@@ -525,8 +550,30 @@ public final class CompositionEngine {
         }
         forcedPrefix = prefix
         forcedStart = start
+        forcedEnd = nil
         forcedMode = (last.mode == .zhuyin) ? .literal : .zhuyin
         forcedCount = keys.count
+    }
+
+    /// Tab with the cursor at key index pos: flips the syllable (in Chinese) or the English
+    /// word that ends at the cursor; the rest stays as it is.
+    private func flip(at pos: Int) {
+        let segs = segments
+        guard let i = segs.firstIndex(where: { $0.range.lowerBound < pos && pos <= $0.range.upperBound }) else { return }
+        let seg = segs[i]
+        var prefix = Array(segs[..<i])
+        var start = seg.range.lowerBound, end = seg.range.upperBound
+        if seg.mode == .zhuyin,
+           let syl = parse(Array(keys[seg.range])).syllables.first(where: { seg.range.lowerBound + $0.keyRange.upperBound >= pos }) {
+            start = seg.range.lowerBound + syl.keyRange.lowerBound
+            end = seg.range.lowerBound + syl.keyRange.upperBound
+            if start > seg.range.lowerBound { prefix.append(Segment(range: seg.range.lowerBound..<start, mode: .zhuyin)) }
+        }
+        forcedPrefix = prefix
+        forcedStart = start
+        forcedEnd = end < keys.count ? end : nil
+        forcedMode = seg.mode == .zhuyin ? .literal : .zhuyin
+        forcedCount = end
     }
 
     /// Where Tab's flip starts in a Chinese segment: the untoned keys at its end (a word still
@@ -543,6 +590,7 @@ public final class CompositionEngine {
         if forcedMode != nil && pos < forcedStart {
             forcedMode = nil
             forcedPrefix = []
+            forcedEnd = nil
         }
     }
 
@@ -887,6 +935,7 @@ public final class CompositionEngine {
         forcedCount = keys.count
         forcedStart = 0
         forcedPrefix = []
+        forcedEnd = nil
         return commitFlippable()
     }
 
@@ -922,6 +971,7 @@ public final class CompositionEngine {
         forcedMode = nil
         forcedStart = 0
         forcedPrefix = []
+        forcedEnd = nil
         fixed = [:]
         candidates = []
         isSymbolTable = false

@@ -86,6 +86,9 @@ class CompositionEngine:
         self.forced_count = 0
         self.forced_start = 0
         self.forced_prefix = []
+        # Tab with the cursor in the middle flips the word before it: where that word ends
+        # (the keys after it are segmented as usual). None: the flip runs to the end.
+        self.forced_end = None
         # English mode, toggled by a Shift tap when nothing is being typed: keys go straight
         # to the app (no composition, no underline) until Shift is tapped again.
         self.english_mode = False
@@ -135,7 +138,11 @@ class CompositionEngine:
         if not keys:
             return []
         if self.forced_mode:
-            return self.forced_prefix + [(self.forced_start, len(keys), self.forced_mode)]
+            end = self.forced_end
+            if end is None or end >= len(keys):
+                return self.forced_prefix + [(self.forced_start, len(keys), self.forced_mode)]
+            tail = [(a + end, b + end, m) for a, b, m in self.classifier.segment(keys[end:], finishing, self.forced_mode)]
+            return self.forced_prefix + [(self.forced_start, end, self.forced_mode)] + tail
         ctx = self.context
         held = self.held if self.held is not None and self.held < len(keys) and keys[self.held] == " " else None
         cache_key = (tuple(keys), finishing, ctx, held, self.held_start)
@@ -363,6 +370,9 @@ class CompositionEngine:
         pos = self.cursor
         self._trim_fixed(pos)
         self._unforce_before(pos)
+        if self.forced_mode and self.forced_end is not None and pos < self.forced_end:
+            self.forced_end += len(new_keys)
+            self.forced_count += len(new_keys)
         self.keys[pos:pos] = new_keys
         if self.held is not None and self.held >= pos:
             self.held += len(new_keys)
@@ -394,6 +404,12 @@ class CompositionEngine:
                         start = seg[0] + ps.start
         self._trim_fixed(start)
         self._unforce_before(start)
+        if self.forced_mode and self.forced_end is not None and start < self.forced_end:
+            cut = min(pos, self.forced_end) - start
+            self.forced_end -= cut
+            self.forced_count = max(self.forced_start, self.forced_count - cut)
+            if self.forced_end <= self.forced_start:   # the flipped word is gone
+                self.forced_mode, self.forced_prefix, self.forced_end = None, [], None
         del self.keys[start:pos]
         if self.held is not None:
             if start <= self.held < pos:
@@ -464,7 +480,10 @@ class CompositionEngine:
 
     def _flip(self):
         """Forces the last word into the other mode (a correction that is learned); what is
-        before it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4)."""
+        before it stays as it is ("ji3so" Tab: 我 stays, so → 內; 我要 Tab: 我ul4). With the
+        cursor in the middle, the word before the cursor instead."""
+        if self.cursor is not None and self.cursor < len(self.keys):
+            return self._flip_at(self.cursor)
         segs = self.segments
         start, end, mode = segs[-1]
         prefix = segs[:-1]
@@ -477,6 +496,29 @@ class CompositionEngine:
         self.forced_start = start
         self.forced_mode = LITERAL if mode == ZHUYIN else ZHUYIN
         self.forced_count = len(self.keys)   # that word is learned, not what is typed after it
+        self.forced_end = None
+
+    def _flip_at(self, pos):
+        """Tab with the cursor at key index pos: flips the syllable (in Chinese) or the English
+        word that ends at the cursor; the rest stays as it is."""
+        segs = self.segments
+        i = next((i for i, (a, b, _) in enumerate(segs) if a < pos <= b), None)
+        if i is None:
+            return
+        start, end, mode = segs[i]
+        prefix = segs[:i]
+        if mode == ZHUYIN:
+            seg_start = start
+            syl = next((p for p in self._parse(self.keys[start:end]).syllables if seg_start + p.end >= pos), None)
+            if syl is not None:
+                start, end = seg_start + syl.start, seg_start + syl.end
+                if start > seg_start:
+                    prefix = prefix + [(seg_start, start, ZHUYIN)]
+        self.forced_prefix = prefix
+        self.forced_start = start
+        self.forced_end = end if end < len(self.keys) else None
+        self.forced_mode = LITERAL if mode == ZHUYIN else ZHUYIN
+        self.forced_count = end
 
     def _flip_start(self, start, end):
         """Where Tab's flip starts in a Chinese segment: the untoned keys at its end (a word
@@ -494,6 +536,7 @@ class CompositionEngine:
         if self.forced_mode and pos < self.forced_start:
             self.forced_mode = None
             self.forced_prefix = []
+            self.forced_end = None
 
     def wants(self, key):
         """Whether handle(key) would consume the key, without changing state."""
@@ -544,6 +587,8 @@ class CompositionEngine:
             if len(self.keys) <= self.forced_start:
                 self.forced_mode = None   # the flipped word is gone
                 self.forced_prefix = []
+            if self.forced_end is not None and len(self.keys) <= self.forced_end:
+                self.forced_end = None
             if not self.keys:
                 self.fixed = {}
             return CONSUMED
@@ -562,6 +607,9 @@ class CompositionEngine:
         if key == TAB:
             if not self.keys:
                 return PASS
+            if self.inserting:
+                self._splice(self.inserting)
+                self.inserting = []
             self._flip()
             return CONSUMED
         if key == SHIFT_TAP:
@@ -864,7 +912,7 @@ class CompositionEngine:
                 self.keys.pop()   # first-tone spaces aren't English
         self.forced_mode = LITERAL if mode == ZHUYIN else ZHUYIN
         self.forced_count = len(self.keys)
-        self.forced_start, self.forced_prefix = 0, []
+        self.forced_start, self.forced_prefix, self.forced_end = 0, [], None
         return self._commit_flippable()
 
     def set_english_mode(self, on):
@@ -906,6 +954,7 @@ class CompositionEngine:
         self.forced_mode = None
         self.forced_start = 0
         self.forced_prefix = []
+        self.forced_end = None
         self.fixed = {}
         self.candidates = []
         self.symbol_table = False

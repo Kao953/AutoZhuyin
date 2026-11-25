@@ -476,6 +476,19 @@ class InsertInMiddleTests {
         assertEquals("今天氣", typeKeys("\n", e))
     }
 
+    /** Tab with the cursor in the middle flips the word before the cursor, not the last one. */
+    @Test fun tabFlipsTheWordAtTheCursor() {
+        val e = makeEngine()
+        assertEquals("", typeKeys("ji3ul4cl3←\t", e))
+        assertEquals("我ul4好", e.markedText)
+        assertEquals("", typeKeys("\t", e))             // again: back
+        assertEquals("我要好", e.markedText)
+        assertEquals("", typeKeys("\t→ji3", e))         // typing at the end after a flip in the middle
+        assertEquals("我ul4好我", e.markedText)
+        assertEquals("我ul4好我", typeKeys("\n", e))
+        assertEquals("ji3要好", typeKeys("ji3ul4cl3←←\t\n", makeEngine()))
+    }
+
     @Test fun cursorStopsAfterFirstCharacter() {
         val e = makeEngine()
         typeKeys("su3cl3←←←", e)

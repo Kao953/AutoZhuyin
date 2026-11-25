@@ -109,8 +109,10 @@ class CompositionEngine:
         # inserts a syllable (kept in self.inserting until its tone key, then spliced in).
         self.cursor = None
         self.inserting = []
-        # Index of a held space (see HOLD_MIN_SCORE), or None.
+        # Index of a held space (see HOLD_MIN_SCORE), or None, and where the held word starts
+        # (0 = the first word; after Chinese only the strict rule holds: "5k4ek7up m,4" = 這個音樂).
         self.held = None
+        self.held_start = 0
         self.reranker = None     # "AI 選字" (reranker.Reranker); None = lexicon only
         self._recent_text = ""   # last characters committed: context for the reranker
         # The last commit by space, until the next key: Tab right after it retypes the same
@@ -136,30 +138,37 @@ class CompositionEngine:
             return self.forced_prefix + [(self.forced_start, len(keys), self.forced_mode)]
         ctx = self.context
         held = self.held if self.held is not None and self.held < len(keys) and keys[self.held] == " " else None
-        cache_key = (tuple(keys), finishing, ctx, held)
+        cache_key = (tuple(keys), finishing, ctx, held, self.held_start)
         if cache_key != self._cache_key:
             self._cache_key = cache_key
             if held is None:
                 self._cache_value = self.classifier.segment(keys, finishing, ctx)
             else:
-                self._cache_value = self._held_segments(keys, held, finishing)
+                self._cache_value = self._held_segments(keys, held, self.held_start, finishing)
         return self._cache_value
 
-    def _held_segments(self, keys, held, finishing):
+    def _held_segments(self, keys, held, start, finishing):
         """The held word is Chinese if the words typed after it start with Chinese."""
+        prefix = self.classifier.segment(keys[:start], True, self.context) if start else []
         rest = keys[held + 1:]
         base = held + 1
         rest_segs = [(a + base, b + base, m) for a, b, m in self.classifier.segment(rest, finishing, None)]
-        if rest_segs and rest_segs[0][2] == ZHUYIN and self._held_reads_as_chinese(keys, held, rest_segs[0][1], finishing):
-            return [(0, rest_segs[0][1], ZHUYIN)] + rest_segs[1:]
-        return [(0, base, LITERAL)] + rest_segs
+        if (rest_segs and rest_segs[0][2] == ZHUYIN
+                and self._held_reads_as_chinese(keys, held, start, rest_segs[0][1], finishing)):
+            # One Chinese run with the Chinese before it, so the phrase converts as a whole.
+            frm = start
+            if prefix and prefix[-1][2] == ZHUYIN:
+                frm = prefix.pop()[0]
+            return prefix + [(frm, rest_segs[0][1], ZHUYIN)] + rest_segs[1:]
+        return prefix + [(start, base, LITERAL)] + rest_segs
 
-    def _held_reads_as_chinese(self, keys, held, end, finishing):
+    def _held_reads_as_chinese(self, keys, held, start, end, finishing):
         """Chinese all the way to `end` vs. the held English word followed by Chinese."""
-        c, w, ctx = self.classifier, self.classifier.weights, self.context
+        c, w = self.classifier, self.classifier.weights
+        ctx = ZHUYIN if start else self.context    # after Chinese: Chinese goes on
         is_last = end == len(keys)
-        zh_whole = c.segment_features(keys[:end], is_last, False, finishing, ctx)[0]
-        word = c.segment_features(keys[:held], False, False, True, ctx)[1]
+        zh_whole = c.segment_features(keys[start:end], is_last, False, finishing, ctx)[0]
+        word = c.segment_features(keys[start:held], False, bool(start), True, None if start else ctx)[1]
         zh_rest = c.segment_features(keys[held + 1:end], is_last, True, finishing, None)[0]
         if zh_whole is None:
             return False
@@ -167,7 +176,7 @@ class CompositionEngine:
             return True
         return dot(w, zh_whole) >= dot(w, word) + dot(w, zh_rest)
 
-    def _is_ambiguous_word(self, keys):
+    def _is_ambiguous_word(self, keys, strict=False):
         """Whether keys + space also read as a common Chinese syllable (see HOLD_MIN_SCORE).
         Any Dachen keys count, not only letters: "0" is ㄢ (安), "5j;" is ㄓㄨㄤ (裝)."""
         if not all(bopomofo.is_zhuyin_key(k) for k in keys):
@@ -181,7 +190,7 @@ class CompositionEngine:
             if not entries:
                 return False
             best.append(entries[0][1])
-        if self.context != LITERAL:
+        if not strict and self.context != LITERAL:
             return True    # first word: hold anything that reads as Zhuyin
         return len(best) == 1 and best[0] >= HOLD_MIN_SCORE
 
@@ -357,6 +366,8 @@ class CompositionEngine:
         self.keys[pos:pos] = new_keys
         if self.held is not None and self.held >= pos:
             self.held += len(new_keys)
+            if self.held_start >= pos:
+                self.held_start += len(new_keys)
         self.cursor = pos + len(new_keys)
         if self.cursor >= len(self.keys):
             self.cursor = None
@@ -389,6 +400,10 @@ class CompositionEngine:
                 self.held = None
             elif self.held >= pos:
                 self.held -= pos - start
+            if self.held is not None and self.held_start >= pos:
+                self.held_start -= pos - start
+            elif self.held is not None and self.held_start > start:
+                self.held = None    # the held word was cut
         self.cursor = start
         if not self.keys:
             self.reset()
@@ -671,6 +686,13 @@ class CompositionEngine:
                 if (self.held is None and len(segs) == 1 and not self.forced_mode
                         and self._is_ambiguous_word(self.keys)):
                     self.held = len(self.keys)
+                    self.held_start = 0
+                    self.keys.append(" ")
+                    return CONSUMED
+                if (self.held is None and len(segs) >= 2 and segs[-2][2] == ZHUYIN and not self.forced_mode
+                        and self._is_ambiguous_word(self.keys[segs[-1][0]:segs[-1][1]], strict=True)):
+                    self.held = len(self.keys)
+                    self.held_start = segs[-1][0]
                     self.keys.append(" ")
                     return CONSUMED
                 return True, self._commit_flippable(segs)

@@ -547,6 +547,16 @@ class HeldWordTests {
         for ((keys, want) in cases) assertEquals(want, typeKeys(keys, makeEngine()), keys)
     }
 
+
+    /** After Chinese only common one-syllable words are held ("up" = 因/音); "push" isn't. */
+    @Test fun nextWordDecidesAfterChinese() {
+        val cases = mapOf("5k4ek7up m,4 " to "這個音樂", "5k4ek7up jo4 " to "這個因為", "5k4ek7up the " to "這個up the ",
+            "5k4ek7up\n" to "這個up", "ji3ul4push " to "我要push ")
+        for ((keys, want) in cases) assertEquals(want, typeKeys(keys, makeEngine()), keys)
+        val e = makeEngine()
+        assertEquals("", typeKeys("5k4ek7up ", e))
+        assertEquals("這個up ", e.markedText)
+    }
     @Test fun heldWordStaysComposing() {
         val e = makeEngine()
         assertEquals("", typeKeys("up ", e))

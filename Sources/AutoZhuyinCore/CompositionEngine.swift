@@ -76,7 +76,11 @@ public final class CompositionEngine {
     /// not committed as English on space; the next word decides ("up jo4" = 因為,
     /// "up the" = up the, "no su3" = no 你). Right after English text only common
     /// one-syllable readings are held (up = 因, url = 教), so English typing isn't delayed.
+    /// After Chinese in the same composition the same strict rule applies ("5k4ek7up m,4" =
+    /// 這個音樂).
     private var held: Int?
+    /// Where the held word starts (0 = the first word of the composition).
+    private var heldStart = 0
     /// "`" was typed: if the next key is in `symbols` it gives that full-width symbol
     /// whatever the context; anything else makes it a plain backtick (so ``` still works).
     public private(set) var pendingBacktick = false
@@ -131,32 +135,38 @@ public final class CompositionEngine {
         guard !keys.isEmpty else { return [] }
         if let forced = forcedMode { return forcedPrefix + [Segment(range: forcedStart..<keys.count, mode: forced)] }
         if let h = held, h < keys.count, keys[h] == " " {
-            return heldSegments(keys, held: h, finishing: finishing)
+            return heldSegments(keys, held: h, start: heldStart, finishing: finishing)
         }
         return classifier.segment(keys, finishing: finishing, previous: context)
     }
 
     /// The held word is Chinese if the words typed after it start with Chinese.
-    private func heldSegments(_ keys: [Character], held h: Int, finishing: Bool) -> [Segment] {
+    private func heldSegments(_ keys: [Character], held h: Int, start s: Int, finishing: Bool) -> [Segment] {
         let base = h + 1
+        var prefix = s > 0 ? classifier.segment(Array(keys[..<s]), finishing: true, previous: context) : []
         let rest = classifier.segment(Array(keys[base...]), finishing: finishing, previous: nil).map {
             Segment(range: ($0.range.lowerBound + base)..<($0.range.upperBound + base), mode: $0.mode)
         }
         if let first = rest.first, first.mode == .zhuyin,
-           heldReadsAsChinese(keys, held: h, end: first.range.upperBound, finishing: finishing) {
-            return [Segment(range: 0..<first.range.upperBound, mode: .zhuyin)] + rest.dropFirst()
+           heldReadsAsChinese(keys, held: h, start: s, end: first.range.upperBound, finishing: finishing) {
+            // One Chinese run with the Chinese before it, so the phrase converts as a whole.
+            var from = s
+            if let last = prefix.last, last.mode == .zhuyin { from = last.range.lowerBound; prefix.removeLast() }
+            return prefix + [Segment(range: from..<first.range.upperBound, mode: .zhuyin)] + rest.dropFirst()
         }
-        return [Segment(range: 0..<base, mode: .literal)] + rest
+        return prefix + [Segment(range: s..<base, mode: .literal)] + rest
     }
 
     /// Chinese all the way to `end` vs. the held English word followed by Chinese.
-    private func heldReadsAsChinese(_ keys: [Character], held h: Int, end: Int, finishing: Bool) -> Bool {
-        let c = classifier, w = classifier.weights, ctx = context
+    private func heldReadsAsChinese(_ keys: [Character], held h: Int, start s: Int, end: Int,
+                                    finishing: Bool) -> Bool {
+        let c = classifier, w = classifier.weights
         let isLast = end == keys.count
-        guard let zhWhole = c.segmentFeatures(Array(keys[..<end]), isLast: isLast, afterOther: false,
+        let ctx = s > 0 ? InputMode.zhuyin : context   // after Chinese: Chinese goes on
+        guard let zhWhole = c.segmentFeatures(Array(keys[s..<end]), isLast: isLast, afterOther: false,
                                               finishing: finishing, previous: ctx).0 else { return false }
-        guard let word = c.segmentFeatures(Array(keys[..<h]), isLast: false, afterOther: false,
-                                           finishing: true, previous: ctx).1,
+        guard let word = c.segmentFeatures(Array(keys[s..<h]), isLast: false, afterOther: s > 0,
+                                           finishing: true, previous: s > 0 ? nil : ctx).1,
               let zhRest = c.segmentFeatures(Array(keys[(h + 1)..<end]), isLast: isLast, afterOther: true,
                                              finishing: finishing, previous: nil).0 else { return true }
         return Features.dot(w, zhWhole) >= Features.dot(w, word) + Features.dot(w, zhRest)
@@ -164,7 +174,7 @@ public final class CompositionEngine {
 
     /// Whether keys + space also read as a common Chinese syllable (see `held`). Any Dachen
     /// keys count, not only letters: "0" is ㄢ (安), "5j;" is ㄓㄨㄤ (裝).
-    private func isAmbiguousWord(_ keys: [Character]) -> Bool {
+    private func isAmbiguousWord(_ keys: [Character], strict: Bool = false) -> Bool {
         guard keys.allSatisfy(DachenLayout.isZhuyinKey) else { return false }
         let p = parse(keys + [" "])
         guard p.pending == nil, !p.syllables.isEmpty, p.strayTones == 0, p.foreignKeys == 0 else { return false }
@@ -173,7 +183,7 @@ public final class CompositionEngine {
             guard let e = classifier.lexicon.entries(for: [ps.syllable]).first else { return false }
             best.append(e.score)
         }
-        if context != .literal { return true }   // first word: hold anything that reads as Zhuyin
+        if !strict && context != .literal { return true }   // first word: hold anything that reads as Zhuyin
         return best.count == 1 && best[0] >= CompositionEngine.holdMinScore
     }
 
@@ -358,7 +368,10 @@ public final class CompositionEngine {
         trimFixed(at: pos)
         unforce(before: pos)
         keys.insert(contentsOf: newKeys, at: pos)
-        if let h = held, h >= pos { held = h + newKeys.count }
+        if let h = held, h >= pos {
+            held = h + newKeys.count
+            if heldStart >= pos { heldStart += newKeys.count }
+        }
         let next = pos + newKeys.count
         cursor = next >= keys.count ? nil : next
     }
@@ -386,6 +399,8 @@ public final class CompositionEngine {
         keys.removeSubrange(start..<pos)
         if let h = held {
             if h >= start && h < pos { held = nil } else if h >= pos { held = h - (pos - start) }
+            if held != nil && heldStart >= pos { heldStart -= pos - start }
+            else if held != nil && heldStart > start { held = nil }   // the held word was cut
         }
         cursor = start
         if keys.isEmpty { reset() }
@@ -549,6 +564,15 @@ public final class CompositionEngine {
             if segs.last?.mode == .literal {
                 if held == nil, segs.count == 1, forcedMode == nil, isAmbiguousWord(keys) {
                     held = keys.count
+                    heldStart = 0
+                    keys.append(" ")
+                    return .consumed
+                }
+                if held == nil, forcedMode == nil, segs.count >= 2, let word = segs.last,
+                   segs[segs.count - 2].mode == .zhuyin,
+                   isAmbiguousWord(Array(keys[word.range]), strict: true) {
+                    held = keys.count
+                    heldStart = word.range.lowerBound
                     keys.append(" ")
                     return .consumed
                 }

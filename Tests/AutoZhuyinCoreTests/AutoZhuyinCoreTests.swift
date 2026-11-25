@@ -632,6 +632,18 @@ final class HeldWordTests: XCTestCase {
         }
     }
 
+    /// After Chinese only common one-syllable words are held ("up" = 因/音); "push" isn't.
+    func testNextWordDecidesAfterChinese() {
+        let cases = ["5k4ek7up m,4 ": "這個音樂", "5k4ek7up jo4 ": "這個因為", "5k4ek7up the ": "這個up the ",
+                     "5k4ek7up\n": "這個up", "ji3ul4push ": "我要push "]
+        for (keys, want) in cases {
+            XCTAssertEqual(type(keys, into: makeEngine()), want, keys)
+        }
+        let e = makeEngine()
+        XCTAssertEqual(type("5k4ek7up ", into: e), "")
+        XCTAssertEqual(e.markedText, "這個up ")
+    }
+
     func testHeldWordStaysComposing() {
         let e = makeEngine()
         XCTAssertEqual(type("up ", into: e), "")

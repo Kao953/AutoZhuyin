@@ -454,6 +454,16 @@ class HeldWordTests(unittest.TestCase):
         for keys, want in cases.items():
             self.assertEqual(type_keys(keys, make_engine()), want, keys)
 
+
+    def test_next_word_decides_after_chinese(self):
+        """After Chinese only common one-syllable words are held ("up" = 因/音); "push" isn't."""
+        cases = {"5k4ek7up m,4 ": "這個音樂", "5k4ek7up jo4 ": "這個因為", "5k4ek7up the ": "這個up the ",
+                 "5k4ek7up\n": "這個up", "ji3ul4push ": "我要push "}
+        for keys, want in cases.items():
+            self.assertEqual(type_keys(keys, make_engine()), want, keys)
+        e = make_engine()
+        self.assertEqual(type_keys("5k4ek7up ", e), "")
+        self.assertEqual(e.marked_text, "這個up ")
     def test_held_word_stays_composing(self):
         e = make_engine()
         self.assertEqual(type_keys("up ", e), "")

@@ -71,8 +71,12 @@ class CompositionEngine(
     // syllable (kept in `inserting` until its tone key, then spliced in).
     private var cursor: Int? = null
     private val inserting = mutableListOf<String>()
-    /** Index of a held space (see HOLD_MIN_SCORE), or null. */
+    /**
+     * Index of a held space (see HOLD_MIN_SCORE), or null, and where the held word starts
+     * (0 = the first word; after Chinese only the strict rule holds: "5k4ek7up m,4" = 這個音樂).
+     */
     private var held: Int? = null
+    private var heldStart = 0
     /** Last characters committed: context for "AI 選字" (not ported yet). */
     var recentText = ""
         private set
@@ -93,40 +97,46 @@ class CompositionEngine(
 
     val context: Mode? get() = if (now() - previousTime < contextWindow) previousMode else null
 
-    private data class CacheKey(val keys: List<String>, val finishing: Boolean, val ctx: Mode?, val held: Int?)
+    private data class CacheKey(val keys: List<String>, val finishing: Boolean, val ctx: Mode?, val held: Int?, val heldStart: Int)
 
     private fun segments(keys: List<String>, finishing: Boolean = false): List<Segment> {
         if (keys.isEmpty()) return emptyList()
         forcedMode?.let { return forcedPrefix + Segment(forcedStart, keys.size, it) }
         val ctx = context
         val h = held?.takeIf { it < keys.size && keys[it] == " " }
-        val key = CacheKey(keys.toList(), finishing, ctx, h)
+        val key = CacheKey(keys.toList(), finishing, ctx, h, heldStart)
         if (key != cacheKey) {
             cacheKey = key
-            cacheValue = if (h == null) classifier.segment(keys, finishing, ctx) else heldSegments(keys, h, finishing)
+            cacheValue = if (h == null) classifier.segment(keys, finishing, ctx) else heldSegments(keys, h, heldStart, finishing)
         }
         return cacheValue
     }
 
     /** The held word is Chinese if the words typed after it start with Chinese. */
-    private fun heldSegments(keys: List<String>, held: Int, finishing: Boolean): List<Segment> {
+    private fun heldSegments(keys: List<String>, held: Int, start: Int, finishing: Boolean): List<Segment> {
         val base = held + 1
+        val prefix = if (start > 0) classifier.segment(keys.subList(0, start), true, context).toMutableList()
+                     else mutableListOf()
         val rest = classifier.segment(keys.subList(base, keys.size), finishing, null)
             .map { Segment(it.start + base, it.end + base, it.mode) }
-        if (rest.isNotEmpty() && rest[0].mode == Mode.ZHUYIN && heldReadsAsChinese(keys, held, rest[0].end, finishing)) {
-            return listOf(Segment(0, rest[0].end, Mode.ZHUYIN)) + rest.drop(1)
+        if (rest.isNotEmpty() && rest[0].mode == Mode.ZHUYIN &&
+            heldReadsAsChinese(keys, held, start, rest[0].end, finishing)) {
+            // One Chinese run with the Chinese before it, so the phrase converts as a whole.
+            var from = start
+            if (prefix.isNotEmpty() && prefix.last().mode == Mode.ZHUYIN) from = prefix.removeAt(prefix.size - 1).start
+            return prefix + Segment(from, rest[0].end, Mode.ZHUYIN) + rest.drop(1)
         }
-        return listOf(Segment(0, base, Mode.LITERAL)) + rest
+        return prefix + Segment(start, base, Mode.LITERAL) + rest
     }
 
     /** Chinese all the way to `end` vs. the held English word followed by Chinese. */
-    private fun heldReadsAsChinese(keys: List<String>, held: Int, end: Int, finishing: Boolean): Boolean {
+    private fun heldReadsAsChinese(keys: List<String>, held: Int, start: Int, end: Int, finishing: Boolean): Boolean {
         val c = classifier
         val w = c.weights
-        val ctx = context
+        val ctx = if (start > 0) Mode.ZHUYIN else context   // after Chinese: Chinese goes on
         val isLast = end == keys.size
-        val zhWhole = c.segmentFeatures(keys.subList(0, end), isLast, false, finishing, ctx).first ?: return false
-        val word = c.segmentFeatures(keys.subList(0, held), false, false, true, ctx).second
+        val zhWhole = c.segmentFeatures(keys.subList(start, end), isLast, false, finishing, ctx).first ?: return false
+        val word = c.segmentFeatures(keys.subList(start, held), false, start > 0, true, if (start > 0) null else ctx).second
         val zhRest = c.segmentFeatures(keys.subList(held + 1, end), isLast, true, finishing, null).first
         if (word == null || zhRest == null) return true
         return Features.dot(w, zhWhole) >= Features.dot(w, word) + Features.dot(w, zhRest)
@@ -136,7 +146,7 @@ class CompositionEngine(
      * Whether keys + space also read as a common Chinese syllable (see HOLD_MIN_SCORE).
      * Any Dachen keys count, not only letters: "0" is ㄢ (安), "5j;" is ㄓㄨㄤ (裝).
      */
-    private fun isAmbiguousWord(keys: List<String>): Boolean {
+    private fun isAmbiguousWord(keys: List<String>, strict: Boolean = false): Boolean {
         if (!keys.all { Bopomofo.isZhuyinKey(it) }) return false
         val p = parse(keys + " ")
         if (p.pending != null || p.syllables.isEmpty() || p.strayTones != 0 || p.foreignKeys != 0) return false
@@ -146,7 +156,7 @@ class CompositionEngine(
             if (entries.isEmpty()) return false
             best.add(entries[0].score)
         }
-        if (context != Mode.LITERAL) return true   // first word: hold anything that reads as Zhuyin
+        if (!strict && context != Mode.LITERAL) return true   // first word: hold anything that reads as Zhuyin
         return best.size == 1 && best[0] >= HOLD_MIN_SCORE
     }
 
@@ -294,7 +304,12 @@ class CompositionEngine(
         trimFixed(pos)
         unforceBefore(pos)
         keys.addAll(pos, newKeys)
-        held?.let { if (it >= pos) held = it + newKeys.size }
+        held?.let {
+            if (it >= pos) {
+                held = it + newKeys.size
+                if (heldStart >= pos) heldStart += newKeys.size
+            }
+        }
         val c = pos + newKeys.size
         cursor = if (c >= keys.size) null else c
     }
@@ -328,6 +343,8 @@ class CompositionEngine(
         keys.subList(start, pos).clear()
         held?.let {
             if (it in start until pos) held = null else if (it >= pos) held = it - (pos - start)
+            if (held != null && heldStart >= pos) heldStart -= pos - start
+            else if (held != null && heldStart > start) held = null   // the held word was cut
         }
         cursor = start
         if (keys.isEmpty()) reset()
@@ -617,6 +634,15 @@ class CompositionEngine(
             if (segs.last().mode == Mode.LITERAL) {
                 if (held == null && segs.size == 1 && forcedMode == null && isAmbiguousWord(keys)) {
                     held = keys.size
+                    heldStart = 0
+                    keys.add(" ")
+                    return KeyResult.CONSUMED
+                }
+                val word = segs.last()
+                if (held == null && segs.size >= 2 && segs[segs.size - 2].mode == Mode.ZHUYIN && forcedMode == null &&
+                    isAmbiguousWord(keys.subList(word.start, word.end).toList(), strict = true)) {
+                    held = keys.size
+                    heldStart = word.start
                     keys.add(" ")
                     return KeyResult.CONSUMED
                 }

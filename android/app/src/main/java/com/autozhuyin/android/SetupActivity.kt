@@ -86,12 +86,12 @@ class SetupActivity : Activity() {
         body("開啟後，沒打聲調的音節會維持注音符號（jiap7 → ㄨㄛ們），打了聲調才變成中文字；一聲用空白。" +
             "還沒打聲調時發現打錯，直接補打正確的注音再打聲調就會蓋掉（ㄒㄧㄥ 再打 ㄩˊ → ㄒㄩㄥˊ 雄）。關閉時可以省略聲調（jiap7 → 我們）。")
         column.addView(Switch(this).apply {
-            text = "候選字顯示 emoji"
+            text = "候選字顯示符號與 emoji"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             isChecked = Models.showEmoji(this@SetupActivity)
             setOnCheckedChangeListener { _, on -> Models.setShowEmoji(this@SetupActivity, on) }
         }, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
-        body("「笑」「貓」這類候選字後面接著相關的 emoji（笑 → 🤣🥰😼），按 ↓ 選字時可以選。")
+        body("「星」「乘」「圓」這類候選字後面接著符號（星 → ★☆、乘 → ×），「笑」「貓」後面接著 emoji（笑 → 🤣🥰😼），按 ↓ 選字時可以選，每頁最多 2 個。")
 
         heading("按鍵")
         body(

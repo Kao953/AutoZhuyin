@@ -1,0 +1,47 @@
+# Symbols offered after a candidate that CLDR doesn't name (or names wrongly), used by
+# scripts/build-emoji.py: they come first, before CLDR's symbols and the emoji.
+# Format: <word>\t<symbol> <symbol> ...   (the word must be a phrase in lexicon.txt)
+星	★ ☆
+星星	★ ☆
+星號	★ ☆ ＊
+愛心	♥ ♡
+心	♥ ♡
+紅心	♥ ♡
+音符	♪ ♫ ♬
+音樂	♪ ♫ ♬
+勾	✓ ✔
+對	✓
+叉	✕ ✗
+打叉	✕ ✗
+錯	✕ ✗
+圈	○ ◎ ●
+圓圈	○ ◎ ●
+圓形	○ ●
+方塊	■ □ ◆ ◇
+方形	■ □
+三角	△ ▲ ▽ ▼
+三角形	△ ▲ ▽ ▼
+菱形	◆ ◇
+攝氏	℃
+溫度	℃ ℉
+華氏	℉
+度	° ℃
+男	♂
+女	♀
+男生	♂
+女生	♀
+電話	☎ ☏
+梅花	♣ ♧
+撲克	♠ ♥ ♦ ♣
+大於等於	≧ ≥
+小於等於	≦ ≤
+約	≈
+正負	±
+注意	※
+點	・ ‧
+手指	☞ ☜
+太陽	☀ ☼
+雲	☁
+雪	❄
+雨傘	☂
+笑臉	☺ ☻

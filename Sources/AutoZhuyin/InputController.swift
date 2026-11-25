@@ -55,7 +55,7 @@ enum Shared {
         set { UserDefaults.standard.set(newValue, forKey: "RequireTones") }
     }
 
-    /// 候選字顯示 emoji (on unless turned off).
+    /// 候選字顯示符號與 emoji (on unless turned off).
     static var showEmoji: Bool {
         get { UserDefaults.standard.object(forKey: "ShowEmoji") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "ShowEmoji") }
@@ -330,7 +330,7 @@ final class InputController: IMKInputController {
         menu.addItem(.separator())
         let tones = menu.addItem(withTitle: "要打聲調才出字", action: #selector(toggleRequireTones(_:)), keyEquivalent: "")
         tones.state = Shared.requireTones ? .on : .off
-        let emoji = menu.addItem(withTitle: "候選字顯示 emoji", action: #selector(toggleShowEmoji(_:)), keyEquivalent: "")
+        let emoji = menu.addItem(withTitle: "候選字顯示符號與 emoji", action: #selector(toggleShowEmoji(_:)), keyEquivalent: "")
         emoji.state = Shared.showEmoji ? .on : .off
         menu.addItem(withTitle: "編輯自訂詞…", action: #selector(editPhrases(_:)), keyEquivalent: "")
         menu.addItem(withTitle: "清除學習紀錄", action: #selector(clearLearned(_:)), keyEquivalent: "")

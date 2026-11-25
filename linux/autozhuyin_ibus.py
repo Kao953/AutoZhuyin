@@ -201,8 +201,8 @@ class AutoZhuyinEngine(IBus.Engine):
             state=IBus.PropState.CHECKED if ai.require_tones else IBus.PropState.UNCHECKED)
         self.emoji_prop = IBus.Property(
             key="emoji", prop_type=IBus.PropType.TOGGLE,
-            label=IBus.Text.new_from_string("候選字顯示 emoji"),
-            tooltip=IBus.Text.new_from_string("「笑」「貓」這類候選字後面接著相關的 emoji"),
+            label=IBus.Text.new_from_string("候選字顯示符號與 emoji"),
+            tooltip=IBus.Text.new_from_string("「星」「乘」這類候選字後面接著符號（★ ×），「笑」「貓」後面接著 emoji"),
             sensitive=True, visible=True,
             state=IBus.PropState.CHECKED if ai.show_emoji else IBus.PropState.UNCHECKED)
         self.clear_prop = IBus.Property(

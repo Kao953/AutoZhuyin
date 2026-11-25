@@ -22,7 +22,7 @@ def items(ai):
         {"text": ai.status_text(), "id": ID_STATUS, "enabled": False},
         {},
         {"text": "要打聲調才出字", "id": ID_REQUIRE_TONES, "checked": ai.require_tones},
-        {"text": "候選字顯示 emoji", "id": ID_SHOW_EMOJI, "checked": ai.show_emoji},
+        {"text": "候選字顯示符號與 emoji", "id": ID_SHOW_EMOJI, "checked": ai.show_emoji},
         {"text": "編輯自訂詞…", "id": ID_EDIT_PHRASES},
         {"text": "清除學習紀錄", "id": ID_CLEAR},
     ]

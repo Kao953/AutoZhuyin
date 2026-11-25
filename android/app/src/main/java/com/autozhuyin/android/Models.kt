@@ -150,7 +150,7 @@ object Models {
 
     private const val REQUIRE_TONES = "require_tones"
 
-    /** 候選字顯示 emoji (on unless turned off). */
+    /** 候選字顯示符號與 emoji (on unless turned off). */
     fun showEmoji(context: Context): Boolean = prefs(context).getBoolean(SHOW_EMOJI, true)
 
     fun setShowEmoji(context: Context, on: Boolean) = prefs(context).edit().putBoolean(SHOW_EMOJI, on).apply()

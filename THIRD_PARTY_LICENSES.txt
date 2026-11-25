@@ -82,13 +82,14 @@ matching wheel from PyPI when the system has no NumPy. Each copy keeps its licen
 files in its numpy-*.dist-info folder.
 
 
-6. Unicode CLDR — emoji 名稱與關鍵字 (emoji names and keywords)
-----------------------------------------------------------------
+6. Unicode CLDR — 符號與 emoji 名稱、關鍵字 (symbol and emoji names and keywords)
+--------------------------------------------------------------------------------
 https://cldr.unicode.org — https://github.com/unicode-org/cldr-json
 
-emoji.txt (the emoji offered after candidates) is made by scripts/build-emoji.py from
-the Traditional Chinese emoji annotations of CLDR (annotations/zh-Hant): only the words
-that are phrases in lexicon.txt are kept, with at most five emoji each.
+emoji.txt (the symbols and emoji offered after candidates) is made by
+scripts/build-emoji.py from the Traditional Chinese annotations of CLDR
+(annotations/zh-Hant) and a short list of our own (scripts/symbols-extra.txt): only the
+words that are phrases in lexicon.txt are kept, with at most five symbols or emoji each.
 
 UNICODE LICENSE V3
 

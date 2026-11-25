@@ -39,7 +39,7 @@ public final class CompositionEngine {
         get { converter.requireTones }
         set { converter.requireTones = newValue }
     }
-    /// 候選字顯示 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼).
+    /// 候選字顯示符號與 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼).
     public var showEmoji = true
 
     private func parse(_ keys: [Character]) -> ZhuyinParse { ZhuyinParser.parse(keys, strict: requireTones) }

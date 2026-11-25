@@ -82,7 +82,7 @@ class CompositionEngine(
      */
     private var held: Int? = null
     private var heldStart = 0
-    /** 候選字顯示 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼). */
+    /** 候選字顯示符號與 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼). */
     var showEmoji = true
     /** Last characters committed: context for "AI 選字" (not ported yet). */
     var recentText = ""

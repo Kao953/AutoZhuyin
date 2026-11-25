@@ -475,6 +475,10 @@ class InsertInMiddleTests(unittest.TestCase):
         self.assertGreater(len(lex.emoji), 1000)
         for word in ("笑", "貓", "生日", "讚"):
             self.assertTrue(1 <= len(lex.emoji[word]) <= 5, word)
+        self.assertEqual(lex.emoji["星"][:2], ["★", "☆"])        # scripts/symbols-extra.txt first
+        self.assertIn("×", lex.emoji["乘"])                      # CLDR symbols
+        self.assertIn("○", lex.emoji["圓"])
+        self.assertNotIn("一", lex.emoji)                        # no keycaps (1⃣)
 
     def test_cursor_stops_after_first_character(self):
         e = make_engine()

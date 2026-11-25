@@ -118,7 +118,7 @@ class CompositionEngine:
         # (0 = the first word; after Chinese only the strict rule holds: "5k4ek7up m,4" = 這個音樂).
         self.held = None
         self.held_start = 0
-        # 候選字顯示 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼).
+        # 候選字顯示符號與 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼).
         self.show_emoji = True
         self.reranker = None     # "AI 選字" (reranker.Reranker); None = lexicon only
         self._recent_text = ""   # last characters committed: context for the reranker

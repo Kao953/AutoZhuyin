@@ -403,6 +403,17 @@ class InsertInMiddleTests(unittest.TestCase):
         self.assertEqual(type_keys("\n", e), "我ul4好我")
         self.assertEqual(type_keys("ji3ul4cl3←←\t\n", make_engine()), "ji3要好")
 
+    def test_arrow_candidates(self):
+        """上下左右 offer their arrows right after them."""
+        for keys, char, arrow in [("g;4", "上", "↑"), ("vu84", "下", "↓"), ("yji3", "左", "←"), ("u.4", "右", "→")]:
+            e = make_engine()
+            type_keys(keys + "↓", e)
+            texts = [c[1] for c in e.candidates]
+            i = texts.index(char)
+            self.assertEqual(texts[i + 1], arrow, keys)
+            e.select_candidate(i + 1)
+            self.assertEqual(type_keys("\n", e), arrow)
+
     def test_cursor_stops_after_first_character(self):
         e = make_engine()
         type_keys("su3cl3←←←", e)

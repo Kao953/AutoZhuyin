@@ -108,6 +108,8 @@ public struct Converter {
     }
 
     /// Candidates for phrases ending at syllable index `end - 1`, longest phrases first.
+    static let arrows = ["上": "↑", "下": "↓", "左": "←", "右": "→"]
+
     public func candidates(_ syllables: [Syllable], endingAt end: Int) -> [Candidate] {
         guard end > 0, end <= syllables.count else { return [] }
         var out: [Candidate] = []
@@ -117,6 +119,11 @@ public struct Converter {
             for entry in entries(Array(syllables[range])) where !seen.contains(entry.phrase) {
                 seen.insert(entry.phrase)
                 out.append(Candidate(range: range, text: entry.phrase))
+                // 上下左右 also offer their arrows, right after them.
+                if len == 1, let arrow = Converter.arrows[entry.phrase], !seen.contains(arrow) {
+                    seen.insert(arrow)
+                    out.append(Candidate(range: range, text: arrow))
+                }
             }
         }
         // Last, the Bopomofo itself, for writing about it ("ㄤ", "ㄤˊ").

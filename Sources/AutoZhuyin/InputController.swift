@@ -149,17 +149,16 @@ final class InputController: IMKInputController {
             return true
         }
 
-        // Function keys (forward Delete, Home, End, Page Up/Down, Help/Insert, F1–F19) come as
-        // private-use characters U+F700–U+F8FF: not text. Send the composition, then let the
-        // app have the key.
-        if let s = event.characters?.unicodeScalars.first, (0xF700...0xF8FF).contains(s.value) {
-            commit(engine.commitAll(), to: client)
-            updateComposition(client)
-            return false
-        }
-
         guard let key = keyInput(for: event) else {
             engine.forgetLastCommit()
+            return false
+        }
+        // Other function keys (forward Delete, Home, End, Page Up/Down, Help/Insert, F1–F19;
+        // the arrows were mapped above) come as private-use characters U+F700–U+F8FF: not
+        // text. Send the composition, then let the app have the key.
+        if case .character(let c) = key, let s = c.unicodeScalars.first, (0xF700...0xF8FF).contains(s.value) {
+            commit(engine.commitAll(), to: client)
+            updateComposition(client)
             return false
         }
         // Tab right after a commit: retype it in the other mode, if it is still before the caret.

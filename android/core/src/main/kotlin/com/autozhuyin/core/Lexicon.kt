@@ -208,7 +208,12 @@ class Converter(val lexicon: Lexicon, val history: UserHistory? = null) {
         for (length in minOf(lexicon.maxPhraseLength, end) downTo 1) {
             val i = end - length
             for (e in entries(syllables.subList(i, end))) {
-                if (seen.add(e.phrase)) out.add(Piece(i, end, e.phrase))
+                if (seen.add(e.phrase)) {
+                    out.add(Piece(i, end, e.phrase))
+                    // 上下左右 also offer their arrows, right after them.
+                    val arrow = if (length == 1) ARROWS[e.phrase] else null
+                    if (arrow != null && seen.add(arrow)) out.add(Piece(i, end, arrow))
+                }
             }
         }
         // Last, the Bopomofo itself, for writing about it ("ㄤ", "ㄤˊ").
@@ -222,5 +227,6 @@ class Converter(val lexicon: Lexicon, val history: UserHistory? = null) {
     companion object {
         const val UNKNOWN_SCORE = -30.0
         const val TONELESS_PENALTY = -1.5
+        val ARROWS = mapOf("上" to "↑", "下" to "↓", "左" to "←", "右" to "→")
     }
 }

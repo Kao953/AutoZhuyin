@@ -518,6 +518,20 @@ final class CursorTests: XCTestCase {
         XCTAssertEqual(type("ji3ul4cl3←←\t\n", into: engine()), "ji3要好")
     }
 
+    /// 上下左右 offer their arrows right after them.
+    func testArrowCandidates() {
+        for (keys, char, arrow) in [("g;4", "上", "↑"), ("vu84", "下", "↓"), ("yji3", "左", "←"), ("u.4", "右", "→")] {
+            let e = engine()
+            XCTAssertEqual(type(keys + "↓", into: e), "")
+            let texts = e.candidates.map(\.text)
+            let i = try! XCTUnwrap(texts.firstIndex(of: char), keys)
+            XCTAssertEqual(texts[i + 1], arrow, keys)
+            XCTAssertEqual(texts.filter { $0 == arrow }.count, 1)
+            _ = e.selectCandidate(i + 1)
+            XCTAssertEqual(type("\n", into: e), arrow)
+        }
+    }
+
     func testCursorMovesAndClamps() {
         let e = engine()
         _ = type("rup wu0 wu0 fu4", into: e)        // 今天天氣

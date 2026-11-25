@@ -489,6 +489,19 @@ class InsertInMiddleTests {
         assertEquals("ji3要好", typeKeys("ji3ul4cl3←←\t\n", makeEngine()))
     }
 
+    /** 上下左右 offer their arrows right after them. */
+    @Test fun arrowCandidates() {
+        for ((keys, char, arrow) in listOf(Triple("g;4", "上", "↑"), Triple("vu84", "下", "↓"), Triple("yji3", "左", "←"), Triple("u.4", "右", "→"))) {
+            val e = makeEngine()
+            typeKeys(keys + "↓", e)
+            val texts = e.candidates.map { it.text }
+            val i = texts.indexOf(char)
+            assertEquals(arrow, texts[i + 1], keys)
+            e.selectCandidate(i + 1)
+            assertEquals(arrow, typeKeys("\n", e))
+        }
+    }
+
     @Test fun cursorStopsAfterFirstCharacter() {
         val e = makeEngine()
         typeKeys("su3cl3←←←", e)

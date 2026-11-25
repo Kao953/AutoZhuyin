@@ -11,6 +11,9 @@ def _is_bopomofo(s):
     return bool(s) and (0x3105 <= ord(s[0]) <= 0x312F or s[0] == "˙")
 
 
+
+ARROWS = {"上": "↑", "下": "↓", "左": "←", "右": "→"}   # offered after these candidates
+
 class Lexicon:
     """Maps readings ("ㄋㄧˇ-ㄏㄠˇ") to [(phrase, log10 score)], best first."""
 
@@ -223,6 +226,11 @@ class Converter:
                 if phrase not in seen:
                     seen.add(phrase)
                     out.append(((i, end), phrase))
+                    # 上下左右 also offer their arrows, right after them.
+                    arrow = ARROWS.get(phrase) if length == 1 else None
+                    if arrow and arrow not in seen:
+                        seen.add(arrow)
+                        out.append(((i, end), arrow))
         # Last, the Bopomofo itself, for writing about it ("ㄤ", "ㄤˊ").
         syl = syllables[end - 1]
         for text in dict.fromkeys((syl.toneless, syl.reading)):

@@ -231,8 +231,10 @@ class IBusEngineTests(unittest.TestCase):
 
     def test_picked_candidate_saved(self):
         press(self.e, "su3↓")
-        second = self.e.shown[1]
-        self.e.do_candidate_clicked(1, 1, 0)
+        # The second character (not a symbol or emoji, which are never learned as the default).
+        index = next(i for i, t in enumerate(self.e.shown) if i > 0 and "\u4e00" <= t[0] <= "\u9fff")
+        second = self.e.shown[index]
+        self.e.do_candidate_clicked(index, 1, 0)
         press(self.e, "\n")
         path = os.path.join(os.environ["XDG_CONFIG_HOME"], "autozhuyin", "user-history.json")
         with open(path, encoding="utf-8") as f:

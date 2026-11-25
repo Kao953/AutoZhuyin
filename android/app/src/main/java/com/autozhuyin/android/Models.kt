@@ -67,6 +67,7 @@ object Models {
         val start = System.nanoTime()
         val assets = context.assets
         val lexicon = assets.open("lexicon.txt").reader().use { Lexicon.from(it) }
+        lexicon.loadEmoji(assets.open("emoji.txt").reader().use { it.readText() })
         phrasesStamp = phrasesFile().lastModified()
         lexicon.setUserPhrases(readUserPhrases())
         val english = EnglishModel(
@@ -148,6 +149,13 @@ object Models {
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     private const val REQUIRE_TONES = "require_tones"
+
+    /** 候選字顯示 emoji (on unless turned off). */
+    fun showEmoji(context: Context): Boolean = prefs(context).getBoolean(SHOW_EMOJI, true)
+
+    fun setShowEmoji(context: Context, on: Boolean) = prefs(context).edit().putBoolean(SHOW_EMOJI, on).apply()
+
+    private const val SHOW_EMOJI = "show_emoji"
 
     /** 清除學習紀錄: Tab corrections and picked candidates. */
     fun clearLearned(context: Context) {

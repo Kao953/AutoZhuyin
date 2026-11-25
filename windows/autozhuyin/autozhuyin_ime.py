@@ -165,6 +165,7 @@ class AutoZhuyinTextService(TextService):
             engine = CompositionEngine(_shared_classifier())
             engine.reranker = _shared_ai().reranker
             engine.require_tones = _shared_ai().require_tones
+            engine.show_emoji = _shared_ai().show_emoji
             self._engine = engine
         return self._engine
 
@@ -177,6 +178,7 @@ class AutoZhuyinTextService(TextService):
         TextService.onActivate(self)
         if self._engine is not None:
             self._engine.require_tones = _shared_ai().require_tones   # changed in another app
+            self._engine.show_emoji = _shared_ai().show_emoji
         self.setSelKeys("123456789")
         self.customizeUI(candFontSize=16, candPerRow=1, candUseCursor=True)
         # Taskbar IME icon (Windows 8+) and language bar button; both open the settings menu.
@@ -231,6 +233,7 @@ class AutoZhuyinTextService(TextService):
             self.showMessage("英文" if self.engine.english_mode else "中英自動", 1)
             return
         message, action = menu.run(ai, commandId, _shared_classifier())
+        self.engine.show_emoji = ai.show_emoji
         if action == menu.EDIT_PHRASES:
             # Opens in the default editor (Notepad); saved changes load on the next activation.
             os.startfile(_phrases.ensure_exists())

@@ -76,6 +76,7 @@ def load_lexicon(data_dir, cache_dir=None, timings=None):
     state, hit = cached(cache_dir and os.path.join(cache_dir, "lexicon.pickle"), [path],
                         lambda: Lexicon.from_file(path).state())
     lexicon = Lexicon.from_state(state)
+    lexicon.load_emoji(os.path.join(data_dir, "emoji.txt"))
     if timings is not None:
         timings["lexicon"] = (time.perf_counter() - start, hit)
     return lexicon

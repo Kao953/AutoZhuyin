@@ -119,6 +119,7 @@ def shared_classifier():
     global _classifier, _phrases
     if _classifier is None:
         lexicon = Lexicon.from_file(os.path.join(_DATA, "lexicon.txt"))
+        lexicon.load_emoji(os.path.join(_DATA, "emoji.txt"))
         _phrases = UserPhrasesFile(_USER_PHRASES, lexicon)
         _phrases.reload_if_changed()
         english = EnglishModel.from_files(
@@ -198,6 +199,12 @@ class AutoZhuyinEngine(IBus.Engine):
             tooltip=IBus.Text.new_from_string("沒打聲調的音節維持注音；還沒打聲調時補打注音會蓋掉前面的"),
             sensitive=True, visible=True,
             state=IBus.PropState.CHECKED if ai.require_tones else IBus.PropState.UNCHECKED)
+        self.emoji_prop = IBus.Property(
+            key="emoji", prop_type=IBus.PropType.TOGGLE,
+            label=IBus.Text.new_from_string("候選字顯示 emoji"),
+            tooltip=IBus.Text.new_from_string("「笑」「貓」這類候選字後面接著相關的 emoji"),
+            sensitive=True, visible=True,
+            state=IBus.PropState.CHECKED if ai.show_emoji else IBus.PropState.UNCHECKED)
         self.clear_prop = IBus.Property(
             key="clear", prop_type=IBus.PropType.NORMAL,
             label=IBus.Text.new_from_string("清除學習紀錄"),
@@ -208,7 +215,8 @@ class AutoZhuyinEngine(IBus.Engine):
             label=IBus.Text.new_from_string(ai.large_menu_text()),
             tooltip=IBus.Text.new_from_string("高品質模式用的大型模型，選字更準，佔用較多記憶體"),
             sensitive=True, visible=True, state=IBus.PropState.UNCHECKED)
-        for prop in (self.large_prop, self.pause_prop, self.status_prop, self.tones_prop, self.phrases_prop,
+        for prop in (self.large_prop, self.pause_prop, self.status_prop, self.tones_prop, self.emoji_prop,
+                     self.phrases_prop,
                      self.clear_prop):
             sub.append(prop)
         self.ai_menu = IBus.Property(
@@ -225,6 +233,7 @@ class AutoZhuyinEngine(IBus.Engine):
     def do_process_key_event(self, keyval, keycode, state):
         self._setup()
         self.engine.require_tones = shared_ai().require_tones
+        self.engine.show_emoji = shared_ai().show_emoji
         released = bool(state & IBus.ModifierType.RELEASE_MASK)
 
         # Shift pressed and released alone: English mode (or flip the current word).
@@ -341,6 +350,8 @@ class AutoZhuyinEngine(IBus.Engine):
             ai.set_auto_pause(state == IBus.PropState.CHECKED)
         elif prop_name == "tones":
             ai.set_require_tones(state == IBus.PropState.CHECKED)
+        elif prop_name == "emoji":
+            ai.set_show_emoji(state == IBus.PropState.CHECKED)
         elif prop_name == "phrases":
             # A separate process, so the editor can be typed into with this engine.
             subprocess.Popen([sys.executable, os.path.join(HERE, "phrase_editor.py"), _USER_PHRASES,
@@ -359,6 +370,8 @@ class AutoZhuyinEngine(IBus.Engine):
         self.update_property(self.pause_prop)
         self.tones_prop.set_state(IBus.PropState.CHECKED if ai.require_tones else IBus.PropState.UNCHECKED)
         self.update_property(self.tones_prop)
+        self.emoji_prop.set_state(IBus.PropState.CHECKED if ai.show_emoji else IBus.PropState.UNCHECKED)
+        self.update_property(self.emoji_prop)
         self.status_prop.set_label(IBus.Text.new_from_string(ai.status_text()))
         self.update_property(self.status_prop)
         self.large_prop.set_label(IBus.Text.new_from_string(ai.large_menu_text()))

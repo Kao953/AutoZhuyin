@@ -33,6 +33,7 @@ class AI:
         self.auto_pause = bool(settings.get("ai_auto_pause", True))
         # 要打聲調才出字, on unless turned off (not an AI setting, but kept in the same settings.json).
         self.require_tones = bool(settings.get("require_tones", True))
+        self.show_emoji = bool(settings.get("show_emoji", True))   # 候選字顯示 emoji
         self.reranker = Reranker(mode if mode in MODES else STANDARD)
         self.reranker.system_state = lambda: self.monitor.state() if self.auto_pause else NORMAL
         self.error = None      # why the model cannot be used, if it cannot
@@ -56,7 +57,8 @@ class AI:
 
     def _save_settings(self):
         data = self._load_settings()
-        data.update(ai_mode=self.reranker.mode, ai_auto_pause=self.auto_pause, require_tones=self.require_tones)
+        data.update(ai_mode=self.reranker.mode, ai_auto_pause=self.auto_pause, require_tones=self.require_tones,
+                    show_emoji=self.show_emoji)
         try:
             os.makedirs(os.path.dirname(self.settings_path), exist_ok=True)
             with open(self.settings_path, "w", encoding="utf-8") as f:
@@ -81,6 +83,10 @@ class AI:
 
     def set_require_tones(self, on):
         self.require_tones = bool(on)
+        self._save_settings()
+
+    def set_show_emoji(self, on):
+        self.show_emoji = bool(on)
         self._save_settings()
 
     # --- model ---

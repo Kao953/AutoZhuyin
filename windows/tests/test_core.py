@@ -414,6 +414,45 @@ class InsertInMiddleTests(unittest.TestCase):
             e.select_candidate(i + 1)
             self.assertEqual(type_keys("\n", e), arrow)
 
+    def test_emoji_candidates(self):
+        """A candidate that names an emoji is followed by it (after 上's arrow); off with show_emoji."""
+        import tempfile
+        e = make_engine()
+        lexicon = e.classifier.lexicon
+        path = os.path.join(tempfile.mkdtemp(), "emoji.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("# comment\n笑\t🤣 🥰\n上\t👆\n")
+        lexicon.load_emoji(path)
+        try:
+            plain = type_keys("vul4\n", make_engine())
+            type_keys("vul4↓", e)
+            texts = [t for _, t in e.candidates]
+            i = texts.index("笑")
+            self.assertEqual(texts[i + 1:i + 3], ["🤣", "🥰"])
+            e.select_candidate(i + 1)
+            self.assertEqual(type_keys("\n", e), "🤣")
+            self.assertEqual(type_keys("vul4\n", e), plain)    # an emoji pick is not learned as the default
+            type_keys("g;4↓", e)
+            texts = [t for _, t in e.candidates]
+            j = texts.index("上")
+            self.assertEqual(texts[j + 1:j + 3], ["↑", "👆"])
+            type_keys("\x1b\x1b", e)
+            e.show_emoji = False
+            type_keys("vul4↓", e)
+            self.assertNotIn("🤣", [t for _, t in e.candidates])
+        finally:
+            lexicon.load_emoji(os.path.join(path, "missing"))
+        self.assertEqual(lexicon.emoji, {})
+
+    def test_emoji_data(self):
+        """Resources/emoji.txt (scripts/build-emoji.py) parses and has the common words."""
+        from autozhuyin.core.lexicon import Lexicon
+        lex = Lexicon()
+        lex.load_emoji(os.path.join(os.path.dirname(os.path.dirname(HERE)), "Resources", "emoji.txt"))
+        self.assertGreater(len(lex.emoji), 1000)
+        for word in ("笑", "貓", "生日", "讚"):
+            self.assertTrue(1 <= len(lex.emoji[word]) <= 5, word)
+
     def test_cursor_stops_after_first_character(self):
         e = make_engine()
         type_keys("su3cl3←←←", e)

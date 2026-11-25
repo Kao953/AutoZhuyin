@@ -502,6 +502,33 @@ class InsertInMiddleTests {
         }
     }
 
+    /** A candidate that names an emoji is followed by it (after 上's arrow); off with showEmoji. */
+    @Test fun emojiCandidates() {
+        val e = makeEngine()
+        val lexicon = e.classifier.lexicon
+        lexicon.loadEmoji("# comment\n笑\t🤣 🥰\n上\t👆\n")
+        try {
+            val plain = typeKeys("vul4\n", makeEngine())
+            typeKeys("vul4↓", e)
+            var texts = e.candidates.map { it.text }
+            val i = texts.indexOf("笑")
+            assertEquals(listOf("🤣", "🥰"), texts.subList(i + 1, i + 3))
+            e.selectCandidate(i + 1)
+            assertEquals("🤣", typeKeys("\n", e))
+            assertEquals(plain, typeKeys("vul4\n", e))    // an emoji pick is not learned as the default
+            typeKeys("g;4↓", e)
+            texts = e.candidates.map { it.text }
+            val j = texts.indexOf("上")
+            assertEquals(listOf("↑", "👆"), texts.subList(j + 1, j + 3))
+            typeKeys("\u001b\u001b", e)
+            e.showEmoji = false
+            typeKeys("vul4↓", e)
+            assertTrue(e.candidates.none { it.text == "🤣" })
+        } finally {
+            lexicon.loadEmoji("")
+        }
+    }
+
     @Test fun cursorStopsAfterFirstCharacter() {
         val e = makeEngine()
         typeKeys("su3cl3←←←", e)

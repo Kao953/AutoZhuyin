@@ -34,6 +34,20 @@ class Lexicon {
     @Volatile private var readings: Map<String, Pair<String, Double>>? = null
     var maxPhraseLength = 1
         private set
+    /** Emoji offered after a candidate ("笑" → 🤣🥰😼), from emoji.txt (loadEmoji). */
+    @Volatile var emoji: Map<String, List<String>> = emptyMap()
+        private set
+
+    /** Reads emoji.txt: "<word>\t<emoji> <emoji> ..." per line, "#" comments. */
+    fun loadEmoji(text: String) {
+        val table = HashMap<String, List<String>>()
+        for (line in text.lineSequence()) {
+            if (line.isEmpty() || line.startsWith("#")) continue
+            val tab = line.indexOf('\t')
+            if (tab > 0) table[line.substring(0, tab)] = line.substring(tab + 1).split(" ")
+        }
+        emoji = table
+    }
 
     fun load(reader: Reader) {
         reader.buffered().useLines { lines -> load(lines) }

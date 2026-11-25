@@ -82,6 +82,8 @@ class CompositionEngine(
      */
     private var held: Int? = null
     private var heldStart = 0
+    /** 候選字顯示 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼). */
+    var showEmoji = true
     /** Last characters committed: context for "AI 選字" (not ported yet). */
     var recentText = ""
         private set
@@ -772,11 +774,28 @@ class CompositionEngine(
         val segs = segments
         val seg = segs[segIndex]
         val syl = convertible(seg, segIndex < segs.size - 1).first
-        candidates = converter.candidates(syl, local)
+        candidates = withEmoji(converter.candidates(syl, local))
         candidateSegmentStart = seg.start
         candidateIndex = 0
         symbolTable = false
         punctTable = false
+    }
+
+    /** The emoji a candidate names go right after it (see showEmoji). */
+    private fun withEmoji(list: List<Piece>): List<Piece> {
+        val table = classifier.lexicon.emoji
+        if (!showEmoji || table.isEmpty()) return list
+        val out = ArrayList<Piece>()
+        val seen = list.mapTo(HashSet()) { it.text }
+        var i = 0
+        while (i < list.size) {
+            val c = list[i++]
+            out.add(c)
+            // 上's arrow stays right after it; the emoji come next.
+            if (i < list.size && list[i].text == Converter.ARROWS[c.text]) out.add(list[i++])
+            for (e in table[c.text].orEmpty()) if (seen.add(e)) out.add(Piece(c.start, c.end, e))
+        }
+        return out
     }
 
     private fun openSymbolTable() {

@@ -20,7 +20,7 @@ cp "$BIN" "$APP/Contents/MacOS/AutoZhuyin"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 # Localized names of the input method and its modes (System Settings, input menu).
 cp -R Resources/*.lproj "$APP/Contents/Resources/"
-cp Resources/lexicon.txt Resources/english-common.txt Resources/classifier-weights.json "$APP/Contents/Resources/"
+cp Resources/lexicon.txt Resources/english-common.txt Resources/classifier-weights.json Resources/emoji.txt "$APP/Contents/Resources/"
 cp THIRD_PARTY_LICENSES.txt "$APP/Contents/Resources/"
 # "AI 選字" language model (CKIP gpt2-tiny-chinese, GPL-3.0), fetched and converted once.
 [ -s build/lm/lm.bin ] || scripts/fetch-lm.sh >/dev/null

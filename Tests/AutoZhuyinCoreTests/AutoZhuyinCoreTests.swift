@@ -532,6 +532,30 @@ final class CursorTests: XCTestCase {
         }
     }
 
+    /// A candidate that names an emoji is followed by it (after 上's arrow); off with showEmoji.
+    func testEmojiCandidates() {
+        sharedLexicon.loadEmoji("# comment\n笑\t🤣 🥰\n上\t👆\n")
+        defer { sharedLexicon.loadEmoji("") }
+        let e = engine()
+        let plain = type("vul4\n", into: engine())
+        XCTAssertEqual(type("vul4↓", into: e), "")
+        var texts = e.candidates.map(\.text)
+        let i = try! XCTUnwrap(texts.firstIndex(of: "笑"))
+        XCTAssertEqual(Array(texts[(i + 1)...(i + 2)]), ["🤣", "🥰"])
+        _ = e.selectCandidate(i + 1)
+        XCTAssertEqual(type("\n", into: e), "🤣")
+        XCTAssertEqual(type("vul4\n", into: e), plain)        // an emoji pick is not learned as the default
+        XCTAssertEqual(type("g;4↓", into: e), "")
+        texts = e.candidates.map(\.text)
+        let j = try! XCTUnwrap(texts.firstIndex(of: "上"))
+        XCTAssertEqual(Array(texts[(j + 1)...(j + 2)]), ["↑", "👆"])
+        _ = e.handle(.escape)
+        _ = e.handle(.escape)
+        e.showEmoji = false
+        XCTAssertEqual(type("vul4↓", into: e), "")
+        XCTAssertFalse(e.candidates.contains { $0.text == "🤣" })
+    }
+
     func testCursorMovesAndClamps() {
         let e = engine()
         _ = type("rup wu0 wu0 fu4", into: e)        // 今天天氣

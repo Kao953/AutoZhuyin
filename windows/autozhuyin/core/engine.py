@@ -9,7 +9,7 @@ import time
 from . import bopomofo
 from .classifier import LITERAL, ZHUYIN
 from .features import dot
-from .lexicon import Converter
+from .lexicon import ARROWS, Converter
 
 BACKSPACE, ENTER, ESCAPE, TAB = "<backspace>", "<enter>", "<escape>", "<tab>"
 UP, DOWN, LEFT, RIGHT = "<up>", "<down>", "<left>", "<right>"
@@ -116,6 +116,8 @@ class CompositionEngine:
         # (0 = the first word; after Chinese only the strict rule holds: "5k4ek7up m,4" = 這個音樂).
         self.held = None
         self.held_start = 0
+        # 候選字顯示 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼).
+        self.show_emoji = True
         self.reranker = None     # "AI 選字" (reranker.Reranker); None = lexicon only
         self._recent_text = ""   # last characters committed: context for the reranker
         # The last commit by space, until the next key: Tab right after it retypes the same
@@ -796,11 +798,32 @@ class CompositionEngine:
         segs = self.segments
         seg = segs[seg_index]
         syl = self._convertible(seg, seg_index < len(segs) - 1)[0]
-        self.candidates = self.converter.candidates(syl, local)
+        self.candidates = self._with_emoji(self.converter.candidates(syl, local))
         self._candidate_segment_start = seg[0]
         self.candidate_index = 0
         self.symbol_table = False
         self.punct_table = False
+
+    def _with_emoji(self, candidates):
+        """The emoji a candidate names go right after it (see show_emoji)."""
+        table = self.classifier.lexicon.emoji
+        if not self.show_emoji or not table:
+            return candidates
+        out, seen = [], {text for _, text in candidates}
+        i = 0
+        while i < len(candidates):
+            rng, text = candidates[i]
+            out.append((rng, text))
+            i += 1
+            # 上's arrow stays right after it; the emoji come next.
+            if i < len(candidates) and candidates[i][1] == ARROWS.get(text):
+                out.append(candidates[i])
+                i += 1
+            for e in table.get(text, ()):
+                if e not in seen:
+                    seen.add(e)
+                    out.append((rng, e))
+        return out
 
     def _open_symbol_table(self):
         self.candidates = [((0, 0), s) for s in SYMBOL_TABLE]

@@ -39,6 +39,8 @@ public final class CompositionEngine {
         get { converter.requireTones }
         set { converter.requireTones = newValue }
     }
+    /// 候選字顯示 emoji: a candidate that names an emoji is followed by it ("笑" → 🤣🥰😼).
+    public var showEmoji = true
 
     private func parse(_ keys: [Character]) -> ZhuyinParse { ZhuyinParser.parse(keys, strict: requireTones) }
 
@@ -831,11 +833,32 @@ public final class CompositionEngine {
         let segs = segments
         let seg = segs[stop.segIndex]
         let syl = convertibleSyllables(seg, final: stop.segIndex < segs.count - 1).syllables
-        candidates = converter.candidates(syl, endingAt: stop.local)
+        candidates = withEmoji(converter.candidates(syl, endingAt: stop.local))
         candidateSegmentStart = seg.range.lowerBound
         candidateIndex = 0
         isSymbolTable = false
         isPunctuationTable = false
+    }
+
+    /// The emoji a candidate names go right after it (see `showEmoji`).
+    private func withEmoji(_ list: [Candidate]) -> [Candidate] {
+        let table = classifier.lexicon.emoji
+        guard showEmoji, !table.isEmpty else { return list }
+        var out: [Candidate] = []
+        var seen = Set(list.map(\.text))
+        var i = 0
+        while i < list.count {
+            let c = list[i]
+            out.append(c)
+            i += 1
+            // 上's arrow stays right after it; the emoji come next.
+            if i < list.count, list[i].text == Converter.arrows[c.text] { out.append(list[i]); i += 1 }
+            for e in table[c.text] ?? [] where !seen.contains(e) {
+                seen.insert(e)
+                out.append(Candidate(range: c.range, text: e))
+            }
+        }
+        return out
     }
 
     /// Picks a candidate. Returns the text to commit when it comes from the symbol table.

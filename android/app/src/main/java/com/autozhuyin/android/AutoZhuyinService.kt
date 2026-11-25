@@ -213,6 +213,7 @@ class AutoZhuyinService : InputMethodService(), InputManager.InputDeviceListener
         val e = engine ?: return false   // still loading: type as usual
         if (passthrough || currentInputConnection == null || event.isSystem) return false
         e.converter.requireTones = Models.requireTones(this)   // read each key, so the switch applies at once
+        e.showEmoji = Models.showEmoji(this)
 
         // Shift pressed and released alone: English mode (or flip the current word).
         if (isShift(keyCode)) {

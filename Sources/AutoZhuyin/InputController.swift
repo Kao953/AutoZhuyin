@@ -23,6 +23,10 @@ enum Shared {
            let data = try? Data(contentsOf: url) {
             lexicon.load(data: data)
         }
+        if let url = bundle.url(forResource: "emoji", withExtension: "txt"),
+           let text = try? String(contentsOf: url, encoding: .utf8) {
+            lexicon.loadEmoji(text)
+        }
         loadUserPhrases(into: lexicon)
         let english = EnglishModel(commonWordsURL: bundle.url(forResource: "english-common", withExtension: "txt"),
                                    dictionaryURL: bundle.url(forResource: "english-dict", withExtension: "txt"),
@@ -49,6 +53,12 @@ enum Shared {
     static var requireTones: Bool {
         get { UserDefaults.standard.object(forKey: "RequireTones") as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: "RequireTones") }
+    }
+
+    /// 候選字顯示 emoji (on unless turned off).
+    static var showEmoji: Bool {
+        get { UserDefaults.standard.object(forKey: "ShowEmoji") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "ShowEmoji") }
     }
 
     /// Optional user phrases: ~/Library/Application Support/AutoZhuyin/user-phrases.txt
@@ -128,6 +138,7 @@ final class InputController: IMKInputController {
         guard event.type == .keyDown else { return false }
         shiftTap.keyPressed()
         engine.requireTones = Shared.requireTones   // read each key, so the menu applies to every app at once
+        engine.showEmoji = Shared.showEmoji
 
         // Ctrl + ; ' , . / → full-width ；、，。？
         if event.modifierFlags.intersection([.command, .control, .option]) == .control,
@@ -319,6 +330,8 @@ final class InputController: IMKInputController {
         menu.addItem(.separator())
         let tones = menu.addItem(withTitle: "要打聲調才出字", action: #selector(toggleRequireTones(_:)), keyEquivalent: "")
         tones.state = Shared.requireTones ? .on : .off
+        let emoji = menu.addItem(withTitle: "候選字顯示 emoji", action: #selector(toggleShowEmoji(_:)), keyEquivalent: "")
+        emoji.state = Shared.showEmoji ? .on : .off
         menu.addItem(withTitle: "編輯自訂詞…", action: #selector(editPhrases(_:)), keyEquivalent: "")
         menu.addItem(withTitle: "清除學習紀錄", action: #selector(clearLearned(_:)), keyEquivalent: "")
         return menu
@@ -339,6 +352,7 @@ final class InputController: IMKInputController {
     @objc private func removeLargeModel(_ sender: Any?) { LargeModel.remove() }
 
     @objc private func toggleRequireTones(_ sender: Any?) { Shared.requireTones.toggle() }
+    @objc private func toggleShowEmoji(_ sender: Any?) { Shared.showEmoji.toggle() }
 
     @objc private func editPhrases(_ sender: Any?) { PhraseEditor.open() }
 

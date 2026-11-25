@@ -98,6 +98,7 @@ class Session:
         e = self.engine
         if self.ai:
             e.require_tones = self.ai.require_tones   # the menu may have changed it in another app
+            e.show_emoji = self.ai.show_emoji
         if op == "menu":
             return self._menu()
         if op == "command":

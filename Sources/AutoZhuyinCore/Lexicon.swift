@@ -23,8 +23,21 @@ public final class Lexicon {
     private var tonelessIndex: [String: [LexiconEntry]]?
     private let lock = NSLock()
     public private(set) var maxPhraseLength = 1
+    /// Emoji offered after a candidate ("笑" → 🤣🥰😼), from emoji.txt (`loadEmoji`).
+    public private(set) var emoji: [String: [String]] = [:]
 
     public init() {}
+
+    /// Reads emoji.txt: "<word>\t<emoji> <emoji> ..." per line, "#" comments.
+    public func loadEmoji(_ text: String) {
+        var table: [String: [String]] = [:]
+        for line in text.split(separator: "\n") where !line.hasPrefix("#") {
+            let parts = line.split(separator: "\t", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            table[String(parts[0])] = parts[1].split(separator: " ").map(String.init)
+        }
+        emoji = table
+    }
 
     public convenience init(contentsOf url: URL) throws {
         self.init()

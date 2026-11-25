@@ -76,7 +76,8 @@ val copyImeAssets by tasks.registering(Copy::class) {
         }
     }
     from(dataDir) {
-        include("lexicon.txt", "english-common.txt", "english-dict.txt", "english-bigram.json", "classifier-weights.json")
+        include("lexicon.txt", "english-common.txt", "english-dict.txt", "english-bigram.json", "classifier-weights.json",
+            "emoji.txt")
     }
     from(repoRoot) {
         include("THIRD_PARTY_LICENSES.txt", "LICENSE")

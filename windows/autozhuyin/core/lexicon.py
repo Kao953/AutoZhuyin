@@ -25,6 +25,21 @@ class Lexicon:
         self._toneless = None      # built on first use (only untoned syllables need it)
         self._readings = None      # phrase -> (reading, score), for reading_of
         self.max_phrase_length = 1
+        self.emoji = {}            # word -> [emoji] offered after it as candidates (load_emoji)
+
+    def load_emoji(self, path):
+        """Reads emoji.txt ("<word>\\t<emoji> <emoji> ..."); a missing file means none."""
+        table = {}
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.rstrip("\n")
+                    if line and not line.startswith("#") and "\t" in line:
+                        word, emoji = line.split("\t", 1)
+                        table[word] = emoji.split(" ")
+        except OSError:
+            pass
+        self.emoji = table
 
     @classmethod
     def from_file(cls, path):
